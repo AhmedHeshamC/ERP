@@ -1,0 +1,134 @@
+# Node modules and dependencies
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+.pnpm-store/
+.yarn/
+.yarn-integrity
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs and runtime files
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and testing
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+junit.xml
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+.cache/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Environment-specific files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker files
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Documentation and markdown
+README.md
+CHANGELOG.md
+LICENSE.md
+docs/
+*.md
+
+# Config files that shouldn't be in container
+.eslintrc*
+.prettierrc*
+jest.config.*
+tsconfig.json
+nest-cli.json
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# Database files (keep schema, ignore data)
+*.sqlite
+*.sqlite3
+*.db
+
+# Backup files
+*.bak
+*.backup
+
+# Security and keys
+*.pem
+*.key
+*.crt
+*.p12
+id_rsa*
+id_ed25519*
+
+# Local development
+.local/
+
+# Package manager lock files (keep these for reproducible builds)
+# pnpm-lock.yaml
+# package-lock.json
+# yarn.lock

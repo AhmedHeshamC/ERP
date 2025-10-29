@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": false,
+    "tsConfigPath": "tsconfig.build.json"
+  },
+  "projects": {
+    "shared": {
+      "type": "library",
+      "root": "src/shared",
+      "entryFile": "index",
+      "sourceRoot": "src/shared",
+      "compilerOptions": {
+        "tsConfigPath": "src/shared/tsconfig.lib.json"
+      }
+    }
+  }
+}

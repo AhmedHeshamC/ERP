@@ -1,0 +1,487 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication Models
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  avatar    String?
+  isActive  Boolean  @default(true)
+  isEmailVerified Boolean @default(false)
+
+  // Audit fields
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLoginAt DateTime?
+
+  // Relationships
+  userRoles UserRole[]
+  sessions  Session[]
+  createdAccounts Account[] @relation("CreatedBy")
+  updatedAccounts Account[] @relation("UpdatedBy")
+  createdTransactions Transaction[] @relation("CreatedTransaction")
+  updatedTransactions Transaction[] @relation("UpdatedTransaction")
+  createdCustomers Customer[] @relation("CustomerCreatedBy")
+  updatedCustomers Customer[] @relation("CustomerUpdatedBy")
+  createdSuppliers Supplier[] @relation("SupplierCreatedBy")
+  updatedSuppliers Supplier[] @relation("SupplierUpdatedBy")
+  createdSalesOrders SalesOrder[] @relation("SalesOrderCreatedBy")
+  updatedSalesOrders SalesOrder[] @relation("SalesOrderUpdatedBy")
+  createdPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  updatedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderUpdatedBy")
+
+  @@map("users")
+}
+
+model Role {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  isActive    Boolean @default(true)
+
+  // Audit fields
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  userRoles UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+
+  // Audit fields
+  assignedAt DateTime @default(now())
+  assignedBy String?
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  name        String @unique
+  resource    String
+  action      String
+  description String?
+
+  // Audit fields
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  // Audit fields
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  // Relationships
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  isActive     Boolean  @default(true)
+
+  // Time fields
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  lastAccessAt DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Accounting Models
+model Account {
+  id           String     @id @default(cuid())
+  code         String     @unique
+  name         String
+  description  String?
+  type         AccountType
+  category     String?
+  parentId     String?
+  isActive     Boolean    @default(true)
+  openingBalance Decimal  @default(0)
+  currentBalance Decimal  @default(0)
+
+  // Audit fields
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  createdBy    String?
+  updatedBy    String?
+
+  // Relationships
+  parent       Account?   @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children     Account[]  @relation("AccountHierarchy")
+  createdByUser User?     @relation("CreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?     @relation("UpdatedBy", fields: [updatedBy], references: [id])
+  createdTransactions Transaction[] @relation("AccountCreated")
+  updatedTransactions Transaction[] @relation("AccountUpdated")
+  transactionEntries TransactionEntry[]
+
+  @@map("accounts")
+}
+
+model Transaction {
+  id                String           @id @default(cuid())
+  number            String           @unique
+  date              DateTime
+  description       String?
+  type              TransactionType
+  status            TransactionStatus @default(DRAFT)
+  totalAmount       Decimal           @default(0)
+  referenceNumber   String?
+  attachmentUrl     String?
+
+  // Audit fields
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  createdBy         String?
+  updatedBy         String?
+
+  // Relationships
+  createdByUser     User?            @relation("CreatedTransaction", fields: [createdBy], references: [id], map: "transactions_createdBy_fkey")
+  updatedByUser     User?            @relation("UpdatedTransaction", fields: [updatedBy], references: [id], map: "transactions_updatedBy_fkey")
+  createdAccount    Account?         @relation("AccountCreated", fields: [createdBy], references: [id], map: "transactions_created_account_fkey")
+  updatedAccount    Account?         @relation("AccountUpdated", fields: [updatedBy], references: [id], map: "transactions_updated_account_fkey")
+  entries           TransactionEntry[]
+
+  @@map("transactions")
+}
+
+model TransactionEntry {
+  id             String      @id @default(cuid())
+  transactionId  String
+  accountId      String
+  description    String?
+  debitAmount    Decimal     @default(0)
+  creditAmount   Decimal     @default(0)
+
+  // Audit fields
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Relationships
+  transaction    Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  account        Account     @relation(fields: [accountId], references: [id])
+
+  @@map("transaction_entries")
+}
+
+// Inventory Models
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  isActive    Boolean   @default(true)
+
+  // Audit fields
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relationships
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                String    @id @default(cuid())
+  sku               String    @unique
+  name              String
+  description       String?
+  categoryId        String
+  unitPrice         Decimal
+  costPrice         Decimal?
+  reorderLevel      Int       @default(0)
+  reorderQuantity   Int       @default(0)
+  isActive          Boolean   @default(true)
+  imageUrl          String?
+  notes             String?
+
+  // Audit fields
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relationships
+  category          Category  @relation(fields: [categoryId], references: [id])
+  stockMovements    StockMovement[]
+  salesOrderItems   SalesOrderItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@map("products")
+}
+
+model StockMovement {
+  id            String           @id @default(cuid())
+  productId     String
+  movementType  StockMovementType
+  quantity      Int
+  unitCost      Decimal?
+  referenceType String?
+  referenceId   String?
+  notes         String?
+
+  // Audit fields
+  createdAt     DateTime         @default(now())
+
+  // Relationships
+  product       Product          @relation(fields: [productId], references: [id])
+
+  @@map("stock_movements")
+}
+
+// Sales Models
+model Customer {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  email       String?   @unique
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  postalCode  String?
+  taxNumber   String?
+  isActive    Boolean   @default(true)
+  creditLimit Decimal   @default(0)
+
+  // Audit fields
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  createdByUser User?    @relation("CustomerCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("CustomerUpdatedBy", fields: [updatedBy], references: [id])
+  salesOrders  SalesOrder[]
+
+  @@map("customers")
+}
+
+model SalesOrder {
+  id            String         @id @default(cuid())
+  number        String         @unique
+  customerId    String
+  orderDate     DateTime       @default(now())
+  deliveryDate  DateTime?
+  status        SalesOrderStatus @default(DRAFT)
+  subtotal      Decimal        @default(0)
+  taxAmount     Decimal        @default(0)
+  totalAmount   Decimal        @default(0)
+  notes         String?
+  attachmentUrl String?
+
+  // Audit fields
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  // Relationships
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  createdByUser User?          @relation("SalesOrderCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?          @relation("SalesOrderUpdatedBy", fields: [updatedBy], references: [id])
+  items         SalesOrderItem[]
+
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id              String      @id @default(cuid())
+  salesOrderId    String
+  productId       String
+  quantity        Int
+  unitPrice       Decimal
+  discountPercent Decimal     @default(0)
+  subtotal        Decimal
+  taxAmount       Decimal     @default(0)
+  total           Decimal
+
+  // Audit fields
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relationships
+  salesOrder      SalesOrder  @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product         Product     @relation(fields: [productId], references: [id])
+
+  @@map("sales_order_items")
+}
+
+// Purchasing Models
+model Supplier {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  email       String?   @unique
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  postalCode  String?
+  taxNumber   String?
+  isActive    Boolean   @default(true)
+  paymentTerms String?
+
+  // Audit fields
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  createdByUser User?    @relation("SupplierCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("SupplierUpdatedBy", fields: [updatedBy], references: [id])
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id            String           @id @default(cuid())
+  number        String           @unique
+  supplierId    String
+  orderDate     DateTime         @default(now())
+  expectedDate  DateTime?
+  status        PurchaseOrderStatus @default(DRAFT)
+  subtotal      Decimal          @default(0)
+  taxAmount     Decimal          @default(0)
+  totalAmount   Decimal          @default(0)
+  notes         String?
+  attachmentUrl String?
+
+  // Audit fields
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  // Relationships
+  supplier      Supplier         @relation(fields: [supplierId], references: [id])
+  createdByUser User?            @relation("PurchaseOrderCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?            @relation("PurchaseOrderUpdatedBy", fields: [updatedBy], references: [id])
+  items         PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String         @id @default(cuid())
+  purchaseOrderId  String
+  productId        String
+  quantity         Int
+  unitCost         Decimal
+  subtotal         Decimal
+  taxAmount        Decimal        @default(0)
+  total            Decimal
+
+  // Audit fields
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  // Relationships
+  purchaseOrder    PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product          Product        @relation(fields: [productId], references: [id])
+
+  @@map("purchase_order_items")
+}
+
+// Enums
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum TransactionType {
+  JOURNAL
+  PAYMENT
+  RECEIPT
+  SALES_INVOICE
+  PURCHASE_INVOICE
+}
+
+enum TransactionStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+  RETURN
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  INVOICED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  INVOICED
+  CANCELLED
+}

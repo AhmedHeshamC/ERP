@@ -1,0 +1,381 @@
+# Enterprise-grade .gitignore for ERP System
+# Comprehensive ignore rules for Node.js, TypeScript, Docker, and development environments
+
+## Environment and Configuration
+.env
+.env.*
+!.env.example
+.envrc
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+## Dependencies and Package Management
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+.yarn/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+## Build Outputs and Distribution
+dist/
+build/
+.next/
+.nuxt/
+.vuepress/dist/
+out/
+.output/
+.vercel/
+.netlify/
+
+## Testing and Coverage
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+junit.xml
+test-results.xml
+
+## Runtime and Temporary Files
+*.pid
+*.seed
+*.pid.lock
+.lock-wscript
+.pnp.*
+.pnp.js
+
+## Logs and Debug Files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+debug.log*
+.error.log*
+
+## Cache and Optimizer Files
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tgz
+*.tar.gz
+
+## IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+## Operating System Files
+.DS_Store?
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+## Database and Data Files
+*.sqlite
+*.sqlite3
+*.db
+data/
+*.mdb
+*.accdb
+
+## Security and Keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.csr
+id_rsa*
+id_ed25519*
+id_dsa*
+id_ecdsa*
+*.gpg
+*.asc
+*.sig
+*.pub
+*.enc
+
+## Docker and Container Files
+.dockerignore.bak
+docker-compose.override.yml
+docker-compose.prod.yml
+docker-compose.staging.yml
+
+## Backup and Archive Files
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.~*
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+## Documentation Generated
+docs/build/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+## Local Development
+.local/
+local/
+dev/
+sandbox/
+
+## Monitoring and Analytics
+.sentry-cli
+*.prof
+
+## Package Manager Lock Files (Keep for reproducible builds)
+# Uncomment only if you want to ignore them
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+## TypeScript
+*.tsbuildinfo
+
+## ESLint
+.eslintcache
+
+## Prettier
+.prettierignore
+.prettierrc.* (keep .prettierrc)
+
+## Husky
+.husky/_/ (keep the hooks directory itself)
+
+## Lint-staged
+.lintstagedrc
+
+## Commitizen
+.czrc
+
+## Conventional Commits
+.cz-config.js
+
+## Semantic Release
+.releaserc.json
+.release-it.json
+
+## Dependency Cruiser
+.dependency-cruiser.js
+.dependency-cruiser.json
+
+## Jupyter Notebooks
+.ipynb_checkpoints
+
+## Python (if used)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+## Ruby (if used)
+.bundle/
+.ruby-sass/
+.sass-cache/
+.rvmrc
+.ruby-gemset
+
+## Java (if used
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+## Gradle (if used)
+.gradle/
+**/build/
+!src/**/build/
+
+## Maven (if used)
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+## Grunt / Gulp
+.grunt
+grunt.log
+.gulplog
+
+## Bower
+.bower-cache/
+.bower-registry/
+.bower-tmp/
+
+## Composer (PHP)
+composer.phar
+/vendor/
+
+## Rust
+/target/
+
+## Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+## Kubernetes
+*.kubeconfig
+
+## Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+## Ansible
+*.retry
+
+## Packer
+packer_cache/
+
+## Vagrant
+.vagrant/
+
+## Local configuration overrides
+config/local.json
+config/local.js
+config/local.ts
+config/development.json
+config/development.js
+config/development.ts
+
+## Database migrations (keep schema, ignore data)
+# migrations/data/ (comment this if you want to version data)
+
+## Generated documentation
+typedoc/
+api-docs/
+
+## Storybook
+storybook-static/
+
+## Custom project-specific files
+uploads/
+temp/
+workspace/
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+
+## Performance profiling
+*.prof
+*.cpuprofile
+*.heapprofile
+
+## Security scanning
+.snyk
+.npmrc
+.yarnrc
+
+## CI/CD specific
+.github/workflows/*/secrets/
+.github/workflows/*/config/
+
+## Local development tools
+.local/
+.cache/
+.temp/
+
+## Browser extensions and development
+chrome-extension/
+firefox-extension/
+
+## Generated certificates and keys
+certificates/
+ssl/
+certs/
+
+## Large binary files (consider Git LFS)
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+## User-specific files
+*.user
+*.userosscache
+*.sln.docstates
+
+## Local database files
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-journal
