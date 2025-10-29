@@ -11,15 +11,7 @@ import { SecurityService } from '../shared/security/security.service';
 // Mock console methods to reduce noise in tests
 global.console = {
   ...console,
-  // Uncomment to disable specific console methods during tests
-  // log: jest.fn(),
-  // warn: jest.fn(),
-  // info: jest.fn(),
-  // debug: jest.fn(),
 };
-
-// Global test timeout
-jest.setTimeout(30000);
 
 // Global mock for environment variables
 process.env.NODE_ENV = 'test';
@@ -29,39 +21,21 @@ process.env.COOKIE_SECRET = 'test-cookie-secret-key-for-testing';
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_erp_db';
 process.env.REDIS_URL = 'redis://localhost:6379';
 
-// Mock global dependencies that might be used across tests
-jest.mock('bcrypt', () => ({
-  hash: jest.fn(),
-  compare: jest.fn(),
-  genSalt: jest.fn(),
-}));
-
-jest.mock('speakeasy', () => ({
-  totp: jest.fn(() => ({ base32: 'test-secret' })),
-  verify: jest.fn(() => true),
-}));
-
-jest.mock('qrcode', () => ({
-  toDataURL: jest.fn(() => 'data:image/png;base64,test-image'),
-}));
-
 // Setup global test utilities
-beforeAll(async () => {
+before(async () => {
   // Global test setup can go here
 });
 
-afterAll(async () => {
+after(async () => {
   // Global test cleanup can go here
 });
 
 beforeEach(() => {
-  // Reset all mocks before each test
-  jest.clearAllMocks();
+  // Reset all mocks before each test - using sinon if needed
 });
 
 afterEach(() => {
-  // Cleanup after each test
-  jest.restoreAllMocks();
+  // Cleanup after each test - using sinon if needed
 });
 
 // Helper function to create test modules
@@ -100,32 +74,33 @@ export const createTestingModule = async (imports: any[] = [], providers: any[] 
         provide: PrismaService,
         useValue: {
           user: {
-            findUnique: jest.fn(),
-            create: jest.fn(),
-            update: jest.fn(),
-            findMany: jest.fn(),
-            delete: jest.fn(),
+            findUnique: () => {},
+            create: () => {},
+            update: () => {},
+            findMany: () => [],
+            delete: () => {},
           },
           session: {
-            findUnique: jest.fn(),
-            create: jest.fn(),
-            update: jest.fn(),
-            findMany: jest.fn(),
-            delete: jest.fn(),
+            findUnique: () => {},
+            create: () => {},
+            update: () => {},
+            findMany: () => [],
+            delete: () => {},
           },
-          $transaction: jest.fn(),
+          $transaction: () => {},
         },
       },
       {
         provide: SecurityService,
         useValue: {
-          generateSecureToken: jest.fn(() => 'test-token'),
-          isPasswordStrong: jest.fn(() => ({ isValid: true, errors: [] })),
-          sanitizeInput: jest.fn((input) => input),
-          validateInput: jest.fn(() => true),
-          logSecurityEvent: jest.fn(),
-          getCookieOptions: jest.fn(() => ({})),
-          getHelmetConfig: jest.fn(() => ({})),
+          generateSecureToken: () => 'test-token',
+          isPasswordStrong: () => ({ isValid: true, errors: [] }),
+          sanitizeInput: (input: any) => input,
+          validateInput: () => true,
+          logSecurityEvent: () => {},
+          getCookieOptions: () => ({}),
+          getHelmetConfig: () => ({}),
+          getBcryptRounds: () => 12,
         },
       },
       ...providers,
@@ -161,50 +136,3 @@ export const createMockSession = (overrides: any = {}) => ({
   ...overrides,
 });
 
-// Custom matchers for better assertions
-expect.extend({
-  toBeValidUser(received) {
-    const requiredFields = ['id', 'email', 'firstName', 'lastName', 'username'];
-    const hasAllFields = requiredFields.every(field => received && received[field] !== undefined);
-
-    if (hasAllFields) {
-      return {
-        message: () => `expected ${received} to be a valid user`,
-        pass: true,
-      };
-    } else {
-      return {
-        message: () => `expected ${received} to be a valid user but missing required fields`,
-        pass: false,
-      };
-    }
-  },
-
-  toBeValidAuthResponse(received) {
-    const hasUser = received && received.user !== undefined;
-    const hasAccessToken = received && received.accessToken !== undefined;
-    const hasRefreshToken = received && received.refreshToken !== undefined;
-
-    if (hasUser && hasAccessToken && hasRefreshToken) {
-      return {
-        message: () => `expected ${received} to be a valid auth response`,
-        pass: true,
-      };
-    } else {
-      return {
-        message: () => `expected ${received} to be a valid auth response but missing required fields`,
-        pass: false,
-      };
-    }
-  },
-});
-
-// Declare the custom matchers for TypeScript
-declare global {
-  namespace jest {
-    interface Matchers<R> {
-      toBeValidUser(): R;
-      toBeValidAuthResponse(): R;
-    }
-  }
-}

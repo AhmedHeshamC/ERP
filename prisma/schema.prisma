@@ -20,6 +20,7 @@ model User {
   lastName  String
   phone     String?
   avatar    String?
+  role      String   @default("USER")
   isActive  Boolean  @default(true)
   isEmailVerified Boolean @default(false)
 

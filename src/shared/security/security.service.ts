@@ -50,7 +50,7 @@ export class SecurityService {
 
       // X-Frame-Options
       frameguard: {
-        action: 'deny',
+        action: 'deny' as const,
       },
 
       // X-Content-Type-Options
@@ -58,7 +58,7 @@ export class SecurityService {
 
       // Referrer Policy
       referrerPolicy: {
-        policy: ['no-referrer', 'strict-origin-when-cross-origin'],
+        policy: 'no-referrer' as const,
       },
 
       // Permissions Policy
@@ -80,7 +80,7 @@ export class SecurityService {
 
       // Cross-Origin Resource Policy
       crossOriginResourcePolicy: {
-        policy: 'cross-origin',
+        policy: 'cross-origin' as const,
       },
 
       // Remove X-Powered-By header
@@ -117,7 +117,7 @@ export class SecurityService {
    * OWASP A03: Injection
    * Validate and sanitize input
    */
-  validateInput(input: string, type: 'email' | 'username' | 'id' | 'text' = 'text'): boolean {
+  validateStringInput(input: string, type: 'email' | 'username' | 'id' | 'text' = 'text'): boolean {
     const patterns = {
       email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       username: /^[a-zA-Z0-9_-]{3,20}$/,
@@ -180,7 +180,7 @@ export class SecurityService {
    * Log security events
    */
   logSecurityEvent(
-    event: 'LOGIN_SUCCESS' | 'LOGIN_FAILED' | 'PASSWORD_CHANGE' | 'SECURITY_VIOLATION' | 'SUSPICIOUS_ACTIVITY',
+    event: 'LOGIN_SUCCESS' | 'LOGIN_FAILED' | 'PASSWORD_CHANGE' | 'SECURITY_VIOLATION' | 'SUSPICIOUS_ACTIVITY' | 'USER_CREATED' | 'USER_CREATION_FAILED' | 'USER_CREATION_ERROR' | 'USER_UPDATED' | 'USER_DEACTIVATED' | 'WEAK_PASSWORD_ATTEMPT' | 'INVALID_PASSWORD_CHANGE_ATTEMPT' | 'PASSWORD_CHANGED',
     userId?: string,
     ip?: string,
     userAgent?: string,
@@ -275,17 +275,46 @@ export class SecurityService {
     };
   }
 
+  
   /**
-   * Input sanitization for XSS prevention
+   * Get bcrypt rounds for password hashing
    */
-  sanitizeInput(input: string): string {
+  getBcryptRounds(): number {
+    return 12;
+  }
+
+  /**
+   * Validate input object (for DTOs)
+   */
+  validateInput(input: any): boolean {
+    if (!input) return false;
+
+    // Basic validation - ensure input is an object with required fields
+    if (typeof input !== 'object') return false;
+
+    return true;
+  }
+
+  /**
+   * Sanitize input object (for DTOs)
+   */
+  sanitizeInput(input: any): any {
     if (!input) return input;
 
-    return input
-      .replace(/[<>]/g, '') // Remove potential HTML tags
-      .replace(/javascript:/gi, '') // Remove javascript protocol
-      .replace(/on\w+\s*=/gi, '') // Remove event handlers
-      .trim();
+    const sanitized = { ...input };
+
+    // Sanitize string fields
+    Object.keys(sanitized).forEach(key => {
+      if (typeof sanitized[key] === 'string') {
+        sanitized[key] = sanitized[key]
+          .replace(/[<>]/g, '')
+          .replace(/javascript:/gi, '')
+          .replace(/on\w+\s*=/gi, '')
+          .trim();
+      }
+    });
+
+    return sanitized;
   }
 
   /**

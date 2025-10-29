@@ -65,7 +65,7 @@ async function bootstrap() {
   );
 
   // Global Filters
-  app.useGlobalFilters(new ErrorsFilter());
+  app.useGlobalFilters(new ErrorsFilter(configService));
 
   // API Prefix
   const apiPrefix = configService.get<string>('API_PREFIX', 'api/v1');

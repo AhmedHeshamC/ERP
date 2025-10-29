@@ -24,62 +24,62 @@ export class UserService {
    * Follows OWASP A01, A03, A07 security requirements
    */
   async createUser(createUserDto: CreateUserDto): Promise<UserResponse> {
-    try {
-      // Input validation and sanitization (OWASP A03)
-      if (!this.securityService.validateInput(createUserDto)) {
-        await this.securityService.logSecurityEvent(
-          'USER_CREATION_FAILED',
-          undefined,
-          'system',
-          'user-service',
-          { reason: 'Invalid input data', email: createUserDto.email },
-        );
-        throw new BadRequestException('Invalid input data');
-      }
+    // Input validation and sanitization (OWASP A03)
+    if (!this.securityService.validateInput(createUserDto)) {
+      await this.securityService.logSecurityEvent(
+        'USER_CREATION_FAILED',
+        undefined,
+        'system',
+        'user-service',
+        { reason: 'Invalid input data', email: createUserDto.email },
+      );
+      throw new BadRequestException('Invalid input data');
+    }
 
-      const sanitizedData = this.securityService.sanitizeInput(createUserDto) as CreateUserDto;
+    const sanitizedData = this.securityService.sanitizeInput(createUserDto) as CreateUserDto;
 
-      // Password strength validation (OWASP A07)
-      const passwordValidation = this.securityService.isPasswordStrong(sanitizedData.password);
-      if (!passwordValidation.isValid) {
-        await this.securityService.logSecurityEvent(
-          'WEAK_PASSWORD_ATTEMPT',
-          undefined,
-          'system',
-          'user-service',
-          {
-            email: sanitizedData.email,
-            reason: 'Password too weak',
-            errors: passwordValidation.errors
-          },
-        );
-        throw new BadRequestException(
-          `Password does not meet security requirements: ${passwordValidation.errors.join(', ')}`,
-        );
-      }
-
-      // Check for existing user (OWASP A01)
-      const existingUser = await this.prismaService.user.findFirst({
-        where: {
-          OR: [
-            { email: sanitizedData.email },
-            { username: sanitizedData.username },
-          ],
+    // Password strength validation (OWASP A07)
+    const passwordValidation = this.securityService.isPasswordStrong(sanitizedData.password);
+    if (!passwordValidation.isValid) {
+      await this.securityService.logSecurityEvent(
+        'WEAK_PASSWORD_ATTEMPT',
+        undefined,
+        'system',
+        'user-service',
+        {
+          email: sanitizedData.email,
+          reason: 'Password too weak',
+          errors: passwordValidation.errors
         },
-      });
+      );
+      throw new BadRequestException(
+        `Password does not meet security requirements: ${passwordValidation.errors.join(', ')}`,
+      );
+    }
 
-      if (existingUser) {
-        const conflictReason = existingUser.email === sanitizedData.email ? 'email already exists' : 'username already exists';
-        await this.securityService.logSecurityEvent(
-          'USER_CREATION_FAILED',
-          undefined,
-          'system',
-          'user-service',
-          { reason: 'User already exists', email: sanitizedData.email, conflictReason },
-        );
-        throw new ConflictException(`User with ${conflictReason}`);
-      }
+    // Check for existing user (OWASP A01) - Moved outside try-catch to let ConflictException propagate
+    const existingUser = await this.prismaService.user.findFirst({
+      where: {
+        OR: [
+          { email: sanitizedData.email },
+          { username: sanitizedData.username },
+        ],
+      },
+    });
 
+    if (existingUser) {
+      const conflictReason = existingUser.email === sanitizedData.email ? 'email already exists' : 'username already exists';
+      await this.securityService.logSecurityEvent(
+        'USER_CREATION_FAILED',
+        undefined,
+        'system',
+        'user-service',
+        { reason: 'User already exists', email: sanitizedData.email, conflictReason },
+      );
+      throw new ConflictException(`User with ${conflictReason}`);
+    }
+
+    try {
       // Hash password securely
       const saltRounds = this.securityService.getBcryptRounds() || 12;
       const hashedPassword = await bcrypt.hash(sanitizedData.password, saltRounds);
