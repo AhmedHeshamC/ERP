@@ -26,6 +26,12 @@ model User {
   updatedAt DateTime @updatedAt
   lastLoginAt DateTime?
 
+  // Relationships
+  calculatedPerformances SupplierPerformance[] @relation("PerformanceCalculator")
+  reviewedPerformances SupplierPerformance[] @relation("PerformanceReviewer")
+  resolvedEvents SupplierPerformanceEvent[] @relation("EventResolver")
+  conductedReviews SupplierPerformanceReview[] @relation("PerformanceReviewBy")
+
   @@map("users")
   @@index([email])
   @@index([isActive])
@@ -373,6 +379,9 @@ model Supplier {
 
   // Relationships
   purchaseOrders PurchaseOrder[]
+  performanceRecords SupplierPerformance[]
+  performanceEvents SupplierPerformanceEvent[] @relation("SupplierEvents")
+  performanceReviews SupplierPerformanceReview[] @relation("SupplierReviews")
 
   @@map("suppliers")
   @@index([isActive])
@@ -405,6 +414,7 @@ model PurchaseOrder {
   supplier      Supplier @relation(fields: [supplierId], references: [id])
   orderItems    PurchaseOrderItem[]
   receipts      PurchaseReceipt[]
+  performanceEvents SupplierPerformanceEvent[] @relation("OrderEvents")
 
   @@map("purchase_orders")
   @@index([supplierId])
@@ -429,6 +439,7 @@ model PurchaseOrderItem {
 
   // Relationships
   order         PurchaseOrder @relation(fields: [orderId], references: [id])
+  performanceEvents SupplierPerformanceEvent[] @relation("ItemEvents")
 
   @@map("purchase_order_items")
   @@index([orderId])
@@ -555,4 +566,151 @@ model KpiDefinition {
   @@map("kpi_definitions")
   @@index([category])
   @@index([isActive])
+}
+
+// Supplier Performance Tracking Module - Supplier Performance Metrics
+model SupplierPerformance {
+  id                    String   @id @default(cuid())
+  supplierId            String
+  period                String   // YYYY-MM format for monthly tracking
+  qualityScore          Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
+  deliveryScore         Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
+  costScore             Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
+  serviceScore          Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
+  overallScore          Decimal  @db.Decimal(5, 2) @default(0)    // Weighted average
+  tier                  String   @default("STANDARD")             // PREFERRED, APPROVED, STANDARD, CONDITIONAL, UNDER_REVIEW
+  onTimeDeliveryRate    Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
+  qualityDefectRate     Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
+  orderAccuracyRate     Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
+  priceVarianceRate     Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
+  responseTimeHours     Decimal  @db.Decimal(8, 2) @default(0)    // Average response time
+  totalOrders           Int      @default(0)
+  totalValue            Decimal  @db.Decimal(15, 2) @default(0)
+  lateDeliveries        Int      @default(0)
+  qualityIssues         Int      @default(0)
+  returnsCount          Int      @default(0)
+  notes                 String?
+
+  // Audit fields
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  calculatedBy          String?  // User who calculated the metrics
+  reviewedBy            String?  // Manager who reviewed the metrics
+  reviewedAt            DateTime?
+
+  // Relationships
+  supplier              Supplier @relation(fields: [supplierId], references: [id])
+  calculator            User?    @relation("PerformanceCalculator", fields: [calculatedBy], references: [id])
+  reviewer              User?    @relation("PerformanceReviewer", fields: [reviewedBy], references: [id])
+  scorecardDetails      SupplierScorecardDetail[]
+
+  @@map("supplier_performance")
+  @@index([supplierId])
+  @@index([period])
+  @@index([tier])
+  @@index([overallScore])
+  @@index([createdAt])
+  @@unique([supplierId, period]) // One record per supplier per period
+}
+
+// Supplier Performance Scorecard Details
+model SupplierScorecardDetail {
+  id                    String   @id @default(cuid())
+  performanceId         String
+  metricType            String   // QUALITY, DELIVERY, COST, SERVICE, RESPONSIVENESS
+  metricName            String   // e.g., "On-Time Delivery", "Product Quality"
+  metricValue           Decimal  @db.Decimal(15, 2)
+  targetValue           Decimal  @db.Decimal(15, 2)
+  performanceLevel      String   // EXCELLENT, GOOD, AVERAGE, POOR, CRITICAL
+  weight                Decimal  @db.Decimal(5, 2) @default(1)    // Weight in overall calculation
+  score                 Decimal  @db.Decimal(5, 2) @default(0)    // Calculated score
+  trend                 String?  // IMPROVING, STABLE, DECLINING
+  comments              String?
+  supportingData        Json?    // Additional data for calculations
+
+  // Audit fields
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relationships
+  performance           SupplierPerformance @relation(fields: [performanceId], references: [id])
+
+  @@map("supplier_scorecard_details")
+  @@index([performanceId])
+  @@index([metricType])
+  @@index([performanceLevel])
+}
+
+// Supplier Performance Events
+model SupplierPerformanceEvent {
+  id                    String   @id @default(cuid())
+  supplierId            String
+  eventType             String   // LATE_DELIVERY, QUALITY_ISSUE, PRICE_INCREASE, SERVICE_COMPLAINT, EXCELLENT_SERVICE
+  eventDate             DateTime
+  severity              String   // LOW, MEDIUM, HIGH, CRITICAL
+  description           String
+  impact                String?  // Description of business impact
+  resolved              Boolean  @default(false)
+  resolvedAt            DateTime?
+  resolvedBy            String?
+  resolutionNotes       String?
+  orderId               String?  // Related purchase order if applicable
+  itemId                String?  // Related order item if applicable
+  costImpact            Decimal  @db.Decimal(15, 2) @default(0)  // Financial impact
+  preventiveAction      String?  // Actions taken to prevent recurrence
+
+  // Audit fields
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdBy             String?
+  updatedBy             String?
+
+  // Relationships
+  supplier              Supplier @relation("SupplierEvents", fields: [supplierId], references: [id])
+  resolver              User?    @relation("EventResolver", fields: [resolvedBy], references: [id])
+  relatedOrder          PurchaseOrder? @relation("OrderEvents", fields: [orderId], references: [id])
+  relatedItem           PurchaseOrderItem? @relation("ItemEvents", fields: [itemId], references: [id])
+
+  @@map("supplier_performance_events")
+  @@index([supplierId])
+  @@index([eventType])
+  @@index([severity])
+  @@index([eventDate])
+  @@index([resolved])
+}
+
+// Supplier Performance Reviews
+model SupplierPerformanceReview {
+  id                    String   @id @default(cuid())
+  supplierId            String
+  reviewPeriod          String   // YYYY-MM format
+  reviewType            String   // MONTHLY, QUARTERLY, ANNUAL, ADHOC
+  overallRating         String   // EXCELLENT, GOOD, SATISFACTORY, NEEDS_IMPROVEMENT, UNSATISFACTORY
+  strengths             String[] // Array of supplier strengths
+  weaknesses            String[] // Array of supplier weaknesses
+  recommendations       String[] // Array of improvement recommendations
+  actionItems           Json?    // Action items with responsibilities and deadlines
+  nextReviewDate        DateTime?
+  status                String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  reviewedBy            String   // Manager who conducted the review
+  reviewDate            DateTime @default(now())
+  reviewComments        String?
+  followUpRequired      Boolean  @default(false)
+  followUpDate          DateTime?
+
+  // Audit fields
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  completedAt           DateTime?
+
+  // Relationships
+  supplier              Supplier @relation("SupplierReviews", fields: [supplierId], references: [id])
+  reviewer              User @relation("PerformanceReviewBy", fields: [reviewedBy], references: [id])
+
+  @@map("supplier_performance_reviews")
+  @@index([supplierId])
+  @@index([reviewPeriod])
+  @@index([reviewType])
+  @@index([overallRating])
+  @@index([status])
 }
