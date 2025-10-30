@@ -31,6 +31,8 @@ model User {
   reviewedPerformances SupplierPerformance[] @relation("PerformanceReviewer")
   resolvedEvents SupplierPerformanceEvent[] @relation("EventResolver")
   conductedReviews SupplierPerformanceReview[] @relation("PerformanceReviewBy")
+  scheduledReportDistributions ScheduledReportDistributionList[]
+  userSubscriptions ReportSubscription[] @relation("UserSubscriptions")
 
   @@map("users")
   @@index([email])
@@ -491,6 +493,7 @@ model ReportDefinition {
 
   // Relationships
   generatedReports GeneratedReport[]
+  scheduledReports ScheduledReport[]
 
   @@map("report_definitions")
   @@index([type])
@@ -517,12 +520,159 @@ model GeneratedReport {
 
   // Relationships
   reportDefinition ReportDefinition @relation(fields: [reportDefinitionId], references: [id])
+  scheduledExecution ScheduledReportExecution? @relation("ScheduledExecution", fields: [id], references: [id])
 
   @@map("generated_reports")
   @@index([reportDefinitionId])
   @@index([status])
   @@index([generatedAt])
   @@index([expiresAt])
+}
+
+// Reports Module - Scheduled Report Definitions
+model ScheduledReport {
+  id                String   @id @default(cuid())
+  reportDefinitionId String
+  name              String
+  description       String?
+  schedule          String   // Cron expression (e.g., "0 9 * * 1" for every Monday 9 AM)
+  scheduleType      String   // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY, CUSTOM
+  isActive          Boolean  @default(true)
+  nextRunAt         DateTime @default(now())
+  lastRunAt         DateTime?
+  parameters        Json?    // Default parameters for the scheduled report
+  format            String   @default("PDF") // PDF, EXCEL, CSV, JSON
+  timezone          String   @default("UTC")
+
+  // Notification settings
+  sendEmail         Boolean  @default(true)
+  emailRecipients   String[] // Array of email addresses
+  emailSubject      String?
+  emailBody         String?
+
+  // Retry settings
+  maxRetries        Int      @default(3)
+  retryInterval     Int      @default(300) // seconds
+
+  // Archive settings
+  archiveAfter      Int?     // Number of days before archiving
+  deleteAfter       Int?     // Number of days before deletion
+
+  // Audit fields
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String?
+  updatedBy         String?
+
+  // Relationships
+  reportDefinition  ReportDefinition @relation(fields: [reportDefinitionId], references: [id])
+  scheduledExecutions ScheduledReportExecution[]
+  distributionLists ScheduledReportDistributionList[]
+
+  @@map("scheduled_reports")
+  @@index([reportDefinitionId])
+  @@index([scheduleType])
+  @@index([isActive])
+  @@index([nextRunAt])
+  @@index([lastRunAt])
+}
+
+// Reports Module - Scheduled Report Execution History
+model ScheduledReportExecution {
+  id              String   @id @default(cuid())
+  scheduledReportId String
+  scheduledAt     DateTime // When it was scheduled to run
+  startedAt       DateTime // When execution started
+  completedAt     DateTime? // When execution completed
+  status          String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+  generatedReportId String? @unique // Link to the generated report if successful
+  errorMessage    String?  // Error message if failed
+  retryCount      Int      @default(0)
+  deliveryStatus  String   @default("PENDING") // PENDING, SENDING, DELIVERED, FAILED
+  deliveryAttempts Int     @default(0)
+  deliveryLog     Json?    // Delivery log with timestamps
+
+  // Execution metrics
+  executionTimeMs Int?    // Execution time in milliseconds
+
+  // Audit fields
+  createdAt       DateTime @default(now())
+  createdBy       String?
+
+  // Relationships
+  scheduledReport ScheduledReport @relation(fields: [scheduledReportId], references: [id])
+  generatedReport GeneratedReport? @relation("ScheduledExecution")
+
+  @@map("scheduled_report_executions")
+  @@index([scheduledReportId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([deliveryStatus])
+}
+
+// Reports Module - Scheduled Report Distribution Lists
+model ScheduledReportDistributionList {
+  id                String   @id @default(cuid())
+  scheduledReportId String
+  userId            String   // User who should receive the report
+  email             String   // User's email address
+  isActive          Boolean  @default(true)
+  subscribedAt      DateTime @default(now())
+  unsubscribedAt    DateTime?
+
+  // Personalization
+  customSubject     String?
+  customBody        String?
+  deliveryMethod    String   @default("EMAIL") // EMAIL, DOWNLOAD, BOTH
+  preferredFormat   String?  // PDF, EXCEL, CSV, JSON
+
+  // Audit fields
+  createdAt         DateTime @default(now())
+  createdBy         String?
+
+  // Relationships
+  scheduledReport   ScheduledReport @relation(fields: [scheduledReportId], references: [id])
+  user              User @relation(fields: [userId], references: [id])
+
+  @@map("scheduled_report_distribution_lists")
+  @@index([scheduledReportId])
+  @@index([userId])
+  @@index([isActive])
+  @@unique([scheduledReportId, userId]) // One subscription per user per report
+}
+
+// Reports Module - Report Subscriptions
+model ReportSubscription {
+  id                String   @id @default(cuid())
+  userId            String
+  reportDefinitionId String
+  subscriptionType  String   // IMMEDIATE, DAILY_DIGEST, WEEKLY_DIGEST, CUSTOM
+  isActive          Boolean  @default(true)
+  preferences       Json?    // User preferences for notifications
+
+  // Subscription criteria
+  criteria          Json?    // Dynamic filtering criteria
+
+  // Notification settings
+  sendEmail         Boolean  @default(true)
+  sendInApp         Boolean  @default(true)
+  quietHours        Json?    // Quiet hours configuration
+
+  // Audit fields
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String?
+  updatedBy         String?
+
+  // Relationships
+  user              User @relation("UserSubscriptions", fields: [userId], references: [id])
+
+  @@map("report_subscriptions")
+  @@index([userId])
+  @@index([reportDefinitionId])
+  @@index([subscriptionType])
+  @@index([isActive])
+  @@unique([userId, reportDefinitionId]) // One subscription per user per report definition
 }
 
 // Reports Module - Dashboard Definitions
