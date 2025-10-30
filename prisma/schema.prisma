@@ -44,3 +44,156 @@ model Session {
 
   @@map("sessions")
 }
+
+model ProductCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  level       Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Reverse relationship
+  products    Product[]
+
+  @@map("product_categories")
+  @@index([parentId])
+  @@index([isActive])
+  @@index([level])
+}
+
+model Product {
+  id                String    @id @default(cuid())
+  name              String
+  sku               String
+  description       String?
+  price             Decimal   @db.Decimal(10, 2)
+  categoryId        String
+  status            String    @default("ACTIVE")
+  stockQuantity     Int       @default(0)
+  lowStockThreshold Int       @default(10)
+  isActive          Boolean   @default(true)
+
+  // Audit fields
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Relationships
+  category          ProductCategory @relation(fields: [categoryId], references: [id])
+  stockMovements    StockMovement[] @relation("ProductStockMovements")
+
+  @@map("products")
+  @@unique([sku])
+  @@index([categoryId])
+  @@index([status])
+  @@index([isActive])
+  @@index([stockQuantity])
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  productId  String
+  type        String    @default("IN")
+  quantity    Int
+  reason      String
+  reference   String?
+  createdById  String?
+
+  createdAt   DateTime @default(now())
+
+  // Relationships
+  product     Product @relation("ProductStockMovements", fields: [productId], references: [id])
+
+  @@map("stock_movements")
+  @@index([productId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Accounting Module - Chart of Accounts
+model ChartOfAccounts {
+  id          String   @id @default(cuid())
+  code        String   @unique(map: "chart_of_accounts_code_unique")
+  name        String
+  description String?
+  type        String   // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  category    String   // Current Assets, Fixed Assets, etc.
+  subcategory String?
+  parentId    String?
+  level       Int      @default(0)
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false) // System accounts cannot be deleted
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  parent      ChartOfAccounts? @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children    ChartOfAccounts[] @relation("AccountHierarchy")
+  journalEntries JournalEntry[]
+
+  @@map("chart_of_accounts")
+    @@index([type])
+  @@index([category])
+  @@index([parentId])
+  @@index([isActive])
+}
+
+// Accounting Module - Transactions
+model Transaction {
+  id          String   @id @default(cuid())
+  reference   String   @unique(map: "transactions_reference_unique")
+  description String
+  date        DateTime @default(now())
+  amount      Decimal  @db.Decimal(15, 2)
+  currency    String   @default("USD")
+  status      String   @default("PENDING") // PENDING, POSTED, CANCELLED
+  type        String   // SALE, PURCHASE, PAYMENT, RECEIPT, ADJUSTMENT, etc.
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+  postedBy    String?
+  postedAt    DateTime?
+
+  // Relationships
+  entries     JournalEntry[]
+
+  @@map("transactions")
+    @@index([date])
+  @@index([status])
+  @@index([type])
+  @@index([createdBy])
+}
+
+// Accounting Module - Journal Entries (Double-entry bookkeeping)
+model JournalEntry {
+  id            String   @id @default(cuid())
+  transactionId String
+  accountId     String
+  description   String?
+  debitAmount   Decimal  @db.Decimal(15, 2) @default(0)
+  creditAmount  Decimal  @db.Decimal(15, 2) @default(0)
+  balance       Decimal  @db.Decimal(15, 2) @default(0)
+
+  createdAt     DateTime @default(now())
+
+  // Relationships
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  account       ChartOfAccounts @relation(fields: [accountId], references: [id])
+
+  @@map("journal_entries")
+  @@index([transactionId])
+  @@index([accountId])
+  @@index([debitAmount])
+  @@index([creditAmount])
+}
