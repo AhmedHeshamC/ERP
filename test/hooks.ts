@@ -8,7 +8,7 @@ import 'chai/register-expect';
 import * as sinon from 'sinon';
 import { use } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import * as sinonChai from 'sinon-chai';
+import sinonChai from 'sinon-chai';
 
 use(chaiAsPromised);
 use(sinonChai);

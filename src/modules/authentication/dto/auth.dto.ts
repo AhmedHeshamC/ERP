@@ -124,6 +124,14 @@ export class RegisterDto {
     message: 'Please provide a valid phone number in E.164 format',
   })
   phone?: string;
+
+  @ApiProperty({
+    description: 'User profile picture URL',
+    example: 'https://example.com/profile.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  profilePicture?: string;
 }
 
 /**

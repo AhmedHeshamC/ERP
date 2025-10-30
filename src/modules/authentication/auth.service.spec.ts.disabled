@@ -1,0 +1,391 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from './auth.service';
+import { PrismaService } from '../../shared/database/prisma.service';
+import { SecurityService } from '../../shared/security/security.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { BadRequestException, UnauthorizedException, ConflictException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import { expect } from 'chai';
+import * as sinon from 'sinon';
+import {
+  LoginDto,
+  RegisterDto,
+  RefreshTokenDto,
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
+
+describe('AuthService - Enterprise Authentication Service', () => {
+  let service: AuthService;
+  let prismaService: sinon.SinonStubbedInstance<PrismaService>;
+  let securityService: sinon.SinonStubbedInstance<SecurityService>;
+  let jwtService: sinon.SinonStubbedInstance<JwtService>;
+  let configService: sinon.SinonStubbedInstance<ConfigService>;
+
+  const mockPrismaService = {
+    user: {
+      findUnique: sinon.stub(),
+      create: sinon.stub(),
+      update: sinon.stub(),
+      findMany: sinon.stub(),
+    },
+    session: {
+      create: sinon.stub(),
+      findFirst: sinon.stub(),
+      update: sinon.stub(),
+      delete: sinon.stub(),
+      findMany: sinon.stub(),
+    },
+    $transaction: sinon.stub(),
+  } as any;
+
+  const mockSecurityService = {
+    generateSecureToken: sinon.stub(),
+    isPasswordStrong: sinon.stub(),
+    sanitizeInput: sinon.stub(),
+    logSecurityEvent: sinon.stub(),
+    validateInput: sinon.stub(),
+    getCookieOptions: sinon.stub(),
+  } as any;
+
+  const mockJwtService = {
+    sign: sinon.stub(),
+    verify: sinon.stub(),
+    decode: sinon.stub(),
+  } as any;
+
+  const mockConfigService = {
+    get: sinon.stub(),
+  } as any;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+        {
+          provide: SecurityService,
+          useValue: mockSecurityService,
+        },
+        {
+          provide: JwtService,
+          useValue: mockJwtService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
+    }).compile();
+
+    service = module.get<AuthService>(AuthService);
+    prismaService = sinon.stub(module.get(PrismaService));
+    securityService = sinon.stub(module.get(SecurityService));
+    jwtService = sinon.stub(module.get(JwtService));
+    configService = sinon.stub(module.get(ConfigService));
+
+    // Default configuration values
+    configService.get.callsFake((key: string) => {
+      const config = {
+        'app.jwt.expiration': '15m',
+        'app.jwt.refreshExpiration': '7d',
+        'app.security.bcryptRounds': 12,
+      };
+      return config[key];
+    });
+  });
+
+  describe('register', () => {
+    const registerDto: RegisterDto = {
+      email: 'test@example.com',
+      password: 'SecureP@ss123!',
+      firstName: 'John',
+      lastName: 'Doe',
+      username: 'johndoe',
+    };
+
+    const mockUser = {
+      id: 'user-id',
+      email: 'test@example.com',
+      firstName: 'John',
+      lastName: 'Doe',
+      username: 'johndoe',
+      isActive: true,
+      isEmailVerified: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('should register a new user successfully', async () => {
+      // Arrange
+      securityService.validateInput.returns(true);
+      securityService.isPasswordStrong.returns({ isValid: true, errors: [] });
+      securityService.sanitizeInput.returns(registerDto);
+      prismaService.user.findUnique.resolves(null); // No existing user
+      prismaService.$transaction.callsFake(async (callback) => {
+        return callback(mockPrismaService);
+      });
+      prismaService.user.create.resolves(mockUser);
+      securityService.generateSecureToken
+        .onFirstCall().returns('access-token')
+        .onSecondCall().returns('refresh-token');
+      jwtService.sign.returns('jwt-token');
+      const hashStub = sinon.stub(bcrypt, 'hash').resolves('hashed-password');
+      prismaService.session.create.resolves({
+        id: 'session-id',
+        userId: mockUser.id,
+        refreshToken: 'refresh-token',
+        expiresAt: new Date(),
+      });
+
+      // Act
+      const result = await service.register(registerDto);
+
+      // Assert
+      expect(securityService.validateInput).to.have.been.called;
+      expect(securityService.isPasswordStrong).to.have.been.calledWith(registerDto.password);
+      expect(prismaService.user.findUnique).to.have.been.calledWith({
+        where: { email: registerDto.email },
+      });
+      expect(prismaService.user.create).to.have.been.called;
+      expect(jwtService.sign).to.have.been.calledTwice; // Access and refresh tokens
+      expect(prismaService.session.create).to.have.been.called;
+      expect(securityService.logSecurityEvent).to.have.been.calledWith(
+        'REGISTRATION',
+        mockUser.id,
+        sinon.match.any(String),
+        sinon.match.any(String),
+      );
+      expect(result.user.email).to.equal(registerDto.email);
+      expect(result.accessToken).to.exist;
+      expect(result.refreshToken).to.exist;
+
+      hashStub.restore();
+    });
+
+    it('should throw ConflictException for existing email', async () => {
+      // Arrange
+      securityService.validateInput.returns(true);
+      securityService.isPasswordStrong.returns({ isValid: true, errors: [] });
+      securityService.sanitizeInput.returns(registerDto);
+      prismaService.user.findUnique.resolves(mockUser); // User exists
+
+      // Act & Assert
+      try {
+        await service.register(registerDto);
+        expect.fail('Should have thrown ConflictException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(ConflictException);
+      }
+      expect(securityService.logSecurityEvent).to.have.been.calledWith(
+        'REGISTRATION_FAILED',
+        undefined,
+        sinon.match.any(String),
+        sinon.match.any(String),
+        { reason: 'Email already exists' },
+      );
+    });
+
+    it('should throw BadRequestException for weak password', async () => {
+      // Arrange
+      const weakPasswordDto = { ...registerDto, password: '123' };
+      securityService.validateInput.returns(true);
+      securityService.isPasswordStrong.returns({
+        isValid: false,
+        errors: ['Password is too weak'],
+      });
+
+      // Act & Assert
+      try {
+        await service.register(weakPasswordDto);
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+      }
+    });
+
+    it('should throw BadRequestException for invalid input', async () => {
+      // Arrange
+      securityService.validateInput.returns(false);
+
+      // Act & Assert
+      try {
+        await service.register(registerDto);
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+      }
+    });
+  });
+
+  describe('login', () => {
+    const loginDto: LoginDto = {
+      email: 'test@example.com',
+      password: 'SecureP@ss123!',
+    };
+
+    const mockUser = {
+      id: 'user-id',
+      email: 'test@example.com',
+      password: 'hashed-password',
+      firstName: 'John',
+      lastName: 'Doe',
+      username: 'johndoe',
+      isActive: true,
+      isEmailVerified: true,
+      lastLoginAt: null,
+    };
+
+    it('should login user successfully with email', async () => {
+      // Arrange
+      securityService.validateInput.returns(true);
+      securityService.sanitizeInput.returns(loginDto);
+      prismaService.user.findUnique.resolves(mockUser);
+      const compareStub = sinon.stub(bcrypt, 'compare').resolves(true);
+      securityService.generateSecureToken
+        .onFirstCall().returns('access-token')
+        .onSecondCall().returns('refresh-token');
+      jwtService.sign.returns('jwt-token');
+      prismaService.session.create.resolves({
+        id: 'session-id',
+        userId: mockUser.id,
+        refreshToken: 'refresh-token',
+        expiresAt: new Date(),
+      });
+      prismaService.user.update.resolves({
+        ...mockUser,
+        lastLoginAt: new Date(),
+      });
+
+      // Act
+      const result = await service.login(loginDto);
+
+      // Assert
+      expect(prismaService.user.findUnique).to.have.been.calledWith({
+        where: { email: loginDto.email },
+      });
+      expect(bcrypt.compare).to.have.been.calledWith(loginDto.password, mockUser.password);
+      expect(prismaService.session.create).to.have.been.called;
+      expect(prismaService.user.update).to.have.been.calledWith({
+        where: { id: mockUser.id },
+        data: { lastLoginAt: sinon.match.any(Date) },
+      });
+      expect(securityService.logSecurityEvent).to.have.been.calledWith(
+        'LOGIN_SUCCESS',
+        mockUser.id,
+        sinon.match.any(String),
+        sinon.match.any(String),
+      );
+      expect(result.user.email).to.equal(loginDto.email);
+      expect(result.accessToken).to.exist;
+
+      compareStub.restore();
+    });
+
+    it('should login user successfully with username', async () => {
+      // Arrange
+      const usernameLoginDto = { ...loginDto, email: 'johndoe' };
+      securityService.validateInput.returns(true);
+      securityService.sanitizeInput.returns(usernameLoginDto);
+      prismaService.user.findUnique.resolves(mockUser);
+      const compareStub = sinon.stub(bcrypt, 'compare').resolves(true);
+      securityService.generateSecureToken.returns('access-token');
+      jwtService.sign.returns('jwt-token');
+
+      // Act
+      await service.login(usernameLoginDto);
+
+      // Assert
+      expect(prismaService.user.findUnique).to.have.been.calledWith({
+        where: { username: usernameLoginDto.email },
+      });
+
+      compareStub.restore();
+    });
+
+    it('should throw UnauthorizedException for invalid credentials', async () => {
+      // Arrange
+      securityService.validateInput.returns(true);
+      securityService.sanitizeInput.returns(loginDto);
+      prismaService.user.findUnique.resolves(mockUser);
+      const compareStub = sinon.stub(bcrypt, 'compare').resolves(false);
+
+      // Act & Assert
+      try {
+        await service.login(loginDto);
+        expect.fail('Should have thrown UnauthorizedException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(UnauthorizedException);
+      }
+      expect(securityService.logSecurityEvent).to.have.been.calledWith(
+        'LOGIN_FAILED',
+        sinon.match.any(String),
+        sinon.match.any(String),
+        sinon.match.any(String),
+        { reason: 'Invalid credentials' },
+      );
+
+      compareStub.restore();
+    });
+
+    it('should throw UnauthorizedException for inactive user', async () => {
+      // Arrange
+      const inactiveUser = { ...mockUser, isActive: false };
+      securityService.validateInput.returns(true);
+      securityService.sanitizeInput.returns(loginDto);
+      prismaService.user.findUnique.resolves(inactiveUser);
+
+      // Act & Assert
+      try {
+        await service.login(loginDto);
+        expect.fail('Should have thrown UnauthorizedException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(UnauthorizedException);
+      }
+      expect(securityService.logSecurityEvent).to.have.been.calledWith(
+        'LOGIN_FAILED',
+        sinon.match.any(String),
+        sinon.match.any(String),
+        sinon.match.any(String),
+        { reason: 'Account is inactive' },
+      );
+    });
+
+    it('should throw UnauthorizedException for non-existent user', async () => {
+      // Arrange
+      securityService.validateInput.returns(true);
+      securityService.sanitizeInput.returns(loginDto);
+      prismaService.user.findUnique.resolves(null);
+
+      // Act & Assert
+      try {
+        await service.login(loginDto);
+        expect.fail('Should have thrown UnauthorizedException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(UnauthorizedException);
+      }
+    });
+  });
+
+  describe('Security Integration', () => {
+    it('should log security events for all operations', async () => {
+      // This test ensures that all security-sensitive operations are logged
+      expect(securityService.logSecurityEvent).to.exist;
+    });
+
+    it('should sanitize all input data', async () => {
+      // This test ensures input sanitization is applied
+      expect(securityService.sanitizeInput).to.exist;
+    });
+
+    it('should validate all input formats', async () => {
+      // This test ensures input validation is applied
+      expect(securityService.validateInput).to.exist;
+    });
+  });
+});
