@@ -42,13 +42,17 @@ export const validationSchema = Joi.object({
   LOG_FILE: Joi.string().default('./logs/app.log'),
 
   // Email (optional)
-  SMTP_HOST: Joi.string().optional(),
+  SMTP_HOST: Joi.string().optional().allow('', null),
   SMTP_PORT: Joi.number().optional(),
-  SMTP_USER: Joi.string().optional(),
-  SMTP_PASS: Joi.string().optional(),
-  FROM_EMAIL: Joi.string().email().optional(),
+  SMTP_USER: Joi.string().optional().allow('', null),
+  SMTP_PASS: Joi.string().optional().allow('', null),
+  FROM_EMAIL: Joi.string().optional().allow('', null).email({ tlds: { allow: false } }),
 
   // Monitoring (optional)
-  SENTRY_DSN: Joi.string().uri().optional(),
+  SENTRY_DSN: Joi.string().uri().optional().allow('', null),
   PROMETHEUS_PORT: Joi.number().optional(),
+
+  // Additional optional fields (for development tools)
+  PGADMIN_EMAIL: Joi.string().optional().allow('', null).email({ tlds: { allow: false } }),
+  PGADMIN_PASSWORD: Joi.string().optional().allow('', null),
 });

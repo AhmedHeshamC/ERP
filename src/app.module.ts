@@ -24,7 +24,7 @@ import { validationSchema } from './config/validation';
       load: [configuration],
       validationSchema,
       validationOptions: {
-        allowUnknown: false,
+        allowUnknown: true, // Allow unknown env vars for testing
         abortEarly: true,
       },
     }),

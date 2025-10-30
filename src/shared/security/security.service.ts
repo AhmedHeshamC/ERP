@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as helmet from 'helmet';
 import { Request } from 'express';
 import * as crypto from 'crypto';
+import * as argon2 from 'argon2';
 
 @Injectable()
 export class SecurityService {
@@ -277,10 +278,23 @@ export class SecurityService {
 
   
   /**
-   * Get bcrypt rounds for password hashing
+   * OWASP A02: Cryptographic Failures
+   * Hash password using Argon2 (simple, secure, KISS)
    */
-  getBcryptRounds(): number {
-    return 12;
+  async hashPassword(password: string): Promise<string> {
+    return argon2.hash(password);
+  }
+
+  /**
+   * Verify password against hash using Argon2
+   */
+  async verifyPassword(password: string, hash: string): Promise<boolean> {
+    try {
+      return await argon2.verify(hash, password);
+    } catch (error) {
+      this.logger.error('Password verification failed', error);
+      return false;
+    }
   }
 
   /**

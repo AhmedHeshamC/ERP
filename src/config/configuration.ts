@@ -46,7 +46,7 @@ const envSchema = z.object({
   FROM_EMAIL: z.string().email().optional(),
 
   // Monitoring (optional)
-  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_DSN: z.string().url().optional().or(z.literal('')),
   PROMETHEUS_PORT: z.coerce.number().optional(),
 });
 

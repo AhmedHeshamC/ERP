@@ -31,7 +31,8 @@ describe('UserService - Enterprise User Management', () => {
       isPasswordStrong: sinon.stub(),
       generateSecureToken: sinon.stub(),
       logSecurityEvent: sinon.stub(),
-      getBcryptRounds: sinon.stub(),
+      hashPassword: sinon.stub(),
+      verifyPassword: sinon.stub(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -82,7 +83,7 @@ describe('UserService - Enterprise User Management', () => {
       securityService.validateInput.returns(true);
       securityService.sanitizeInput.returns(createUserDto);
       securityService.isPasswordStrong.returns({ isValid: true, errors: [] });
-      securityService.getBcryptRounds.returns(12);
+      securityService.hashPassword.resolves('hashed-password-123');
       prismaService.user.findFirst.resolves(null); // No existing user
       prismaService.$transaction.resolves(mockUser);
       securityService.logSecurityEvent.resolves();
@@ -104,6 +105,7 @@ describe('UserService - Enterprise User Management', () => {
       expect(securityService.validateInput.calledOnce).to.be.true;
       expect(securityService.sanitizeInput.calledOnce).to.be.true;
       expect(securityService.isPasswordStrong.calledOnceWith(createUserDto.password)).to.be.true;
+      expect(securityService.hashPassword.calledOnceWith(createUserDto.password)).to.be.true;
       expect(prismaService.user.findFirst.calledOnce).to.be.true;
       expect(prismaService.$transaction.calledOnce).to.be.true;
       expect(securityService.logSecurityEvent.calledOnce).to.be.true;
@@ -117,9 +119,11 @@ describe('UserService - Enterprise User Management', () => {
       const sanitizedData = { ...createUserDto };
       securityService.sanitizeInput.returns(sanitizedData);
 
-      // MOCK isPasswordStrong - THIS WAS THE MISSING PIECE!
+      // MOCK isPasswordStrong and hashPassword - THIS WAS THE MISSING PIECE!
       securityService.isPasswordStrong.reset();
       securityService.isPasswordStrong.returns({ isValid: true, errors: [] });
+      securityService.hashPassword.reset();
+      securityService.hashPassword.resolves('hashed-password-123');
 
       // Mock logSecurityEvent to avoid any issues there
       securityService.logSecurityEvent.reset();
@@ -315,7 +319,7 @@ describe('UserService - Enterprise User Management', () => {
       securityService.validateInput.returns(true);
       securityService.sanitizeInput.returns(sanitizedDto);
       securityService.isPasswordStrong.returns({ isValid: true, errors: [] });
-      securityService.getBcryptRounds.returns(12);
+      securityService.hashPassword.resolves('hashed-password-123');
       prismaService.user.findFirst.resolves(null);
       prismaService.$transaction.resolves(sinon.match.any);
 
@@ -340,7 +344,7 @@ describe('UserService - Enterprise User Management', () => {
       securityService.validateInput.returns(true);
       securityService.sanitizeInput.returns(testUserData); // Return proper object with valid password
       securityService.isPasswordStrong.returns({ isValid: true, errors: [] });
-      securityService.getBcryptRounds.returns(12);
+      securityService.hashPassword.resolves('hashed-password-123');
       prismaService.user.findFirst.resolves(null);
       prismaService.$transaction.resolves({ ...testUserData, id: 'test-id', isActive: true, isEmailVerified: false, createdAt: new Date(), updatedAt: new Date(), lastLoginAt: null });
       securityService.logSecurityEvent.resolves();

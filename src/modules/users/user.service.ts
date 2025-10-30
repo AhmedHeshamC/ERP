@@ -3,7 +3,6 @@ import { PrismaService } from '../../shared/database/prisma.service';
 import { SecurityService } from '../../shared/security/security.service';
 import { CreateUserDto, UpdateUserDto, UserResponse, UserQueryDto, UserPasswordChangeDto, validatePasswordConfirmation } from './dto/user.dto';
 import { UserRole } from './dto/user.dto';
-import * as bcrypt from 'bcrypt';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -80,9 +79,8 @@ export class UserService {
     }
 
     try {
-      // Hash password securely
-      const saltRounds = this.securityService.getBcryptRounds() || 12;
-      const hashedPassword = await bcrypt.hash(sanitizedData.password, saltRounds);
+      // Hash password securely using Argon2
+      const hashedPassword = await this.securityService.hashPassword(sanitizedData.password);
 
       // Create user in database transaction
       const newUser = await this.prismaService.$transaction(async (tx) => {
@@ -282,8 +280,8 @@ export class UserService {
         throw new NotFoundException('User not found');
       }
 
-      // Verify current password
-      const isCurrentPasswordValid = await bcrypt.compare(
+      // Verify current password using Argon2
+      const isCurrentPasswordValid = await this.securityService.verifyPassword(
         passwordChangeDto.currentPassword,
         currentUser.password,
       );
@@ -307,9 +305,8 @@ export class UserService {
         );
       }
 
-      // Hash new password
-      const saltRounds = this.securityService.getBcryptRounds() || 12;
-      const hashedNewPassword = await bcrypt.hash(passwordChangeDto.newPassword, saltRounds);
+      // Hash new password using Argon2
+      const hashedNewPassword = await this.securityService.hashPassword(passwordChangeDto.newPassword);
 
       // Update password
       await this.prismaService.user.update({
