@@ -85,6 +85,7 @@ model Product {
   // Relationships
   category          ProductCategory @relation(fields: [categoryId], references: [id])
   stockMovements    StockMovement[] @relation("ProductStockMovements")
+  orderItems        OrderItem[] @relation("OrderProductItems")
 
   @@map("products")
   @@unique([sku])
@@ -196,4 +197,153 @@ model JournalEntry {
   @@index([accountId])
   @@index([debitAmount])
   @@index([creditAmount])
+}
+
+// Sales Module - Customers
+model Customer {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  email       String   @unique
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  postalCode  String?
+  country     String?
+  taxId       String?
+  isActive    Boolean  @default(true)
+  creditLimit Decimal  @db.Decimal(15, 2) @default(0)
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  orders      Order[]
+  invoices    Invoice[]
+
+  @@map("customers")
+  @@index([isActive])
+  @@index([email])
+}
+
+// Sales Module - Orders
+model Order {
+  id          String   @id @default(cuid())
+  orderNumber String   @unique
+  customerId  String
+  reference   String?
+  description String?
+  status      String   @default("DRAFT") // DRAFT, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
+  orderDate   DateTime @default(now())
+  dueDate     DateTime?
+  subtotal    Decimal  @db.Decimal(15, 2) @default(0)
+  taxAmount   Decimal  @db.Decimal(15, 2) @default(0)
+  totalAmount Decimal  @db.Decimal(15, 2) @default(0)
+  currency    String   @default("USD")
+  notes       String?
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  customer    Customer @relation(fields: [customerId], references: [id])
+  orderItems  OrderItem[]
+  invoice     Invoice?
+
+  @@map("orders")
+  @@index([customerId])
+  @@index([status])
+  @@index([orderDate])
+  @@index([totalAmount])
+}
+
+// Sales Module - Order Items
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  discount    Decimal  @db.Decimal(10, 2) @default(0)
+  totalPrice  Decimal  @db.Decimal(15, 2) @default(0)
+  description String?
+
+  createdAt   DateTime @default(now())
+
+  // Relationships
+  order       Order @relation(fields: [orderId], references: [id])
+  product     Product @relation("OrderProductItems", fields: [productId], references: [id])
+
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+}
+
+// Sales Module - Invoices
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  orderId      String   @unique
+  customerId    String
+  status        String   @default("DRAFT") // DRAFT, SENT, PAID, OVERDUE, CANCELLED
+  issueDate     DateTime @default(now())
+  dueDate       DateTime?
+  subtotal      Decimal  @db.Decimal(15, 2) @default(0)
+  taxAmount     Decimal  @db.Decimal(15, 2) @default(0)
+  totalAmount   Decimal  @db.Decimal(15, 2) @default(0)
+  paidAmount    Decimal  @db.Decimal(15, 2) @default(0)
+  balanceDue    Decimal  @db.Decimal(15, 2) @default(0)
+  currency      String   @default("USD")
+  notes         String?
+
+  // Audit fields
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  // Relationships
+  customer      Customer @relation(fields: [customerId], references: [id])
+  order         Order @relation(fields: [orderId], references: [id])
+  payments      Payment[]
+
+  @@map("invoices")
+  @@index([customerId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([dueDate])
+}
+
+// Sales Module - Payments
+model Payment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  reference     String?
+  amount        Decimal  @db.Decimal(15, 2)
+  paymentMethod  String   // CASH, BANK_TRANSFER, CREDIT_CARD, CHECK, OTHER
+  paymentDate   DateTime @default(now())
+  status        String   @default("PENDING") // PENDING, COMPLETED, FAILED, CANCELLED
+  notes         String?
+
+  // Audit fields
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  // Relationships
+  invoice       Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("payments")
+  @@index([invoiceId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([amount])
 }
