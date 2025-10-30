@@ -347,3 +347,115 @@ model Payment {
   @@index([paymentDate])
   @@index([amount])
 }
+
+// Purchasing Module - Suppliers
+model Supplier {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  email       String   @unique
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  postalCode  String?
+  country     String?
+  taxId       String?
+  isActive    Boolean  @default(true)
+  creditLimit Decimal  @db.Decimal(15, 2) @default(0)
+  paymentTerms String  @default("NET30") // NET15, NET30, NET60, etc.
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+  @@index([isActive])
+  @@index([email])
+}
+
+// Purchasing Module - Purchase Orders
+model PurchaseOrder {
+  id            String   @id @default(cuid())
+  orderNumber   String   @unique
+  supplierId    String
+  reference     String?
+  description   String?
+  status        String   @default("DRAFT") // DRAFT, SENT, CONFIRMED, RECEIVED, CANCELLED
+  orderDate     DateTime @default(now())
+  expectedDate  DateTime?
+  subtotal      Decimal  @db.Decimal(15, 2) @default(0)
+  taxAmount     Decimal  @db.Decimal(15, 2) @default(0)
+  totalAmount   Decimal  @db.Decimal(15, 2) @default(0)
+  currency      String   @default("USD")
+  notes         String?
+
+  // Audit fields
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  // Relationships
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  orderItems    PurchaseOrderItem[]
+  receipts      PurchaseReceipt[]
+
+  @@map("purchase_orders")
+  @@index([supplierId])
+  @@index([status])
+  @@index([orderDate])
+  @@index([totalAmount])
+}
+
+// Purchasing Module - Purchase Order Items
+model PurchaseOrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  productId     String?
+  description   String
+  quantity      Int
+  unitPrice     Decimal  @db.Decimal(10, 2)
+  discount      Decimal  @db.Decimal(10, 2) @default(0)
+  totalPrice    Decimal  @db.Decimal(15, 2) @default(0)
+  receivedQty   Int      @default(0)
+
+  createdAt     DateTime @default(now())
+
+  // Relationships
+  order         PurchaseOrder @relation(fields: [orderId], references: [id])
+
+  @@map("purchase_order_items")
+  @@index([orderId])
+  @@index([productId])
+}
+
+// Purchasing Module - Purchase Receipts
+model PurchaseReceipt {
+  id            String   @id @default(cuid())
+  receiptNumber String   @unique
+  orderId       String
+  reference     String?
+  status        String   @default("DRAFT") // DRAFT, CONFIRMED, CANCELLED
+  receiptDate   DateTime @default(now())
+  notes         String?
+
+  // Audit fields
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  // Relationships
+  order         PurchaseOrder @relation(fields: [orderId], references: [id])
+
+  @@map("purchase_receipts")
+  @@index([orderId])
+  @@index([status])
+  @@index([receiptDate])
+}
