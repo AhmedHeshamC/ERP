@@ -365,4 +365,205 @@ export class SecurityService {
 
     return { isValid: true };
   }
+
+  // HR/Payroll specific security methods
+
+  /**
+   * Generate unique employee ID
+   */
+  generateEmployeeId(): string {
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `EMP${timestamp}${random}`;
+  }
+
+  /**
+   * Validate personal information for security
+   */
+  validatePersonalInfo(data: any): boolean {
+    if (!data || typeof data !== 'object') return false;
+
+    // Check for required personal fields
+    if (!data.firstName || !data.lastName || !data.email) return false;
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email)) return false;
+
+    // Check for potentially malicious content
+    const dangerousPatterns = [
+      /<script/i,
+      /javascript:/i,
+      /on\w+\s*=/i,
+      /data:/i,
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(JSON.stringify(data))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Validate tax information
+   */
+  validateTaxInfo(employee: any): boolean {
+    if (!employee) return false;
+
+    // Check for required tax fields (basic validation)
+    if (!employee.socialSecurity && !employee.taxId) {
+      return false; // At least one tax identifier is required
+    }
+
+    // Validate SSN format if provided (basic validation)
+    if (employee.socialSecurity) {
+      const ssnRegex = /^\d{3}-?\d{2}-?\d{4}$/;
+      if (!ssnRegex.test(employee.socialSecurity)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Validate bank account information
+   */
+  validateBankAccount(employee: any): boolean {
+    if (!employee) return false;
+
+    // Bank account is optional (some employees may be paid by check)
+    if (!employee.bankAccount) return true;
+
+    const bankAccount = employee.bankAccount;
+    if (!bankAccount.accountNumber || !bankAccount.routingNumber) {
+      return false;
+    }
+
+    // Basic routing number validation (US format)
+    const routingRegex = /^\d{9}$/;
+    if (!routingRegex.test(bankAccount.routingNumber)) {
+      return false;
+    }
+
+    // Basic account number validation
+    if (bankAccount.accountNumber.length < 4 || bankAccount.accountNumber.length > 17) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Calculate payroll taxes (simplified calculation)
+   */
+  calculatePayrollTaxes(grossPay: number, employee: any): any {
+    const federalTaxRate = 0.125; // 12.5% federal tax
+    const stateTaxRate = 0.05;   // 5% state tax
+    const socialSecurityRate = 0.062; // 6.2% Social Security
+    const medicareRate = 0.0145; // 1.45% Medicare
+
+    return {
+      federalTax: grossPay * federalTaxRate,
+      stateTax: grossPay * stateTaxRate,
+      socialSecurityTax: grossPay * socialSecurityRate,
+      medicareTax: grossPay * medicareRate,
+    };
+  }
+
+  /**
+   * Validate leave request
+   */
+  validateLeaveRequest(data: any): boolean {
+    if (!data || typeof data !== 'object') return false;
+
+    // Check required fields
+    if (!data.employeeId || !data.leaveType || !data.startDate || !data.endDate) {
+      return false;
+    }
+
+    // Validate leave type
+    const validTypes = ['ANNUAL', 'SICK', 'PERSONAL', 'MATERNITY', 'PATERNITY', 'UNPAID'];
+    if (!validTypes.includes(data.leaveType)) {
+      return false;
+    }
+
+    // Validate dates
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (endDate < startDate || startDate < today) {
+      return false;
+    }
+
+    // Maximum leave duration validation (365 days)
+    const maxDays = 365;
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    if (daysDiff > maxDays) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Calculate leave days between two dates
+   */
+  calculateLeaveDays(startDate: Date, endDate: Date): number {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Reset time to start of day
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    return diffDays;
+  }
+
+  /**
+   * Check for leave conflicts
+   */
+  async checkLeaveConflicts(employeeId: string, startDate: Date, endDate: Date): Promise<any[]> {
+    // This would typically query the database
+    // For now, return empty array (no conflicts)
+    return [];
+  }
+
+  /**
+   * Validate leave balance
+   */
+  validateLeaveBalance(employee: any, leaveType: string, daysRequested: number): boolean {
+    if (!employee || daysRequested <= 0) return false;
+
+    let availableBalance = 0;
+
+    switch (leaveType) {
+      case 'ANNUAL':
+        availableBalance = employee.annualLeaveBalance || 0;
+        break;
+      case 'SICK':
+        availableBalance = employee.sickLeaveBalance || 0;
+        break;
+      case 'PERSONAL':
+        availableBalance = employee.personalLeaveBalance || 0;
+        break;
+      case 'MATERNITY':
+      case 'PATERNITY':
+      case 'UNPAID':
+        // These types don't use the standard balance
+        return true;
+      default:
+        return false;
+    }
+
+    return availableBalance >= daysRequested;
+  }
 }

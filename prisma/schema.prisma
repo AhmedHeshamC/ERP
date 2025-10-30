@@ -27,6 +27,7 @@ model User {
   lastLoginAt DateTime?
 
   // Relationships
+  employee            Employee? @relation("EmployeeUser")
   calculatedPerformances SupplierPerformance[] @relation("PerformanceCalculator")
   reviewedPerformances SupplierPerformance[] @relation("PerformanceReviewer")
   resolvedEvents SupplierPerformanceEvent[] @relation("EventResolver")
@@ -863,4 +864,289 @@ model SupplierPerformanceReview {
   @@index([reviewType])
   @@index([overallRating])
   @@index([status])
+}
+
+// HR/Payroll Module - Departments
+model Department {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  parentId    String?
+  managerId   String?  @unique
+  isActive    Boolean  @default(true)
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  parent      Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children    Department[] @relation("DepartmentHierarchy")
+  manager     Employee?   @relation("DepartmentManager", fields: [managerId], references: [id])
+  employees   Employee[]
+
+  @@map("departments")
+  @@index([parentId])
+  @@index([isActive])
+  @@index([managerId])
+}
+
+// HR/Payroll Module - Employees
+model Employee {
+  id            String   @id @default(cuid())
+  employeeId    String   @unique
+  userId        String   @unique
+  firstName     String
+  lastName      String
+  email         String   @unique
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  postalCode    String?
+  country       String?
+  dateOfBirth   DateTime
+  hireDate      DateTime @default(now())
+  departmentId  String
+  position      String
+  jobTitle      String
+  employmentType String  @default("FULL_TIME") // FULL_TIME, PART_TIME, CONTRACT, INTERN
+  status        String   @default("ACTIVE")   // ACTIVE, ON_LEAVE, TERMINATED, RETIRED
+  salary        Decimal  @db.Decimal(12, 2)
+  currency      String   @default("USD")
+  workSchedule  Json?    // Work schedule configuration
+  emergencyContact Json? // Emergency contact information
+  socialSecurity  String? // SSN or equivalent
+  taxId         String?  // Tax identification
+  bankAccount   Json?    // Bank account details for payroll
+  isActive      Boolean  @default(true)
+
+  // Performance metrics
+  performanceRating Decimal? @db.Decimal(3, 1) // 1.0-5.0 scale
+  lastReviewDate    DateTime?
+  nextReviewDate    DateTime?
+
+  // Leave balances
+  annualLeaveBalance Decimal @db.Decimal(5, 2) @default(0)
+  sickLeaveBalance   Decimal @db.Decimal(5, 2) @default(0)
+  personalLeaveBalance Decimal @db.Decimal(5, 2) @default(0)
+
+  // Audit fields
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String?
+  updatedBy         String?
+  terminatedAt      DateTime?
+  terminationReason String?
+
+  // Relationships
+  user              User @relation("EmployeeUser", fields: [userId], references: [id])
+  department        Department @relation(fields: [departmentId], references: [id])
+  managedDepartment Department? @relation("DepartmentManager")
+  payrollRecords    PayrollRecord[]
+  leaveRequests     LeaveRequest[]
+  performanceReviews PerformanceReview[]
+  timesheets        Timesheet[]
+
+  @@map("employees")
+  @@index([employeeId])
+  @@index([userId])
+  @@index([email])
+  @@index([departmentId])
+  @@index([status])
+  @@index([isActive])
+  @@index([hireDate])
+}
+
+// HR/Payroll Module - Payroll Records
+model PayrollRecord {
+  id              String   @id @default(cuid())
+  employeeId      String
+  payPeriod       String   // YYYY-MM format
+  grossPay        Decimal  @db.Decimal(12, 2)
+  netPay          Decimal  @db.Decimal(12, 2)
+  currency        String   @default("USD")
+
+  // Deductions
+  federalTax      Decimal  @db.Decimal(10, 2) @default(0)
+  stateTax        Decimal  @db.Decimal(10, 2) @default(0)
+  socialSecurityTax Decimal @db.Decimal(10, 2) @default(0)
+  medicareTax     Decimal  @db.Decimal(10, 2) @default(0)
+  otherDeductions Decimal  @db.Decimal(10, 2) @default(0)
+  totalDeductions Decimal  @db.Decimal(10, 2) @default(0)
+
+  // Benefits
+  healthInsurance  Decimal @db.Decimal(10, 2) @default(0)
+  dentalInsurance  Decimal @db.Decimal(10, 2) @default(0)
+  retirement401k   Decimal @db.Decimal(10, 2) @default(0)
+  otherBenefits    Decimal @db.Decimal(10, 2) @default(0)
+  totalBenefits    Decimal @db.Decimal(10, 2) @default(0)
+
+  // Hours and rates
+  regularHours    Decimal  @db.Decimal(6, 2) @default(0)
+  overtimeHours   Decimal  @db.Decimal(6, 2) @default(0)
+  hourlyRate      Decimal  @db.Decimal(8, 2)
+  overtimeRate    Decimal  @db.Decimal(8, 2)
+
+  // Payment details
+  paymentMethod   String   @default("DIRECT_DEPOSIT") // DIRECT_DEPOSIT, CHECK, CASH
+  paymentDate     DateTime @default(now())
+  paymentStatus   String   @default("PENDING") // PENDING, PAID, FAILED, CANCELLED
+  transactionId   String?  // Bank transaction reference
+
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  processedBy     String?  // User who processed the payroll
+  approvedBy      String?  // Manager who approved
+  approvedAt      DateTime?
+
+  // Relationships
+  employee        Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("payroll_records")
+  @@index([employeeId])
+  @@index([payPeriod])
+  @@index([paymentDate])
+  @@index([paymentStatus])
+  @@unique([employeeId, payPeriod]) // One record per employee per pay period
+}
+
+// HR/Payroll Module - Leave Requests
+model LeaveRequest {
+  id            String   @id @default(cuid())
+  employeeId    String
+  leaveType     String   // ANNUAL, SICK, PERSONAL, MATERNITY, PATERNITY, UNPAID
+  startDate     DateTime
+  endDate       DateTime
+  daysRequested Decimal  @db.Decimal(4, 1)
+  reason        String?
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED
+
+  // Approval details
+  approvedBy    String?
+  approvedAt    DateTime?
+  rejectedBy    String?
+  rejectedAt    DateTime?
+  rejectionReason String?
+
+  // Payment implications
+  paidLeave     Boolean  @default(true)
+  payRate       Decimal? @db.Decimal(8, 2) // Override rate if different from normal
+
+  // Audit fields
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  // Relationships
+  employee      Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("leave_requests")
+  @@index([employeeId])
+  @@index([leaveType])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+// HR/Payroll Module - Performance Reviews
+model PerformanceReview {
+  id              String   @id @default(cuid())
+  employeeId      String
+  reviewerId      String   // Manager conducting the review
+  reviewPeriod    String   // YYYY-MM format
+  reviewType      String   // MONTHLY, QUARTERLY, ANNUAL, PROBATION, ADHOC
+
+  // Performance ratings (1-5 scale)
+  overallRating   Decimal  @db.Decimal(3, 1)
+  qualityRating   Decimal  @db.Decimal(3, 1)
+  productivityRating Decimal @db.Decimal(3, 1)
+  teamworkRating  Decimal  @db.Decimal(3, 1)
+  initiativeRating Decimal @db.Decimal(3, 1)
+  attendanceRating Decimal @db.Decimal(3, 1)
+
+  // Review content
+  strengths       String[]
+  weaknesses      String[]
+  goals           String[]
+  recommendations  String[]
+  actionItems     Json?    // Action items with deadlines
+
+  // Status and workflow
+  status          String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
+  reviewDate      DateTime @default(now())
+  nextReviewDate  DateTime?
+
+  // Comments
+  employeeComments String?
+  reviewerComments String?
+  finalComments   String?
+
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  completedAt     DateTime?
+
+  // Relationships
+  employee        Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("performance_reviews")
+  @@index([employeeId])
+  @@index([reviewerId])
+  @@index([reviewPeriod])
+  @@index([reviewType])
+  @@index([overallRating])
+  @@index([status])
+}
+
+// HR/Payroll Module - Timesheets
+model Timesheet {
+  id            String   @id @default(cuid())
+  employeeId    String
+  weekStartDate DateTime // Start of the week (Monday)
+  status        String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
+
+  // Audit fields
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  submittedBy   String?
+  submittedAt   DateTime?
+  approvedBy    String?
+  approvedAt    DateTime?
+
+  // Relationships
+  employee      Employee @relation(fields: [employeeId], references: [id])
+  entries       TimesheetEntry[]
+
+  @@map("timesheets")
+  @@index([employeeId])
+  @@index([weekStartDate])
+  @@index([status])
+  @@unique([employeeId, weekStartDate]) // One timesheet per employee per week
+}
+
+// HR/Payroll Module - Timesheet Entries
+model TimesheetEntry {
+  id            String   @id @default(cuid())
+  timesheetId   String
+  date          DateTime
+  projectCode   String?
+  taskType      String   // REGULAR, OVERTIME, HOLIDAY, SICK, VACATION
+  hoursWorked   Decimal  @db.Decimal(4, 2)
+  description   String?
+
+  createdAt     DateTime @default(now())
+
+  // Relationships
+  timesheet     Timesheet @relation(fields: [timesheetId], references: [id])
+
+  @@map("timesheet_entries")
+  @@index([timesheetId])
+  @@index([date])
+  @@index([taskType])
 }
