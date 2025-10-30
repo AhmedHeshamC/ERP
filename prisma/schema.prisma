@@ -459,3 +459,100 @@ model PurchaseReceipt {
   @@index([status])
   @@index([receiptDate])
 }
+
+// Reports Module - Report Definitions
+model ReportDefinition {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // FINANCIAL, SALES, INVENTORY, PURCHASING, EXECUTIVE
+  category    String   // SUMMARY, DETAILED, ANALYTICS, KPI
+  query       String   // SQL query or JSON definition
+  parameters  Json?    // Report parameters definition
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false) // System reports cannot be deleted
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  // Relationships
+  generatedReports GeneratedReport[]
+
+  @@map("report_definitions")
+  @@index([type])
+  @@index([category])
+  @@index([isActive])
+}
+
+// Reports Module - Generated Reports
+model GeneratedReport {
+  id            String   @id @default(cuid())
+  reportDefinitionId String
+  name          String
+  parameters    Json?    // Used parameters
+  data          Json     // Report data
+  format        String   @default("JSON") // JSON, CSV, PDF, EXCEL
+  status        String   @default("GENERATING") // GENERATING, COMPLETED, FAILED
+  generatedAt   DateTime @default(now())
+  expiresAt     DateTime? // For cached reports
+  fileUrl       String?  // For exported files
+
+  // Audit fields
+  createdAt     DateTime @default(now())
+  createdBy     String?
+
+  // Relationships
+  reportDefinition ReportDefinition @relation(fields: [reportDefinitionId], references: [id])
+
+  @@map("generated_reports")
+  @@index([reportDefinitionId])
+  @@index([status])
+  @@index([generatedAt])
+  @@index([expiresAt])
+}
+
+// Reports Module - Dashboard Definitions
+model Dashboard {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  layout      Json     // Dashboard layout configuration
+  widgets     Json     // Widget definitions
+  isActive    Boolean  @default(true)
+  isPublic    Boolean  @default(false)
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  @@map("dashboards")
+  @@index([isActive])
+  @@index([isPublic])
+}
+
+// Reports Module - KPI Definitions
+model KpiDefinition {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String   // FINANCIAL, SALES, INVENTORY, PURCHASING
+  formula     String   // Calculation formula
+  unit        String?  // Unit of measurement
+  target      Decimal? @db.Decimal(15, 2)
+  isActive    Boolean  @default(true)
+
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  @@map("kpi_definitions")
+  @@index([category])
+  @@index([isActive])
+}
