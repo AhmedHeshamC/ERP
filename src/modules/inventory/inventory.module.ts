@@ -9,11 +9,8 @@ import { ProductController } from './product.controller';
  * Follows KISS principle with focused implementation
  */
 @Module({
-  imports: [
-    ProductModule,
-  ],
   controllers: [ProductController],
   providers: [ProductService],
-  exports: [InventoryModule],
+  exports: [ProductService],
 })
 export class InventoryModule {}

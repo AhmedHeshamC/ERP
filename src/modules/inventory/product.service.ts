@@ -7,6 +7,8 @@ import {
   ProductResponse,
   ProductsQueryResponse,
   ProductStatus,
+  StockMovementDto,
+  StockMovementType,
 } from './dto/product.dto';
 
 /**
@@ -539,6 +541,328 @@ export class ProductService {
     // Validate reason is provided
     if (!reason || reason.trim().length < 3) {
       throw new Error('Reason is required for stock adjustments');
+    }
+  }
+
+  /**
+   * Update product stock quantity with validation
+   * OWASP A08: Data integrity with stock validation
+   */
+  async updateStock(productId: string, stockUpdateDto: StockMovementDto): Promise<ProductResponse> {
+    try {
+      this.logger.log(`Updating stock for product: ${productId}`);
+
+      // Validate stock movement
+      await this.validateStockMovement(stockUpdateDto);
+
+      // Get current product
+      const product = await this.prismaService.product.findUnique({
+        where: { id: productId, isActive: true },
+      });
+
+      if (!product) {
+        throw new NotFoundException(`Product with id ${productId} not found`);
+      }
+
+      // Calculate new stock level
+      const stockChange = stockUpdateDto.type === StockMovementType.OUT ?
+        -Math.abs(stockUpdateDto.quantity) :
+        Math.abs(stockUpdateDto.quantity);
+
+      const newStockLevel = product.stockQuantity + stockChange;
+
+      // Prevent negative stock
+      if (newStockLevel < 0) {
+        throw new Error('Insufficient stock for this operation');
+      }
+
+      // Update product and create stock movement in transaction
+      const result = await this.prismaService.$transaction(async (tx) => {
+        // Update product stock
+        const updatedProduct = await tx.product.update({
+          where: { id: productId },
+          data: {
+            stockQuantity: newStockLevel,
+            updatedAt: new Date(),
+          },
+        });
+
+        // Create stock movement record
+        await tx.stockMovement.create({
+          data: {
+            productId,
+            type: stockUpdateDto.type,
+            quantity: stockUpdateDto.quantity,
+            reason: stockUpdateDto.reason,
+            reference: stockUpdateDto.reference,
+          },
+        });
+
+        return updatedProduct;
+      });
+
+      // Log security event
+      await this.securityService.logSecurityEvent(
+        'STOCK_UPDATED',
+        productId,
+        'system',
+        'product-service',
+        {
+          productId,
+          previousStock: product.stockQuantity,
+          newStock: newStockLevel,
+          movementType: stockUpdateDto.type,
+          quantity: stockUpdateDto.quantity,
+        },
+      );
+
+      this.logger.log(`Stock updated successfully: ${productId}, new level: ${newStockLevel}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to update stock: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Create stock movement record
+   * OWASP A08: Data integrity with movement validation
+   */
+  async createStockMovement(stockMovementDto: StockMovementDto): Promise<any> {
+    try {
+      this.logger.log(`Creating stock movement for product: ${stockMovementDto.productId}`);
+
+      // Validate stock movement
+      await this.validateStockMovement(stockMovementDto);
+
+      // Get current product
+      const product = await this.prismaService.product.findUnique({
+        where: { id: stockMovementDto.productId, isActive: true },
+      });
+
+      if (!product) {
+        throw new NotFoundException(`Product with id ${stockMovementDto.productId} not found`);
+      }
+
+      // Calculate new stock level
+      const stockChange = stockMovementDto.type === StockMovementType.OUT ?
+        -Math.abs(stockMovementDto.quantity) :
+        Math.abs(stockMovementDto.quantity);
+
+      const newStockLevel = product.stockQuantity + stockChange;
+
+      // Prevent negative stock for OUT movements
+      if (stockMovementDto.type === StockMovementType.OUT && newStockLevel < 0) {
+        throw new Error('Insufficient stock for this operation');
+      }
+
+      // Create movement and update stock in transaction
+      const result = await this.prismaService.$transaction(async (tx) => {
+        // Update product stock
+        await tx.product.update({
+          where: { id: stockMovementDto.productId },
+          data: {
+            stockQuantity: newStockLevel,
+            updatedAt: new Date(),
+          },
+        });
+
+        // Create stock movement record
+        const movement = await tx.stockMovement.create({
+          data: {
+            productId: stockMovementDto.productId,
+            type: stockMovementDto.type,
+            quantity: stockMovementDto.quantity,
+            reason: stockMovementDto.reason,
+            reference: stockMovementDto.reference,
+          },
+        });
+
+        return movement;
+      });
+
+      this.logger.log(`Stock movement created successfully: ${result.id}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to create stock movement: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate stock movement rules
+   * OWASP A08: Business rule validation
+   */
+  async validateStockMovement(stockMovementDto: StockMovementDto): Promise<void> {
+    if (!stockMovementDto.quantity || stockMovementDto.quantity <= 0) {
+      throw new Error('Quantity must be a positive number');
+    }
+
+    if (!stockMovementDto.reason || stockMovementDto.reason.trim().length < 3) {
+      throw new Error('Reason must be at least 3 characters long');
+    }
+
+    if (!Object.values(StockMovementType).includes(stockMovementDto.type)) {
+      throw new Error('Invalid stock movement type');
+    }
+  }
+
+  /**
+   * Get products with low stock levels
+   * OWASP A05: Secure defaults with proper filtering
+   */
+  async getLowStockProducts(): Promise<ProductResponse[]> {
+    try {
+      this.logger.log('Retrieving low stock products');
+
+      // Use raw query for low stock comparison with threshold
+      const products = await this.prismaService.$queryRaw`
+        SELECT p.*, c.name as "categoryName", c.id as "categoryId"
+        FROM "products" p
+        LEFT JOIN "product_categories" c ON p."categoryId" = c.id
+        WHERE p."isActive" = true
+        AND p."stockQuantity" < p."lowStockThreshold"
+        ORDER BY p."stockQuantity" ASC
+      ` as any[];
+
+      this.logger.log(`Found ${products.length} products with low stock`);
+      return products;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve low stock products: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to retrieve low stock products');
+    }
+  }
+
+  /**
+   * Create product category
+   * OWASP A08: Data integrity with category validation
+   */
+  async createCategory(categoryData: any): Promise<any> {
+    try {
+      this.logger.log(`Creating product category: ${categoryData.name}`);
+
+      // Handle parent category for hierarchy
+      let level = 0;
+      if (categoryData.parentId) {
+        const parentCategory = await this.prismaService.productCategory.findUnique({
+          where: { id: categoryData.parentId },
+        });
+        if (parentCategory) {
+          level = parentCategory.level + 1;
+        }
+      }
+
+      const category = await this.prismaService.productCategory.create({
+        data: {
+          ...categoryData,
+          level,
+          isActive: true,
+        },
+      });
+
+      this.logger.log(`Category created successfully: ${category.id}`);
+      return category;
+    } catch (error) {
+      this.logger.error(`Failed to create category: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate stock valuation report
+   * OWASP A05: Secure financial reporting
+   */
+  async getStockValuation(): Promise<any> {
+    try {
+      this.logger.log('Generating stock valuation report');
+
+      const products = await this.prismaService.product.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          price: true,
+          stockQuantity: true,
+        },
+      });
+
+      let totalValue = 0;
+      let totalItems = 0;
+
+      products.forEach(product => {
+        const itemValue = Number(product.price) * product.stockQuantity;
+        totalValue += itemValue;
+        totalItems += product.stockQuantity;
+      });
+
+      this.logger.log(`Stock valuation generated: ${products.length} products, total value: ${totalValue}`);
+
+      return {
+        totalValue,
+        totalItems,
+        productCount: products.length,
+        products: products.map(product => ({
+          ...product,
+          value: Number(product.price) * product.stockQuantity,
+        })),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to generate stock valuation: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to generate stock valuation');
+    }
+  }
+
+  /**
+   * Generate inventory movement report
+   * OWASP A05: Secure reporting with date filtering
+   */
+  async getMovementReport(params: { startDate: Date; endDate: Date }): Promise<any> {
+    try {
+      this.logger.log('Generating movement report', { params });
+
+      const movements = await this.prismaService.stockMovement.findMany({
+        where: {
+          createdAt: {
+            gte: params.startDate,
+            lte: params.endDate,
+          },
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const totalIn = movements
+        .filter(m => m.type === StockMovementType.IN)
+        .reduce((sum, m) => sum + m.quantity, 0);
+
+      const totalOut = movements
+        .filter(m => m.type === StockMovementType.OUT)
+        .reduce((sum, m) => sum + m.quantity, 0);
+
+      this.logger.log(`Movement report generated: ${movements.length} movements`);
+
+      return {
+        movements,
+        totalIn,
+        totalOut,
+        netMovement: totalIn - totalOut,
+        period: {
+          startDate: params.startDate,
+          endDate: params.endDate,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Failed to generate movement report: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to generate movement report');
     }
   }
 
