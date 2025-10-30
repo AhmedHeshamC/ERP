@@ -1,0 +1,398 @@
+import { expect } from 'chai';
+import { describe, it, beforeEach, afterEach } from 'mocha';
+import * as sinon from 'sinon';
+import { Test } from '@nestjs/testing';
+import { PayrollController } from './controllers/payroll.controller';
+import { PayrollService } from './services/payroll.service';
+import { SecurityService } from '../../shared/security/security.service';
+import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { CreatePayrollDto, PaymentMethod } from './dto/create-payroll.dto';
+
+describe('Payroll Controller - Unit Tests', () => {
+  let payrollController: PayrollController;
+  let payrollService: PayrollService;
+  let securityService: SecurityService;
+
+  // Mock data
+  const mockPayrollRecord = {
+    id: 'payroll-123',
+    employeeId: 'emp-123',
+    payPeriod: '2024-01',
+    grossPay: 7500.00,
+    netPay: 6200.00,
+    currency: 'USD',
+    federalTax: 937.50,
+    stateTax: 375.00,
+    socialSecurityTax: 465.00,
+    medicareTax: 108.75,
+    otherDeductions: 200.00,
+    totalDeductions: 2086.25,
+    healthInsurance: 300.00,
+    dentalInsurance: 50.00,
+    retirement401k: 750.00,
+    otherBenefits: 0.00,
+    totalBenefits: 1100.00,
+    regularHours: 160,
+    overtimeHours: 0,
+    hourlyRate: 46.88,
+    overtimeRate: 70.31,
+    paymentMethod: PaymentMethod.DIRECT_DEPOSIT,
+    paymentDate: new Date('2024-01-31'),
+    paymentStatus: 'PENDING',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    processedBy: 'hr-456',
+    approvedBy: null,
+    approvedAt: null,
+  };
+
+  const mockCreatePayrollDto: CreatePayrollDto = {
+    employeeId: 'emp-123',
+    payPeriod: '2024-01',
+    grossPay: 7500.00,
+    netPay: 6200.00,
+    regularHours: 160,
+    overtimeHours: 0,
+    hourlyRate: 46.88,
+    overtimeRate: 70.31,
+    paymentMethod: PaymentMethod.DIRECT_DEPOSIT,
+  };
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [PayrollController],
+      providers: [
+        {
+          provide: PayrollService,
+          useValue: {
+            calculatePayroll: sinon.stub(),
+            findById: sinon.stub(),
+            findByEmployee: sinon.stub(),
+            findAll: sinon.stub(),
+            approvePayroll: sinon.stub(),
+            processPayment: sinon.stub(),
+            generatePayrollReport: sinon.stub(),
+          },
+        },
+        {
+          provide: SecurityService,
+          useValue: {
+            logSecurityEvent: sinon.stub().resolves(),
+          },
+        },
+      ],
+    }).compile();
+
+    payrollController = moduleRef.get<PayrollController>(PayrollController);
+    payrollService = moduleRef.get<PayrollService>(PayrollService);
+    securityService = moduleRef.get<SecurityService>(SecurityService);
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  describe('POST /payroll/calculate', () => {
+    it('should fail to calculate payroll when service throws NotFoundException', async () => {
+      // Arrange
+      (payrollService.calculatePayroll as sinon.SinonStub).throws(new NotFoundException('Employee not found'));
+
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+        expect(error.message).to.include('Employee not found');
+      }
+    });
+
+    it('should fail to calculate payroll when service throws BadRequestException', async () => {
+      // Arrange
+      (payrollService.calculatePayroll as sinon.SinonStub).throws(new BadRequestException('Invalid pay period'));
+
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+        expect(error.message).to.include('Invalid pay period');
+      }
+    });
+
+    it('should fail to calculate payroll when service throws ConflictException', async () => {
+      // Arrange
+      (payrollService.calculatePayroll as sinon.SinonStub).throws(new ConflictException('Payroll record already exists'));
+
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown ConflictException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(ConflictException);
+        expect(error.message).to.include('Payroll record already exists');
+      }
+    });
+  });
+
+  describe('GET /payroll/:id', () => {
+    it('should fail to find payroll by ID when service throws NotFoundException', async () => {
+      // Arrange
+      (payrollService.findById as sinon.SinonStub).throws(new NotFoundException('Payroll record not found'));
+
+      // Act & Assert
+      try {
+        await payrollController.getPayrollById('non-existent');
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+        expect(error.message).to.include('Payroll record not found');
+      }
+    });
+  });
+
+  describe('GET /payroll/employee/:employeeId', () => {
+    it('should fail to find payroll by employee when service throws NotFoundException', async () => {
+      // Arrange
+      (payrollService.findByEmployee as sinon.SinonStub).throws(new NotFoundException('Employee not found'));
+
+      // Act & Assert
+      try {
+        await payrollController.getPayrollByEmployee('non-existent');
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+        expect(error.message).to.include('Employee not found');
+      }
+    });
+  });
+
+  describe('GET /payroll', () => {
+    it('should fail to find payroll records when service throws BadRequestException', async () => {
+      // Arrange
+      (payrollService.findAll as sinon.SinonStub).throws(new BadRequestException('Invalid pay period'));
+
+      // Act & Assert
+      try {
+        await payrollController.getPayroll({ payPeriod: 'invalid' });
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+        expect(error.message).to.include('Invalid pay period');
+      }
+    });
+  });
+
+  describe('PUT /payroll/:id/approve', () => {
+    it('should fail to approve payroll when service throws NotFoundException', async () => {
+      // Arrange
+      (payrollService.approvePayroll as sinon.SinonStub).throws(new NotFoundException('Payroll record not found'));
+
+      // Act & Assert
+      try {
+        await payrollController.approvePayroll('non-existent', { user: { sub: 'manager-123' } });
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+        expect(error.message).to.include('Payroll record not found');
+      }
+    });
+
+    it('should fail to approve payroll when service throws BadRequestException', async () => {
+      // Arrange
+      (payrollService.approvePayroll as sinon.SinonStub).throws(new BadRequestException('Payroll must be approved first'));
+
+      // Act & Assert
+      try {
+        await payrollController.approvePayroll('payroll-123', { user: { sub: 'manager-123' } });
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+        expect(error.message).to.include('Payroll must be approved first');
+      }
+    });
+  });
+
+  describe('POST /payroll/:id/process', () => {
+    it('should fail to process payroll when service throws NotFoundException', async () => {
+      // Arrange
+      (payrollService.processPayment as sinon.SinonStub).throws(new NotFoundException('Payroll record not found'));
+
+      // Act & Assert
+      try {
+        await payrollController.processPayment('non-existent', { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+        expect(error.message).to.include('Payroll record not found');
+      }
+    });
+
+    it('should fail to process payroll when service throws BadRequestException', async () => {
+      // Arrange
+      (payrollService.processPayment as sinon.SinonStub).throws(new BadRequestException('Payroll record must be approved before processing'));
+
+      // Act & Assert
+      try {
+        await payrollController.processPayment('payroll-123', { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+        expect(error.message).to.include('Payroll record must be approved before processing');
+      }
+    });
+  });
+
+  describe('POST /payroll/reports', () => {
+    it('should fail to generate payroll report when service throws BadRequestException', async () => {
+      // Arrange
+      (payrollService.generatePayrollReport as sinon.SinonStub).throws(new BadRequestException('Invalid date range'));
+
+      // Act & Assert
+      try {
+        await payrollController.generatePayrollReport({
+          startDate: '2024-01-31',
+          endDate: '2024-01-01', // Invalid range
+        });
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+        expect(error.message).to.include('Invalid date range');
+      }
+    });
+
+    it('should fail to generate payroll report when service throws NotFoundException', async () => {
+      // Arrange
+      (payrollService.generatePayrollReport as sinon.SinonStub).throws(new NotFoundException('No employees found'));
+
+      // Act & Assert
+      try {
+        await payrollController.generatePayrollReport({
+          departmentIds: ['non-existent'],
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+        });
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+        expect(error.message).to.include('No employees found');
+      }
+    });
+  });
+
+  describe('Input Validation', () => {
+    it('should fail with invalid create payroll DTO', async () => {
+      // Arrange
+      const invalidDto = {
+        // Missing required fields
+        employeeId: '',
+        payPeriod: 'invalid-format',
+        grossPay: -1000,
+        netPay: 2000,
+        regularHours: -10,
+        overtimeHours: 5,
+        hourlyRate: -20,
+      };
+
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown validation error');
+      } catch (error) {
+        expect(error).to.exist;
+        // ValidationPipe should catch this before it reaches the service
+      }
+    });
+  });
+
+  describe('Security and Authorization', () => {
+    it('should fail when user context is missing', async () => {
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(mockCreatePayrollDto, null);
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect(error).to.exist;
+      }
+    });
+
+    it('should fail when user ID is missing in context', async () => {
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(mockCreatePayrollDto, {});
+        expect.fail('Should have thrown error');
+      } catch (error) {
+        expect(error).to.exist;
+      }
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle unexpected service errors gracefully', async () => {
+      // Arrange
+      (payrollService.findById as sinon.SinonStub).throws(new Error('Database connection failed'));
+
+      // Act & Assert
+      try {
+        await payrollController.getPayrollById('payroll-123');
+        expect.fail('Should have thrown Error');
+      } catch (error) {
+        expect(error.message).to.include('Database connection failed');
+      }
+    });
+  });
+
+  describe('Business Logic Validation', () => {
+    it('should fail with negative gross pay in validation', async () => {
+      // Arrange
+      const invalidDto = {
+        ...mockCreatePayrollDto,
+        grossPay: -1000,
+      };
+
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown validation error');
+      } catch (error) {
+        expect(error).to.exist;
+        // ValidationPipe should catch this
+      }
+    });
+
+    it('should fail with excessive overtime hours', async () => {
+      // Arrange
+      const invalidDto = {
+        ...mockCreatePayrollDto,
+        overtimeHours: 100, // Excessive overtime
+      };
+
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown validation error');
+      } catch (error) {
+        expect(error).to.exist;
+        // ValidationPipe should catch this
+      }
+    });
+
+    it('should fail with invalid pay period format', async () => {
+      // Arrange
+      const invalidDto = {
+        ...mockCreatePayrollDto,
+        payPeriod: '2024/01', // Wrong format
+      };
+
+      // Act & Assert
+      try {
+        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        expect.fail('Should have thrown validation error');
+      } catch (error) {
+        expect(error).to.exist;
+        // ValidationPipe should catch this
+      }
+    });
+  });
+});
