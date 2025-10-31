@@ -12,7 +12,7 @@ import { LeaveRequestController } from './controllers/leave-request.controller';
 import { PayrollController } from './controllers/payroll.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
-import { setupIntegrationTest, cleanupIntegrationTest } from '../../../test/integration-setup';
+import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import {
   CreateEmployeeDto,
   EmploymentType,

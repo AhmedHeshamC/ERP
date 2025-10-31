@@ -10,7 +10,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
-import { setupIntegrationTest, cleanupIntegrationTest, cleanupDatabase } from '../../../test/integration-setup';
+import { setupIntegrationTest, cleanupIntegrationTest, cleanupDatabase } from '../../shared/testing/integration-setup';
 import 'chai/register-should';
 import 'chai/register-expect';
 

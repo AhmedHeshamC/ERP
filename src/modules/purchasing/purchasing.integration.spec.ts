@@ -10,7 +10,7 @@ import { SupplierController } from './supplier.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
-import { setupIntegrationTest, cleanupIntegrationTest } from '../../../test/integration-setup';
+import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import { CreateSupplierDto, SupplierStatus, PaymentTerms } from './dto/supplier.dto';
 import { CreatePurchaseOrderDto, PurchaseOrderStatus } from './dto/purchase-order.dto';
 import 'chai/register-should';

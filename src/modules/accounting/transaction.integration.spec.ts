@@ -7,7 +7,7 @@ import { TransactionService } from './transaction.service';
 import { TransactionType } from './enums/accounting.enum';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { PrismaModule } from '../../shared/database/prisma.module';
-import { setupIntegrationTest, cleanupIntegrationTest, cleanupDatabase } from '../../../test/integration-setup';
+import { setupIntegrationTest, cleanupIntegrationTest, cleanupDatabase } from '../../shared/testing/integration-setup';
 import 'chai/register-should';
 import 'chai/register-expect';
 

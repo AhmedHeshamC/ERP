@@ -8,7 +8,7 @@ import { ReportsService } from './services/reports.service';
 import { ReportsController } from './reports.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
-import { setupIntegrationTest, cleanupIntegrationTest } from '../../../test/integration-setup';
+import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import {
   CreateReportDefinitionDto,
   ReportType,
