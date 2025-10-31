@@ -1,0 +1,389 @@
+import { Customer } from './customer.entity';
+import { CustomerStatus } from '../enums/sales.enum';
+import { expect } from 'chai';
+
+/**
+ * Customer Entity Unit Tests - TDD Approach
+ * Following SOLID Principles:
+ * - Single Responsibility: Customer entity only handles customer data
+ * - Open/Closed: Open for extension, closed for modification
+ * - Interface Segregation: Focused customer interface
+ * - Dependency Inversion: Depends on abstractions
+ * Liskov Substitution: Simple, focused implementation
+ *
+ * KISS Principle: Simple, clean, focused implementation
+ */
+describe('Customer Entity', () => {
+  describe('Customer Creation', () => {
+    it('should create a valid customer with required fields', () => {
+      // Arrange
+      const customerData = {
+        code: 'CUST001',
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        phone: '+1234567890',
+        address: '123 Main St',
+        city: 'New York',
+        country: 'USA',
+        creditLimit: 10000,
+      };
+
+      // Act
+      const customer = new Customer(customerData);
+
+      // Assert
+      expect(customer.code).to.equal(customerData.code);
+      expect(customer.name).to.equal(customerData.name);
+      expect(customer.email).to.equal(customerData.email);
+      expect(customer.phone).to.equal(customerData.phone);
+      expect(customer.address).to.equal(customerData.address);
+      expect(customer.city).to.equal(customerData.city);
+      expect(customer.country).to.equal(customerData.country);
+      expect(customer.creditLimit).to.equal(customerData.creditLimit);
+      expect(customer.status).to.equal(CustomerStatus.ACTIVE); // Default status
+      expect(customer.isActive).to.be.true; // Default active state
+    });
+
+    it('should create customer with custom status', () => {
+      // Arrange
+      const customerData = {
+        code: 'CUST002',
+        name: 'Jane Smith',
+        email: 'jane.smith@example.com',
+        phone: '+1234567890',
+        address: '456 Oak Ave',
+        city: 'Los Angeles',
+        country: 'USA',
+        creditLimit: 15000,
+        status: CustomerStatus.INACTIVE,
+      };
+
+      // Act
+      const customer = new Customer(customerData);
+
+      // Assert
+      expect(customer.status).to.equal(CustomerStatus.INACTIVE);
+    });
+
+    it('should validate customer code format', () => {
+      // Arrange
+      const invalidCodes = ['', 'AB', 'TOOLONGCODE', '123', 'cust!001', 'lowercase', ''];
+
+      invalidCodes.forEach(code => {
+        // Act & Assert
+        expect(() => new Customer({
+          code,
+          name: 'Test Customer',
+          email: 'test@example.com',
+          phone: '+1234567890',
+          address: '123 Test St',
+          city: 'Test City',
+          country: 'USA',
+          creditLimit: 5000,
+        })).to.throw('Invalid customer code format');
+      });
+    });
+
+    it('should validate customer email format', () => {
+      // Arrange
+      const invalidEmails = [
+        'invalid-email',
+        '@domain.com',
+        'user@',
+        'user space@domain.com',
+        '',
+      ];
+
+      invalidEmails.forEach(email => {
+        // Act & Assert
+        expect(() => new Customer({
+          code: 'CUST003',
+          name: 'Test Customer',
+          email,
+          phone: '+1234567890',
+          address: '123 Test St',
+          city: 'Test City',
+          country: 'USA',
+          creditLimit: 5000,
+        })).to.throw('Invalid email format');
+      });
+    });
+
+    it('should validate credit limit is positive', () => {
+      // Arrange
+      const invalidCreditLimits = [-1000, 0, -500];
+
+      invalidCreditLimits.forEach(creditLimit => {
+        // Act & Assert
+        expect(() => new Customer({
+          code: 'CUST004',
+          name: 'Test Customer',
+          email: 'test@example.com',
+          phone: '+1234567890',
+          address: '123 Test St',
+          city: 'Test City',
+          country: 'USA',
+          creditLimit,
+        })).to.throw('Credit limit must be positive');
+      });
+    });
+
+    it('should trim whitespace from string fields', () => {
+      // Arrange
+      const customerData = {
+        code: '  CUST005  ',
+        name: '  Test Customer  ',
+        email: '  test@example.com  ',
+        phone: '  +1234567890  ',
+        address: '  123 Test St  ',
+        city: '  Test City  ',
+        country: '  USA  ',
+        creditLimit: 5000,
+      };
+
+      // Act
+      const customer = new Customer(customerData);
+
+      // Assert
+      expect(customer.code).to.equal('CUST005');
+      expect(customer.name).to.equal('Test Customer');
+      expect(customer.email).to.equal('test@example.com');
+      expect(customer.phone).to.equal('+1234567890');
+      expect(customer.address).to.equal('123 Test St');
+      expect(customer.city).to.equal('Test City');
+      expect(customer.country).to.equal('USA');
+    });
+  });
+
+  describe('Customer Status Management', () => {
+    it('should activate customer successfully', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST006',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+        status: CustomerStatus.INACTIVE,
+      });
+
+      // Act
+      customer.activate();
+
+      // Assert
+      expect(customer.status).to.equal(CustomerStatus.ACTIVE);
+      expect(customer.isActive).to.be.true;
+    });
+
+    it('should deactivate customer successfully', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST007',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+        status: CustomerStatus.ACTIVE,
+      });
+
+      // Act
+      customer.deactivate();
+
+      // Assert
+      expect(customer.status).to.equal(CustomerStatus.INACTIVE);
+      expect(customer.isActive).to.be.false;
+    });
+
+    it('should suspend customer successfully', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST008',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+        status: CustomerStatus.ACTIVE,
+      });
+
+      // Act
+      customer.suspend();
+
+      // Assert
+      expect(customer.status).to.equal(CustomerStatus.SUSPENDED);
+      expect(customer.isActive).to.be.false;
+    });
+  });
+
+  describe('Credit Management', () => {
+    it('should check if customer has sufficient credit', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST009',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 10000,
+      });
+
+      // Act & Assert
+      expect(customer.hasSufficientCredit(5000)).to.be.true;
+      expect(customer.hasSufficientCredit(10000)).to.be.true;
+      expect(customer.hasSufficientCredit(15000)).to.be.false;
+    });
+
+    it('should update credit limit successfully', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST010',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+      });
+
+      // Act
+      customer.updateCreditLimit(7500);
+
+      // Assert
+      expect(customer.creditLimit).to.equal(7500);
+      expect(customer.hasSufficientCredit(6000)).to.be.true;
+    });
+
+    it('should validate new credit limit is positive', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST011',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+      });
+
+      // Act & Assert
+      expect(() => customer.updateCreditLimit(-1000)).to.throw('Credit limit must be positive');
+      expect(() => customer.updateCreditLimit(0)).to.throw('Credit limit must be positive');
+    });
+  });
+
+  describe('Customer Validation', () => {
+    it('should validate customer data integrity', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST012',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+      });
+
+      // Act
+      const validationResult = customer.validate();
+
+      // Assert
+      expect(validationResult.isValid).to.be.true;
+      expect(validationResult.errors).to.have.length(0);
+    });
+
+    it('should return validation errors for invalid customer', () => {
+      // Arrange - Create customer with invalid data by directly setting properties
+      const customer = new Customer({
+        code: 'CUST013',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+      });
+
+      // Manually set invalid data for testing
+      customer.name = '';
+      customer.email = 'invalid-email';
+
+      // Act
+      const validationResult = customer.validate();
+
+      // Assert
+      expect(validationResult.isValid).to.be.false;
+      expect(validationResult.errors.length).to.be.greaterThan(0);
+      expect(validationResult.errors).to.include('Name is required');
+      expect(validationResult.errors).to.include('Invalid email format');
+    });
+  });
+
+  describe('Customer Serialization', () => {
+    it('should serialize customer to JSON correctly', () => {
+      // Arrange
+      const customerData = {
+        code: 'CUST014',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        state: 'NY',
+        postalCode: '10001',
+        country: 'USA',
+        creditLimit: 5000,
+        status: CustomerStatus.ACTIVE,
+      };
+
+      const customer = new Customer(customerData);
+
+      // Act
+      const json = customer.toJSON();
+
+      // Assert
+      expect(json).to.deep.equal({
+        ...customerData,
+        isActive: true,
+        createdAt: customer.createdAt,
+        updatedAt: customer.updatedAt,
+      });
+    });
+
+    it('should exclude sensitive data from serialization', () => {
+      // Arrange
+      const customer = new Customer({
+        code: 'CUST015',
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+1234567890',
+        address: '123 Test St',
+        city: 'Test City',
+        country: 'USA',
+        creditLimit: 5000,
+      });
+
+      // Act
+      const json = customer.toJSON();
+
+      // Assert - Should not include any sensitive/internal fields
+      expect(json).to.not.have.property('internalNotes');
+      expect(json).to.not.have.property('password');
+      expect(json).to.not.have.property('secretKey');
+    });
+  });
+});

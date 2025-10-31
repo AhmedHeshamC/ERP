@@ -1,0 +1,558 @@
+import { Invoice } from './invoice.entity';
+import { InvoiceStatus } from '../enums/sales.enum';
+import { expect } from 'chai';
+
+/**
+ * Invoice Entity Unit Tests - TDD Approach
+ * Following SOLID Principles:
+ * - Single Responsibility: Invoice entity only handles invoice data and business logic
+ * - Open/Closed: Open for extension, closed for modification
+ * - Interface Segregation: Focused invoice interface with essential methods
+ * - Dependency Inversion: Depends on abstractions, not concretions
+ * - Liskov Substitution: Simple, focused implementation
+ *
+ * KISS Principle: Simple, clean, focused implementation
+ */
+describe('Invoice Entity', () => {
+  describe('Invoice Creation', () => {
+    it('should create a valid invoice with required fields', () => {
+      // Arrange
+      const invoiceData = {
+        invoiceNumber: 'INV-2024-001',
+        orderId: 'order-001',
+        customerId: 'customer-001',
+        dueDate: new Date('2024-02-15'),
+        subtotal: 1000.00,
+        taxAmount: 100.00,
+        totalAmount: 1100.00,
+        currency: 'USD',
+        items: [
+          {
+            id: 'item-001',
+            description: 'Test Product 1',
+            quantity: 2,
+            unitPrice: 50.00,
+            totalPrice: 100.00,
+          },
+          {
+            id: 'item-002',
+            description: 'Test Service',
+            quantity: 1,
+            unitPrice: 50.00,
+            totalPrice: 50.00,
+          },
+        ],
+      };
+
+      // Act
+      const invoice = new Invoice(invoiceData);
+
+      // Assert
+      expect(invoice.invoiceNumber).to.equal(invoiceData.invoiceNumber);
+      expect(invoice.orderId).to.equal(invoiceData.orderId);
+      expect(invoice.customerId).to.equal(invoiceData.customerId);
+      expect(invoice.dueDate).to.deep.equal(invoiceData.dueDate);
+      expect(invoice.subtotal).to.equal(invoiceData.subtotal);
+      expect(invoice.taxAmount).to.equal(invoiceData.taxAmount);
+      expect(invoice.totalAmount).to.equal(invoiceData.totalAmount);
+      expect(invoice.currency).to.equal(invoice.currency);
+      expect(invoice.items).to.have.length(2);
+      expect(invoice.status).to.equal(InvoiceStatus.DRAFT);
+      expect(invoice.isActive).to.be.true;
+      expect(invoice.createdAt).to.be.instanceOf(Date);
+      expect(invoice.updatedAt).to.be.instanceOf(Date);
+    });
+
+    it('should create invoice with custom status', () => {
+      // Arrange
+      const invoiceData = {
+        invoiceNumber: 'INV-2024-002',
+        orderId: 'order-002',
+        customerId: 'customer-002',
+        dueDate: new Date('2024-03-15'),
+        subtotal: 500.00,
+        taxAmount: 50.00,
+        totalAmount: 550.00,
+        currency: 'EUR',
+        status: InvoiceStatus.PAID,
+        items: [
+          {
+            id: 'item-003',
+            description: 'Service A',
+            quantity: 1,
+            unitPrice: 25.00,
+            totalPrice: 25.00,
+          },
+        ],
+      };
+
+      // Act
+      const invoice = new Invoice(invoiceData);
+
+      // Assert
+      expect(invoice.status).to.equal(InvoiceStatus.PAID);
+      expect(invoice.isActive).to.be.false;
+    });
+
+    it('should validate invoice number format', () => {
+      // Arrange
+      const invalidInvoiceNumbers = ['', 'INV-1', 'TOO-LONG-INVOICE-NUMBER', 'INVALID_FORMAT', '123'];
+
+      invalidInvoiceNumbers.forEach(invoiceNumber => {
+        // Act & Assert
+        expect(() => new Invoice({
+          invoiceNumber,
+          orderId: 'order-001',
+          customerId: 'customer-001',
+          dueDate: new Date('2024-01-01'),
+          subtotal: 100.00,
+          taxAmount: 10.00,
+          totalAmount: 110.00,
+          currency: 'USD',
+          items: [
+            {
+              id: 'item-001',
+              description: 'Test Product',
+              quantity: 1,
+              unitPrice: 100.00,
+              totalPrice: 100.00,
+            },
+          ],
+        })).to.throw('Invalid invoice number format');
+      });
+    });
+
+    it('should validate invoice amount is positive', () => {
+      // Arrange
+      const invalidAmounts = [-1000, 0, -500];
+
+      invalidAmounts.forEach(amount => {
+        // Act & Assert
+        expect(() => new Invoice({
+          invoiceNumber: 'INV-2024-003',
+          orderId: 'order-003',
+          customerId: 'customer-003',
+          dueDate: new Date('2024-04-01'),
+          totalAmount: amount,
+          currency: 'USD',
+          items: [
+            {
+              id: 'item-001',
+              description: 'Test Product',
+              quantity: 1,
+              unitPrice: 100.00,
+              totalPrice: 100.00,
+            },
+          ],
+        })).to.throw('Total amount must be positive');
+      });
+    });
+
+    it('should validate items array is not empty', () => {
+      // Act & Assert
+      expect(() => new Invoice({
+        invoiceNumber: 'INV-2024-004',
+        orderId: 'order-004',
+        customerId: 'customer-004',
+        dueDate: new Date('2024-05-01'),
+        subtotal: 0.00,
+        taxAmount: 0.00,
+        totalAmount: 0.00,
+        currency: 'USD',
+        items: [], // Empty items array
+      })).to.throw('Invoice must have at least one item');
+    });
+  });
+
+    it('should calculate total amount from items if not provided', () => {
+      // Arrange
+      const invoiceData = {
+        invoiceNumber: 'INV-2024-005',
+        orderId: 'order-005',
+        customerId: 'customer-005',
+        dueDate: new Date('2024-06-01'),
+        currency: 'USD',
+        items: [
+          {
+            id: 'item-001',
+            description: 'Test Product 1',
+            quantity: 2,
+            unitPrice: 25.00,
+            totalPrice: 50.00,
+          },
+          {
+            id: 'item-002',
+            description: 'Test Service',
+            quantity: 1,
+            unitPrice: 25.00,
+            totalPrice: 25.00,
+          },
+        ],
+      };
+
+      // Act
+      const invoice = new Invoice(invoiceData);
+
+      // Assert
+      expect(invoice.totalAmount).to.equal(75.00); // 50.00 + 25.00
+    });
+
+    it('should validate item total prices match calculations', () => {
+      // Arrange
+      const invalidItems = [
+        {
+          id: 'item-001',
+          description: 'Product 1',
+          quantity: 2,
+          unitPrice: 25.00,
+          totalPrice: 40.00, // Incorrect total (should be 50.00)
+        },
+        {
+          id: 'item-002',
+          description: 'Product 2',
+          quantity: 1,
+          unitPrice: 50.00,
+          totalPrice: 45.00, // Incorrect total (should be 50.00)
+        },
+      ];
+
+      invalidItems.forEach(item => {
+        // Act & Assert
+        expect(() => new Invoice({
+          invoiceNumber: 'INV-2024-006',
+          orderId: 'order-006',
+          customerId: 'customer-006',
+          dueDate: new Date('2024-07-01'),
+          currency: 'USD',
+          totalAmount: 100.00,
+          items: [item], // Using the first invalid item
+        })).to.throw('Item total price does not match quantity * unit price');
+      });
+    });
+  });
+
+  describe('Invoice Status Management', () => {
+    let invoice: Invoice;
+
+    beforeEach(() => {
+      invoice = new Invoice({
+        invoiceNumber: `INV-${Date.now()}`,
+        orderId: `order-${Date.now()}`,
+        customerId: `customer-${Date.now()}`,
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 1000), // 30 days from now
+        subtotal: 500.00,
+        taxAmount: 50.00,
+        totalAmount: 550.00,
+        currency: 'USD',
+        items: [
+          {
+            id: `item-${Date.now()}`,
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+    });
+
+    it('should confirm draft invoice successfully', () => {
+      // Act
+      invoice.confirm();
+
+      // Assert
+      expect(invoice.status).to.equal(InvoiceStatus.CONFIRMED);
+      expect(invoice.confirmedAt).to.not.be.null;
+      expect(invoice.isActive).to.be.false;
+    });
+
+    it('should pay invoice successfully', () => {
+      // Act
+      invoice.pay();
+
+      // Assert
+      expect(invoice.status).to.equal(InvoiceStatus.PAID);
+      expect(invoice.paidAt).to.not.be.null;
+      expect(invoice.isActive).to.be.true;
+    });
+
+    it('should void invoice successfully', () => {
+      // Act
+      invoice.void('Invoice payment received');
+
+      // Assert
+      expect(invoice.status).to.equal(InvoiceStatus.VOID);
+      expect(invoice.cancelledAt).to.not.be.null;
+      expect(invoice.isActive).to.be.false;
+      expect(invoice.cancellationReason).to.equal('Invoice payment received');
+    });
+
+    it('should throw error when trying to pay unconfirmed invoice', () => {
+      // Act & Assert
+      expect(() => invoice.pay()).to.throw('Cannot pay unconfirmed invoice');
+    });
+
+    it('should throw error when trying to void paid invoice', () => {
+      // Act & Assert
+      invoice.pay(); // First pay the invoice
+      expect(() => invoice.void('Invoice already paid')).to.throw('Invoice already paid');
+    });
+  });
+
+    it('should throw error when trying to void delivered invoice', () => {
+      // Act & Assert
+      invoice.confirm();
+      invoice.deliver();
+      expect(() => invoice.void('Invoice already delivered')).to.throw('Invoice already delivered');
+    });
+  });
+
+    it('should throw error when trying to void cancelled invoice', () => {
+      // Act & Assert
+      invoice.cancel('Customer requested cancellation');
+      expect(() => invoice.void('Invoice already cancelled')).to.throw('Invoice already cancelled');
+    });
+  });
+
+    it('should update status correctly when status changes', () => {
+      // Arrange
+      const invoice = new Invoice({
+        invoiceNumber: 'INV-2024-007',
+        orderId: 'order-007',
+        customerId: 'customer-007',
+        dueDate: new Date('2024-02-01'),
+        subtotal: 500.00,
+        taxAmount: 50.00,
+        totalAmount: 550.00,
+        currency: 'USD',
+        items: [
+          {
+            id: 'item-007-1',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+
+      // Act & Assert
+      expect(invoice.status).to.equal(InvoiceStatus.DRAFT);
+      invoice.confirm();
+      expect(invoice.status).to.equal(OrderStatus.CONFIRMED);
+      invoice.pay();
+      expect(invoice.status).to.equal(InvoiceStatus.PAID);
+      invoice.deliver();
+      expect(invoice.status).to.equal(OrderStatus.DELIVERED);
+    });
+  });
+
+  describe('Invoice Calculations', () => {
+    let invoice: Invoice;
+
+    beforeEach(() => {
+      invoice = new Invoice({
+        invoiceNumber: 'ORD-2024-008',
+        orderId: 'order-008',
+        customerId: 'customer-008',
+        dueDate: new Date('2024-02-01'),
+        subtotal: 1000.00,
+        taxAmount: 100.00,
+        totalAmount: 1100.00,
+        currency: 'USD',
+        taxRate: 0.10, // 10% tax rate
+        items: [
+          {
+            id: 'item-001',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+          {
+            id: 'item-002',
+            description: 'Service',
+            quantity: 2,
+            unitPrice: 50.00,
+            totalPrice: 100.00,
+          },
+          {
+            id: 'item-003',
+            description: 'License',
+            quantity: 1,
+            unitPrice: 50.00,
+            totalPrice: 50.00,
+          },
+        ],
+      });
+    });
+
+    it('should calculate subtotal correctly', () => {
+      // Act
+      const subtotal = invoice.calculateSubtotal();
+
+      // Assert
+      expect(subtotal).to.equal(250.00); // 100 + 50 + 50 + 50
+    });
+
+    it('should calculate tax amount correctly', () => {
+      // Act
+      const taxAmount = invoice.calculateTax();
+
+      // Assert
+      expect(taxAmount).to.equal(100.00); // 10% of 1000.00
+    });
+
+    it('should calculate total with tax correctly', () => {
+      // Act
+      const totalWithTax = invoice.calculateTotalWithTax();
+
+      // Assert
+      expect(totalWithTax).to.equal(1100.00); // 1000 + 100 (10%)
+    });
+
+    it('should calculate discount amount correctly', () => {
+      // Arrange
+      const invoice = new Invoice({
+        invoiceNumber: 'ORD-2024-009',
+        orderId: 'order-009',
+        customerId: 'customer-009',
+        dueDate: new Date('2024-02-01'),
+        subtotal: 200.00,
+        taxAmount: 20.00, // 10% tax
+        totalAmount: 220.00, // 200 + 20 (10% of 200 = 220)
+        currency: 'USD',
+        items: [
+          {
+            id: 'item-009-1',
+            description: 'Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+
+      // Act
+      const discountAmount = invoice.calculateDiscountAmount(0.1); // 10% discount
+
+      // Assert
+      expect(discountAmount).to.equal(20.00); // 10% of 200
+    });
+
+    it('should calculate due days correctly', () => {
+      // Arrange
+      const dueDate = new Date('2024-02-01');
+      const today = new Date();
+      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n\n      // Act\n      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n\n      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day
+
+      // Assert
+      expect(daysUntilDue).to.be.greaterThan(0); // Should be in the future
+    });
+
+    it('should check if invoice is overdue', () => {
+      // Arrange
+      const pastDueDate = new Date('2023-12-01'); // Past due date
+      const today = new Date('2024-01-01');
+      const isOverdue = pastDueDate < today;
+
+      // Act
+      const isOverdue = invoice.isOverdue();
+
+      // Assert
+      expect(isOverdue).to.be.true;
+    });
+  });
+
+    it('should calculate remaining balance correctly', () => {
+      // Arrange
+      const totalAmount = 1000.00;
+      const paidAmount = 800.00;
+
+      // Act
+      const remainingBalance = invoice.calculateRemainingBalance(totalAmount, paidAmount);
+
+      // Assert
+      expect(remainingBalance).to.equal(200.00); // 1000 - 800 = 200
+    });
+
+    it('should calculate overdue days correctly', () => {
+      // Arrange
+      const dueDate = new Date('2023-12-01');
+      const today = new Date('2024-01-01');
+      const overdueDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n      // \n      const overdueDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n      // Act\n      const overdueDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n\n      // Assert\n      const overdueDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n      \n      // Assert\n      const overdueDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n\n      // Assert\n      expect(overdueDays).to.be.greaterThan(0); // Should be overdue\n\n      expect(overdueDays).to.be.lessThan(365); // Should be within a year\n\n    });
+  });
+
+    it('should calculate aging correctly', () => {
+      // Arrange
+      const createdAt = new Date('2023-01-01');
+      const today = new Date('2024-01-01');
+      const createdAgingDays = Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n      // \n      const createdAgingDays = Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 24)); // milliseconds in a day\n\n      // \n      // Assert\n      expect(createdAgingDays).to.be.lessThan(365); // Should be less than a year old\n    });
+  });
+
+    it('should throw error for invalid discount amount', () => {
+      // Arrange
+      const invoice = new Invoice({
+        invoiceNumber: 'ORD-2024-010',
+        orderId: 'order-010',
+        customerId: 'customer-010',
+        dueDate: new Date('2024-02-15'),
+        subtotal: 500.00,
+        taxAmount: 50.00,
+        totalAmount: 550.00,
+        currency: 'USD',
+        items: [
+          {
+            id: 'item-010-1',
+            description: 'Product A',
+            quantity: 1,
+            unitPrice: 250.00,
+            totalPrice: 250.00,
+          },
+        ],
+      });
+
+      // Act & Assert
+      expect(() => invoice.calculateDiscountAmount(0.5)).to.throw('Discount amount must be between 0 and 1');
+
+      // Act & Assert
+      expect(() => invoice.calculateDiscountAmount(0.5)).to.throw('Discount amount must be between 0 and 1');
+    });
+
+    it('should calculate discount amount for specific percentage', () => {
+      // Arrange
+      const invoice = new Invoice({
+        invoiceNumber: 'ORD-2024-011',
+        orderId: 'order-011',
+        customerId: 'customer-011',
+        dueDate: new Date('2024-02-15'),
+        subtotal: 1000.00,
+        taxAmount: 100.00, // 10% tax
+        totalAmount: 1100.00,
+        currency: 'USD',
+        items: [
+          {
+            id: 'item-011-1',
+            description: 'Test Product',
+            quantity: 5,
+            unitPrice: 200.00,
+            totalPrice: 1000.00,
+          },
+        ],
+      });
+
+      // Act
+      const discountAmount = invoice.calculateDiscountAmount(0.15); // 15% discount\n      \n      // Assert\n      expect(discountAmount).to.equal(150.00); // 15% of 1000 = 150
+    });
+
+    it('should round discount amount correctly', () => {
+      // Arrange
+      const invoice = new Invoice({
+        invoiceNumber: 'ORD-2024-012',
+        orderId: 'order-012',
+        customerId: 'customer-012',
+        dueDate: new Date('2024-02-01'),
+        subtotal: 500.00,
+        taxAmount: 50.00, // 10% tax\n        totalAmount: 550.00,
+        currency: 'USD',
+        items: [\n          {\n            id: 'product-001',\n            description: 'Product A',\n            quantity: 3,\n            unitPrice: 25.00,\n            totalPrice: 75.00,\n          },\n          {\n            id: 'product-002',\n            description: 'Product B',\n            quantity: 2,\n            unitPrice: 50.00,\n            totalPrice: 100.00,\n          },\n        ],\n      });\n\n      // Act\n      const discountAmount = invoice.calculateDiscountAmount(0.05); // 5% discount\n      \n      // Assert\n      expect(Math.abs(discountAmount - (invoice.totalAmount * 0.05)).to.be.lessThan(0.01));\n    });\n  });

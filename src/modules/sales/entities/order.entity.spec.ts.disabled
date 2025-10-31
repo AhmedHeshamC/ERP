@@ -1,0 +1,518 @@
+import { Order } from './order.entity';
+import { OrderStatus } from '../enums/sales.enum';
+import { expect } from 'chai';
+
+/**
+ * Order Entity Unit Tests - TDD Approach
+ * Following SOLID Principles:
+ * - Single Responsibility: Order entity only handles order data
+ * - Open/Closed: Open for extension, closed for modification
+ * - Interface Segregation: Focused order interface
+ * - Dependency Inversion: Depends on abstractions
+ * Liskov Substitution: Simple, focused implementation
+ *
+ * KISS Principle: Simple, clean, focused implementation
+ */
+describe('Order Entity', () => {
+  describe('Order Creation', () => {
+    it('should create a valid order with required fields', () => {
+      // Arrange
+      const orderData = {
+        orderNumber: 'ORD-2024-001',
+        customerId: 'customer-001',
+        description: 'Test order for integration testing',
+        totalAmount: 1500.00,
+        currency: 'USD',
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product 1',
+            quantity: 2,
+            unitPrice: 25.00,
+            totalPrice: 50.00,
+          },
+          {
+            productId: 'product-002',
+            description: 'Test Product 2',
+            quantity: 1,
+            unitPrice: 30.00,
+            totalPrice: 30.00,
+          },
+        ],
+      };
+
+      // Act
+      const order = new Order(orderData);
+
+      // Assert
+      expect(order.orderNumber).to.equal(orderData.orderNumber);
+      expect(order.customerId).to.equal(orderData.customerId);
+      expect(order.description).to.equal(orderData.description);
+      expect(order.totalAmount).to.equal(orderData.totalAmount);
+      expect(order.currency).to.equal(orderData.currency);
+      expect(order.status).to.equal(OrderStatus.DRAFT); // Default status
+      expect(order.items).to.have.length(2);
+      expect(order.items[0].productId).to.equal('product-001');
+      expect(order.items[0].quantity).to.equal(2);
+      expect(order.items[0].unitPrice).to.equal(25.00);
+      expect(order.items[0].totalPrice).to.equal(50.00);
+    });
+
+    it('should create order with custom status', () => {
+      // Arrange
+      const orderData = {
+        orderNumber: 'ORD-2024-002',
+        customerId: 'customer-002',
+        description: 'Test order with custom status',
+        totalAmount: 2000.00,
+        currency: 'EUR',
+        status: OrderStatus.CONFIRMED,
+        items: [
+          {
+            productId: 'product-003',
+            description: 'Test Product 3',
+            quantity: 1,
+            unitPrice: 50.00,
+            totalPrice: 50.00,
+          },
+        ],
+      };
+
+      // Act
+      const order = new Order(orderData);
+
+      // Assert
+      expect(order.status).to.equal(OrderStatus.CONFIRMED);
+    });
+
+    it('should validate order number format', () => {
+      // Arrange
+      const invalidOrderNumbers = ['', 'ORD-1', 'TOOLONGORDERNUMBER-2024', 'invalid-format', '123'];
+
+      invalidOrderNumbers.forEach(orderNumber => {
+        // Act & Assert
+        expect(() => new Order({
+          orderNumber,
+          customerId: 'customer-001',
+          description: 'Test order',
+          totalAmount: 1000.00,
+          currency: 'USD',
+          items: [
+            {
+              productId: 'product-001',
+              description: 'Test Product',
+              quantity: 1,
+              unitPrice: 100.00,
+              totalPrice: 100.00,
+            },
+          ],
+        })).to.throw('Invalid order number format');
+      });
+    });
+
+    it('should validate total amount is positive', () => {
+      // Arrange
+      const invalidAmounts = [-1000, 0, -500];
+
+      invalidAmounts.forEach(totalAmount => {
+        // Act & Assert
+        expect(() => new Order({
+          orderNumber: 'ORD-2024-003',
+          customerId: 'customer-001',
+          description: 'Test order',
+          totalAmount,
+          currency: 'USD',
+          items: [
+            {
+              productId: 'product-001',
+              description: 'Test Product',
+              quantity: 1,
+              unitPrice: 100.00,
+              totalPrice: 100.00,
+            },
+          ],
+        })).to.throw('Total amount must be positive');
+      });
+    });
+
+    it('should validate items array is not empty', () => {
+      // Act & Assert
+      expect(() => new Order({
+        orderNumber: 'ORD-2024-004',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        items: [], // Empty items array
+      })).to.throw('Order must have at least one item');
+    });
+
+    it('should calculate total amount from items if not provided', () => {
+      // Arrange
+      const orderData = {
+        orderNumber: 'ORD-2024-005',
+        customerId: 'customer-001',
+        description: 'Test order',
+        currency: 'USD',
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product 1',
+            quantity: 2,
+            unitPrice: 25.00,
+            totalPrice: 50.00,
+          },
+          {
+            productId: 'product-002',
+            description: 'Test Product 2',
+            quantity: 1,
+            unitPrice: 30.00,
+            totalPrice: 30.00,
+          },
+        ],
+      };
+
+      // Act
+      const order = new Order(orderData);
+
+      // Assert
+      expect(order.totalAmount).to.equal(80.00); // 50.00 + 30.00
+    });
+
+    it('should validate item total price matches quantity * unit price', () => {
+      // Arrange
+      const invalidItems = [
+        {
+          productId: 'product-001',
+          description: 'Test Product',
+          quantity: 2,
+          unitPrice: 25.00,
+          totalPrice: 45.00, // Should be 50.00
+        },
+      ];
+
+      // Act & Assert
+      expect(() => new Order({
+        orderNumber: 'ORD-2024-006',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        items: invalidItems,
+      })).to.throw('Item total price does not match quantity * unit price');
+    });
+  });
+
+  describe('Order Status Management', () => {
+    let order: Order;
+
+    beforeEach(() => {
+      order = new Order({
+        orderNumber: 'ORD-2024-007',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+    });
+
+    it('should confirm draft order successfully', () => {
+      // Act
+      order.confirm();
+
+      // Assert
+      expect(order.status).to.equal(OrderStatus.CONFIRMED);
+      expect(order.confirmedAt).to.not.be.null;
+    });
+
+    it('should ship confirmed order successfully', () => {
+      // Arrange
+      order.confirm();
+
+      // Act
+      order.ship();
+
+      // Assert
+      expect(order.status).to.equal(OrderStatus.SHIPPED);
+      expect(order.shippedAt).to.not.be.null;
+    });
+
+    it('should deliver shipped order successfully', () => {
+      // Arrange
+      order.confirm();
+      order.ship();
+
+      // Act
+      order.deliver();
+
+      // Assert
+      expect(order.status).to.equal(OrderStatus.DELIVERED);
+      expect(order.deliveredAt).to.not.be.null;
+    });
+
+    it('should cancel order successfully', () => {
+      // Act
+      order.cancel('Customer requested cancellation');
+
+      // Assert
+      expect(order.status).to.equal(OrderStatus.CANCELLED);
+      expect(order.cancelledAt).to.not.be.null;
+      expect(order.cancellationReason).to.equal('Customer requested cancellation');
+    });
+
+    it('should throw error when trying to ship unconfirmed order', () => {
+      // Act & Assert
+      expect(() => order.ship()).to.throw('Cannot ship unconfirmed order');
+    });
+
+    it('should throw error when trying to deliver unshipped order', () => {
+      // Act & Assert
+      expect(() => order.deliver()).to.throw('Cannot deliver unshipped order');
+    });
+  });
+
+  describe('Order Calculations', () => {
+    it('should calculate subtotal correctly', () => {
+      // Arrange
+      const order = new Order({
+        orderNumber: 'ORD-2024-008',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Product 1',
+            quantity: 3,
+            unitPrice: 100.00,
+            totalPrice: 300.00,
+          },
+          {
+            productId: 'product-002',
+            description: 'Product 2',
+            quantity: 2,
+            unitPrice: 50.00,
+            totalPrice: 100.00,
+          },
+          {
+            productId: 'product-003',
+            description: 'Product 3',
+            quantity: 1,
+            unitPrice: 25.00,
+            totalPrice: 25.00,
+          },
+        ],
+      });
+
+      // Act
+      const subtotal = order.calculateSubtotal();
+
+      // Assert
+      expect(subtotal).to.equal(425.00); // 300 + 100 + 25
+    });
+
+    it('should calculate tax amount correctly', () => {
+      // Arrange
+      const order = new Order({
+        orderNumber: 'ORD-2024-009',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        taxRate: 0.10, // 10% tax rate
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+
+      // Act
+      const taxAmount = order.calculateTax();
+
+      // Assert
+      expect(taxAmount).to.equal(10.00); // 10% of 100.00
+    });
+
+    it('should calculate total with tax correctly', () => {
+      // Arrange
+      const order = new Order({
+        orderNumber: 'ORD-2024-010',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        taxRate: 0.08, // 8% tax rate
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+
+      // Act
+      const totalWithTax = order.calculateTotalWithTax();
+
+      // Assert
+      expect(totalWithTax).to.equal(108.00); // 100.00 + 8.00 tax
+    });
+  });
+
+  describe('Order Validation', () => {
+    it('should validate order data integrity', () => {
+      // Arrange
+      const order = new Order({
+        orderNumber: 'ORD-2024-011',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+
+      // Act
+      const validationResult = order.validate();
+
+      // Assert
+      expect(validationResult.isValid).to.be.true;
+      expect(validationResult.errors).to.have.length(0);
+    });
+
+    it('should return validation errors for invalid order', () => {
+      // Arrange - Create order with invalid data
+      const order = new Order({
+        orderNumber: 'ORD-2024-012',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+
+      // Manually set invalid data for testing
+      order.description = '';
+      order.items[0].quantity = 0;
+
+      // Act
+      const validationResult = order.validate();
+
+      // Assert
+      expect(validationResult.isValid).to.be.false;
+      expect(validationResult.errors.length).to.be.greaterThan(0);
+      expect(validationResult.errors).to.include('Description is required');
+      expect(validationResult.errors).to.include('Item quantity must be positive');
+    });
+  });
+
+  describe('Order Serialization', () => {
+    it('should serialize order to JSON correctly', () => {
+      // Arrange
+      const orderData = {
+        orderNumber: 'ORD-2024-013',
+        customerId: 'customer-001',
+        description: 'Test order for serialization',
+        totalAmount: 500.00,
+        currency: 'USD',
+        taxRate: 0.10,
+        status: OrderStatus.DRAFT,
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product',
+            quantity: 2,
+            unitPrice: 25.00,
+            totalPrice: 50.00,
+          },
+        ],
+        shippingAddress: {
+          street: '123 Test St',
+          city: 'Test City',
+          country: 'USA',
+        },
+        billingAddress: {
+          street: '123 Test St',
+          city: 'Test City',
+          country: 'USA',
+        },
+      };
+
+      const order = new Order(orderData);
+
+      // Act
+      const json = order.toJSON();
+
+      // Assert
+      expect(json).to.deep.equal({
+        ...orderData,
+        subtotal: 50.00,
+        taxAmount: 5.00,
+        totalWithTax: 55.00,
+        isActive: true,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+      });
+    });
+
+    it('should exclude sensitive data from serialization', () => {
+      // Arrange
+      const order = new Order({
+        orderNumber: 'ORD-2024-014',
+        customerId: 'customer-001',
+        description: 'Test order',
+        totalAmount: 1000.00,
+        currency: 'USD',
+        items: [
+          {
+            productId: 'product-001',
+            description: 'Test Product',
+            quantity: 1,
+            unitPrice: 100.00,
+            totalPrice: 100.00,
+          },
+        ],
+      });
+
+      // Act
+      const json = order.toJSON();
+
+      // Assert - Should not include any sensitive/internal fields
+      expect(json).to.not.have.property('internalNotes');
+      expect(json).to.not.have.property('password');
+      expect(json).to.not.have.property('secretKey');
+    });
+  });
+});
