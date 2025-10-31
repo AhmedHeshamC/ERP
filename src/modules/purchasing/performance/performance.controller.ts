@@ -13,8 +13,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
-import { RolesGuard } from '../../shared/guards/roles.guard';
+import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../shared/security/guards/roles.guard';
 import { SupplierPerformanceService } from './performance.service';
 import {
   CreateSupplierPerformanceDto,

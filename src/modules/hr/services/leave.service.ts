@@ -111,7 +111,7 @@ export class LeaveService {
 
     // Validate leave balance again (in case it changed since request)
     const employee = leaveRequest.employee;
-    if (!this.securityService.validateLeaveBalance(employee, leaveRequest.leaveType, leaveRequest.daysRequested)) {
+    if (!this.securityService.validateLeaveBalance(employee, leaveRequest.leaveType, Number(leaveRequest.daysRequested))) {
       throw new BadRequestException('Insufficient leave balance');
     }
 

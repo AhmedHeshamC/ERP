@@ -12,6 +12,7 @@ import {
   Logger,
   HttpCode,
   HttpStatus,
+  Body,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ProductService } from './product.service';
@@ -22,9 +23,10 @@ import {
   ProductResponse,
   ProductsQueryResponse,
 } from './dto/product.dto';
-import { HasPermission } from '../../shared/decorators/permissions.decorator';
-import { CurrentUser } from '../../shared/decorators/current-user.decorator';
-import { Roles } from '../../shared/common/constants';
+import { Roles } from '../../shared/security/decorators/roles.decorator';
+import { CurrentUser } from '../../shared/security/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/security/guards/roles.guard';
 
 /**
  * Enterprise Product Controller
@@ -60,7 +62,7 @@ export class ProductController {
    */
   @Post()
   @UsePipes(new ValidationPipe())
-  @HasPermission(['ADMIN', 'MANAGER'])
+  @Roles('ADMIN', 'MANAGER')
   @ApiResponse({ status: HttpStatus.CREATED })
   @ApiOperation({ summary: 'Create a new product' })
   async createProduct(
@@ -79,7 +81,7 @@ export class ProductController {
    */
   @Get()
   @UsePipes(new ValidationPipe())
-  @HasPermission(['ADMIN', 'MANAGER', 'USER'])
+  @Roles('ADMIN', 'MANAGER', 'USER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Get all products with pagination' })
   async getProducts(
@@ -96,7 +98,7 @@ export class ProductController {
    * OWASP A01: Resource-based access validation
    */
   @Get(':id')
-  @HasPermission(['ADMIN', 'MANAGER', 'USER'])
+  @Roles('ADMIN', 'MANAGER', 'USER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Get product by ID' })
   async getProductById(
@@ -115,7 +117,7 @@ export class ProductController {
    */
   @Put(':id')
   @UsePipes(new ValidationPipe())
-  @HasPermission(['ADMIN', 'MANAGER'])
+  @Roles('ADMIN', 'MANAGER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Update product' })
   async updateProduct(
@@ -134,7 +136,7 @@ export class ProductController {
    * OWASP A09: Security event logging
    */
   @Delete(':id')
-  @HasPermission(['ADMIN', 'MANAGER'])
+  @Roles('ADMIN', 'MANAGER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Delete product' })
   async deleteProduct(
@@ -151,7 +153,7 @@ export class ProductController {
    * OWASP A05: Secure defaults with validation
    */
   @Get('category/:categoryId')
-  @HasPermission(['ADMIN', 'MANAGER', 'USER'])
+  @Roles('ADMIN', 'MANAGER', 'USER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Get products by category' })
   async getProductsByCategory(
@@ -168,7 +170,7 @@ export class ProductController {
    * OWASP A09: Security monitoring for critical alerts
    */
   @Get('low-stock')
-  @HasPermission(['ADMIN', 'MANAGER'])
+  @Roles('ADMIN', 'MANAGER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Get low stock products' })
   async getLowStockProducts(
@@ -185,7 +187,7 @@ export class ProductController {
    */
   @Get('search')
   @UsePipes(new ValidationPipe())
-  @HasPermission(['ADMIN', 'MANAGER', 'USER'])
+  @Roles('ADMIN', 'MANAGER', 'USER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Search products' })
   async searchProducts(
@@ -202,7 +204,7 @@ export class ProductController {
    * OWASP A02: Sensitive data protection via proper access control
    */
   @Get(':id/stock')
-  @HasPermission(['ADMIN', 'MANAGER', 'USER'])
+  @Roles('ADMIN', 'MANAGER', 'USER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Get product stock information' })
   async getProductStock(
@@ -221,7 +223,7 @@ export class ProductController {
    */
   @Post(':id/stock')
   @UsePipes(new ValidationPipe())
-  @HasPermission(['ADMIN', 'MANAGER'])
+  @Roles('ADMIN', 'MANAGER')
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Adjust product stock' })
   async adjustStock(
