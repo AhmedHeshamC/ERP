@@ -48,11 +48,11 @@ export interface CreateEmployeeData {
   employmentType: string;
   salary: number;
   currency?: string;
-  workSchedule?: any;
-  emergencyContact?: any;
+  workSchedule?: Record<string, unknown>;
+  emergencyContact?: Record<string, unknown>;
   socialSecurity?: string;
   taxId?: string;
-  bankAccount?: any;
+  bankAccount?: Record<string, unknown>;
 }
 
 export interface UpdateEmployeeData {
@@ -72,11 +72,11 @@ export interface UpdateEmployeeData {
   salary?: number;
   currency?: string;
   status?: string;
-  workSchedule?: any;
-  emergencyContact?: any;
+  workSchedule?: Record<string, unknown>;
+  emergencyContact?: Record<string, unknown>;
   socialSecurity?: string;
   taxId?: string;
-  bankAccount?: any;
+  bankAccount?: Record<string, unknown>;
   terminationReason?: string;
 }
 
@@ -85,4 +85,18 @@ export interface EmployeeListResponse {
   total: number;
   skip: number;
   take: number;
+}
+
+export interface EmployeeSummary {
+  total: number;
+  active: number;
+  inactive: number;
+  statusBreakdown: Array<{
+    status: string;
+    _count: number;
+  }>;
+  departmentBreakdown: Array<{
+    departmentId: string;
+    _count: number;
+  }>;
 }

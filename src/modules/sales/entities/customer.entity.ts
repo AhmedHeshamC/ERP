@@ -12,6 +12,28 @@ import { CustomerStatus } from '../enums/sales.enum';
  * KISS Principle: Simple, clean, focused implementation
  * No unnecessary complexity, focused on customer management
  */
+
+export interface CustomerJSON {
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+  creditLimit: number;
+  status: CustomerStatus;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  id?: string;
+  state?: string;
+  postalCode?: string;
+  website?: string;
+  taxId?: string;
+  notes?: string;
+}
+
 export interface CustomerValidationResult {
   isValid: boolean;
   errors: string[];
@@ -114,7 +136,7 @@ export class Customer {
    * Single Responsibility: Only handles credit logic
    */
   public hasSufficientCredit(amount: number): boolean {
-    if (amount < 0) return false;
+    if (amount < 0) {return false;}
     return amount <= this.creditLimit;
   }
 
@@ -161,8 +183,8 @@ export class Customer {
    * Serialize customer to JSON
    * KISS: Simple, straightforward serialization
    */
-  public toJSON(): any {
-    const result: any = {
+  public toJSON(): CustomerJSON {
+    const result: CustomerJSON = {
       code: this.code,
       name: this.name,
       email: this.email,
@@ -178,12 +200,12 @@ export class Customer {
     };
 
     // Only include optional properties if they have values
-    if (this.id) result.id = this.id;
-    if (this.state) result.state = this.state;
-    if (this.postalCode) result.postalCode = this.postalCode;
-    if (this.website) result.website = this.website;
-    if (this.taxId) result.taxId = this.taxId;
-    if (this.notes) result.notes = this.notes;
+    if (this.id) {result.id = this.id;}
+    if (this.state) {result.state = this.state;}
+    if (this.postalCode) {result.postalCode = this.postalCode;}
+    if (this.website) {result.website = this.website;}
+    if (this.taxId) {result.taxId = this.taxId;}
+    if (this.notes) {result.notes = this.notes;}
 
     return result;
   }

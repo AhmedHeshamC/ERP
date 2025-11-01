@@ -225,8 +225,8 @@ export class Order {
    * Serialize order to JSON
    * KISS: Simple, straightforward serialization
    */
-  public toJSON(): any {
-    const result: any = {
+  public toJSON(): Record<string, unknown> {
+    const result: Record<string, unknown> = {
       orderNumber: this.orderNumber,
       customerId: this.customerId,
       description: this.description,
@@ -244,16 +244,16 @@ export class Order {
     };
 
     // Only include optional properties if they have values
-    if (this.id) result.id = this.id;
-    if (this.shippingAddress) result.shippingAddress = this.shippingAddress;
-    if (this.billingAddress) result.billingAddress = this.billingAddress;
-    if (this.notes) result.notes = this.notes;
-    if (this.expectedDeliveryDate) result.expectedDeliveryDate = this.expectedDeliveryDate;
-    if (this.confirmedAt) result.confirmedAt = this.confirmedAt;
-    if (this.shippedAt) result.shippedAt = this.shippedAt;
-    if (this.deliveredAt) result.deliveredAt = this.deliveredAt;
-    if (this.cancelledAt) result.cancelledAt = this.cancelledAt;
-    if (this.cancellationReason) result.cancellationReason = this.cancellationReason;
+    if (this.id) {result.id = this.id;}
+    if (this.shippingAddress) {result.shippingAddress = this.shippingAddress;}
+    if (this.billingAddress) {result.billingAddress = this.billingAddress;}
+    if (this.notes) {result.notes = this.notes;}
+    if (this.expectedDeliveryDate) {result.expectedDeliveryDate = this.expectedDeliveryDate;}
+    if (this.confirmedAt) {result.confirmedAt = this.confirmedAt;}
+    if (this.shippedAt) {result.shippedAt = this.shippedAt;}
+    if (this.deliveredAt) {result.deliveredAt = this.deliveredAt;}
+    if (this.cancelledAt) {result.cancelledAt = this.cancelledAt;}
+    if (this.cancellationReason) {result.cancellationReason = this.cancellationReason;}
 
     return result;
   }

@@ -12,6 +12,7 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
 } from './dto/auth.dto';
+import { UserResponse } from '../../modules/users/dto/user.dto';
 
 @Injectable()
 export class AuthService {
@@ -444,7 +445,7 @@ export class AuthService {
     });
   }
 
-  async validatePassword(user: any, password: string): Promise<boolean> {
+  async validatePassword(user: UserResponse, password: string): Promise<boolean> {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     return isPasswordValid;
   }
@@ -456,7 +457,7 @@ export class AuthService {
     });
   }
 
-  private generateAccessToken(user: any): string {
+  private generateAccessToken(user: UserResponse): string {
     const payload = {
       sub: user.id,
       email: user.email,

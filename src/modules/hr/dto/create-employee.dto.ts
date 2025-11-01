@@ -75,10 +75,10 @@ export class CreateEmployeeDto {
   currency?: string;
 
   @IsOptional()
-  workSchedule?: any;
+  workSchedule?: Record<string, unknown>;
 
   @IsOptional()
-  emergencyContact?: any;
+  emergencyContact?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()
@@ -89,5 +89,5 @@ export class CreateEmployeeDto {
   taxId?: string;
 
   @IsOptional()
-  bankAccount?: any;
+  bankAccount?: Record<string, unknown>;
 }

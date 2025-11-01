@@ -573,7 +573,7 @@ export class CreateScorecardDetailDto {
 
   @ApiPropertyOptional({ description: 'Supporting data' })
   @IsOptional()
-  supportingData?: any;
+  supportingData?: Record<string, unknown>;
 }
 
 /**

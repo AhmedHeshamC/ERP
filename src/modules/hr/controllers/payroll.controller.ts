@@ -19,6 +19,40 @@ import { CreatePayrollDto } from '../dto/create-payroll.dto';
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
 import { Roles } from '../../../shared/security/decorators/roles.decorator';
+import { AuthenticatedRequest } from '../../../shared/security/interfaces/jwt.interface';
+import { PayrollRecord } from '@prisma/client';
+
+interface PayrollFilters {
+  employeeId?: string;
+  status?: string;
+  payPeriod?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface PayrollReportParams {
+  startDate?: string;
+  endDate?: string;
+  employeeIds?: string[];
+  departmentIds?: string[];
+  format?: 'PDF' | 'EXCEL' | 'CSV';
+}
+
+interface PayrollSummary {
+  totalPayrollRecords: number;
+  totalPayrollAmount: number;
+  averageSalary: number;
+  statusBreakdown: Array<{
+    status: string;
+    count: number;
+    totalAmount: number;
+  }>;
+  monthlyTrend: Array<{
+    month: string;
+    amount: number;
+    count: number;
+  }>;
+}
 
 /**
  * Enterprise Payroll Controller
@@ -49,7 +83,7 @@ export class PayrollController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
   async calculatePayroll(
     @Body() createPayrollDto: CreatePayrollDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     try {
       this.logger.log(`Calculating payroll for employee!: ${createPayrollDto.employeeId}, period: ${createPayrollDto.payPeriod}`);
@@ -132,7 +166,7 @@ export class PayrollController {
    */
   @Get()
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
-  async getPayroll(@Query() filters: any): Promise<any> {
+  async getPayroll(@Query() filters: PayrollFilters): Promise<{ payrollRecords: PayrollRecord[]; total: number }> {
     try {
       this.logger.log(`Fetching payroll records with filters!: ${JSON.stringify(filters)}`);
       const result = await this.payrollService.findAll(filters);
@@ -153,7 +187,7 @@ export class PayrollController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
   async approvePayroll(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     try {
       this.logger.log(`Approving payroll record!: ${id}`);
@@ -190,7 +224,7 @@ export class PayrollController {
   @Roles('HR_ADMIN', 'ADMIN')
   async processPayment(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ) {
     try {
       this.logger.log(`Processing payroll payment!: ${id}`);
@@ -225,7 +259,7 @@ export class PayrollController {
    */
   @Post('reports')
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
-  async generatePayrollReport(@Body() reportParams: any) {
+  async generatePayrollReport(@Body() reportParams: PayrollReportParams) {
     try {
       this.logger.log(`Generating payroll report!: ${JSON.stringify(reportParams)}`);
       const report = await this.payrollService.generatePayrollReport(reportParams);
@@ -243,7 +277,7 @@ export class PayrollController {
    */
   @Get('summary')
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
-  async getPayrollSummary(@Query() filters: any): Promise<any> {
+  async getPayrollSummary(@Query() filters: PayrollFilters): Promise<PayrollSummary> {
     try {
       this.logger.log('Fetching payroll summary statistics');
       const summary = await this.payrollService.findAll({

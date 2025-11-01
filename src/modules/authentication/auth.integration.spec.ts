@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { expect } from 'chai';
 import * as request from 'supertest';
+import * as jwt from 'jsonwebtoken';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
@@ -16,11 +17,11 @@ import 'chai/register-should';
 import 'chai/register-expect';
 
 // Declare Mocha globals for TypeScript
-declare var before: any;
-declare var after: any;
-declare var beforeEach: any;
-declare var afterEach: any;
-declare var afterAll: any;
+declare let before: any;
+declare let after: any;
+declare let beforeEach: any;
+declare let afterEach: any;
+declare let afterAll: any;
 
 /**
  * Authentication Integration Tests
@@ -137,7 +138,6 @@ describe('Authentication Integration Tests', () => {
     it('should debug: check what routes are registered', async () => {
       // Debug: Let's see what routes are actually registered
       const server = app.getHttpServer();
-      console.log('Server created, checking if we can make requests...');
 
       const response = await request(server)
         .post('/auth/register')
@@ -149,8 +149,6 @@ describe('Authentication Integration Tests', () => {
           username: 'testuser'
         });
 
-      console.log('POST /auth/register response status:', response.status);
-      console.log('POST /auth/register response body:', response.body);
 
       // We expect this to fail initially, but we want to see what the actual response is
       expect(response.status).to.be.oneOf([201, 400, 404, 500]);
@@ -261,7 +259,6 @@ describe('Authentication Integration Tests', () => {
 
       // Debug: Log response if it fails
       if (response.status !== 201) {
-        console.log('Login test user creation failed:', {
           status: response.status,
           body: response.body,
           email: testUserEmail,
@@ -346,7 +343,6 @@ describe('Authentication Integration Tests', () => {
         .send(registerDto);
 
       if (registerResponse.status !== 201) {
-        console.log('JWT test user creation failed:', {
           status: registerResponse.status,
           body: registerResponse.body,
           email: registerDto.email,
@@ -366,7 +362,6 @@ describe('Authentication Integration Tests', () => {
         .send(loginDto);
 
       if (loginResponse.status !== 200) {
-        console.log('JWT test user login failed:', {
           status: loginResponse.status,
           body: loginResponse.body,
           email: registerDto.email,
@@ -395,8 +390,7 @@ describe('Authentication Integration Tests', () => {
 
       // Verify JWT token structure (without relying on strategy validation)
       try {
-        const jwt = require('jsonwebtoken');
-        const verificationResult = jwt.verify(accessToken, 'test-jwt-secret-key-for-integration-tests');
+              const verificationResult = jwt.verify(accessToken, 'test-jwt-secret-key-for-integration-tests');
 
         expect(verificationResult).to.have.property('sub', testUserId);
         expect(verificationResult).to.have.property('email', directUserCheck.email);
@@ -417,7 +411,6 @@ describe('Authentication Integration Tests', () => {
         expect(response.body).to.not.have.property('password');
       } else {
         // JWT strategy configuration issue in test environment - but token is valid
-        console.log('Note: JWT strategy has test configuration issue, but token is valid');
         // The important thing is that authentication flows work (registration, login)
         // and JWT tokens are properly generated with correct payloads
       }
@@ -514,17 +507,14 @@ describe('Authentication Integration Tests', () => {
           }
         });
 
-        console.log(`Auth cleanup completed. Removed ${testUsers.length} test users.`);
       }
     } catch (error) {
       // Ignore cleanup errors but log them
-      console.log('Auth cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 
   // Add the missing cleanup hooks
   after(async () => {
-    console.log('Running afterAll cleanup for auth module...');
     await cleanupTestData();
 
     // Close database connection

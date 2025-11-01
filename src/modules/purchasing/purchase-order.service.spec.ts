@@ -142,10 +142,10 @@ describe('PurchaseOrderService', () => {
   afterEach(() => {
     // Restore all stubs
     Object.values(prismaStub).forEach((method: any) => {
-      if (method && method.restore) method.restore();
+      if (method && method.restore) {method.restore();}
     });
     Object.values(securityStub).forEach((method: any) => {
-      if (method && method.restore) method.restore();
+      if (method && method.restore) {method.restore();}
     });
   });
 

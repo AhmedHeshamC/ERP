@@ -844,7 +844,6 @@ describe('Reports Module Integration Tests', () => {
       });
 
     } catch (error) {
-      console.log('Error creating test data for reports:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 
@@ -885,7 +884,6 @@ describe('Reports Module Integration Tests', () => {
         },
       });
     } catch (error) {
-      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

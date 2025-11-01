@@ -259,7 +259,7 @@ export class PayrollService {
     }
 
     // Validate employees if department filter provided
-    let employeeFilter: any = {};
+    const employeeFilter: any = {};
     if (reportParams.departmentIds && reportParams.departmentIds.length > 0) {
       const employees = await this.prismaService.employee.findMany({
         where: {

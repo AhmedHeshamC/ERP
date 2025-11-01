@@ -24,11 +24,11 @@ import 'chai/register-should';
 import 'chai/register-expect';
 
 // Declare Mocha globals for TypeScript
-declare var before: any;
-declare var after: any;
-declare var beforeEach: any;
-declare var afterEach: any;
-declare var afterAll: any;
+declare let before: any;
+declare let after: any;
+declare let beforeEach: any;
+declare let afterEach: any;
+declare let afterAll: any;
 
 /**
  * Users Module Integration Tests
@@ -1032,7 +1032,6 @@ describe('Users Module Integration Tests', () => {
 
   async function cleanupTestData(): Promise<void> {
     try {
-      console.log('Starting users module cleanup...');
 
       // Get all test users first
       const testUsers = await prismaService.user.findMany({
@@ -1079,7 +1078,6 @@ describe('Users Module Integration Tests', () => {
         const userIds = testUsers.map((user: any) => user.id);
 
         // Clean up in correct order respecting foreign key constraints
-        console.log(`Cleaning up ${testUsers.length} test users and related data...`);
 
         // 1. Sessions first
         await prismaService.session.deleteMany({
@@ -1111,7 +1109,6 @@ describe('Users Module Integration Tests', () => {
             where: { id: { startsWith: 'test-account-' } }
           });
         } catch (accountingError: any) {
-          console.log('Accounting cleanup error (expected if no accounting tables):', accountingError.message);
         }
 
         // 4. Finally clean up the users
@@ -1119,16 +1116,13 @@ describe('Users Module Integration Tests', () => {
           where: { id: { in: userIds } }
         });
 
-        console.log(`Users cleanup completed. Removed ${testUsers.length} test users.`);
       }
     } catch (error) {
-      console.log('Users cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 
   // Add the missing cleanup hooks
   after(async () => {
-    console.log('Running afterAll cleanup for users module...');
     await cleanupTestData();
 
     // Close database connection

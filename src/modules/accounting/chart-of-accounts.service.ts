@@ -2,7 +2,8 @@ import { Injectable, NotFoundException, ConflictException, ForbiddenException } 
 import { PrismaService } from '../../shared/database/prisma.service';
 import { CreateChartOfAccountsDto } from './dto/create-chart-of-accounts.dto';
 import { UpdateChartOfAccountsDto } from './dto/update-chart-of-accounts.dto';
-import { AccountType } from './enums/accounting.enum';
+import { ChartOfAccountsQueryDto } from './dto/chart-of-accounts-query.dto';
+import { AccountType as _AccountType } from './enums/accounting.enum';
 
 @Injectable()
 export class ChartOfAccountsService {
@@ -36,15 +37,21 @@ export class ChartOfAccountsService {
     });
   }
 
-  async findAll(params: {
-    skip?: number;
-    take?: number;
-    type?: AccountType;
-    search?: string;
-  }) {
+  async findAll(params: ChartOfAccountsQueryDto) {
     const { skip = 0, take = 10, type, search } = params;
 
-    const where: any = { isActive: true };
+    const where: {
+      isActive: boolean;
+      type?: string;
+      OR?: Array<{
+        name?: { contains: string; mode: 'insensitive' };
+        description?: { contains: string; mode: 'insensitive' };
+        code?: { contains: string; mode: 'insensitive' };
+      }>;
+      category?: string;
+      subcategory?: string;
+      parentId?: string;
+    } = { isActive: true };
 
     if (type) {
       where.type = type;

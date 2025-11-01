@@ -1,7 +1,8 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../shared/database/prisma.service';
-import { CreateTransactionDto } from './dto/create-transaction.dto';
-import { TransactionStatus, TransactionType } from './enums/accounting.enum';
+import { CreateTransactionDto, JournalEntryDto } from './dto/create-transaction.dto';
+import { TransactionQueryDto } from './dto/transaction-query.dto';
+import { TransactionStatus } from './enums/accounting.enum';
 
 @Injectable()
 export class TransactionService {
@@ -75,7 +76,7 @@ export class TransactionService {
     return result;
   }
 
-  private validateDoubleEntryRules(entries: any[]) {
+  private validateDoubleEntryRules(entries: JournalEntryDto[]) {
     // Rule 1: At least 2 entries
     if (entries.length < 2) {
       throw new BadRequestException('Transaction must have at least 2 entries');
@@ -104,18 +105,26 @@ export class TransactionService {
     }
   }
 
-  async findAll(params: {
-    skip?: number;
-    take?: number;
-    status?: TransactionStatus;
-    type?: TransactionType;
-    startDate?: Date;
-    endDate?: Date;
-    search?: string;
-  }) {
+  async findAll(params: TransactionQueryDto) {
     const { skip = 0, take = 10, status, type, startDate, endDate, search } = params;
 
-    const where: any = {};
+    const where: {
+      status?: string;
+      type?: string;
+      createdAt?: {
+        gte?: Date;
+        lte?: Date;
+      };
+      OR?: Array<{
+        reference?: { contains: string; mode: 'insensitive' };
+        description?: { contains: string; mode: 'insensitive' };
+      }>;
+      entries?: {
+        some: {
+          accountId?: string;
+        };
+      };
+    } = {};
 
     if (status) {
       where.status = status;
@@ -126,9 +135,9 @@ export class TransactionService {
     }
 
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date.gte = startDate;
-      if (endDate) where.date.lte = endDate;
+      where.createdAt = {};
+      if (startDate) {where.createdAt.gte = startDate;}
+      if (endDate) {where.createdAt.lte = endDate;}
     }
 
     if (search) {
@@ -239,11 +248,19 @@ export class TransactionService {
   }
 
   async getAccountBalance(accountId: string, asOfDate?: Date) {
-    const where: any = { accountId };
+    const where: {
+      accountId: string;
+      transaction?: {
+        createdAt?: {
+          lte?: Date;
+        };
+        status?: string;
+      };
+    } = { accountId };
 
     if (asOfDate) {
       where.transaction = {
-        date: {
+        createdAt: {
           lte: asOfDate,
         },
       };

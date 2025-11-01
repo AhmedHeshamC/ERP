@@ -23,6 +23,18 @@ import {
   ExecutiveDashboardResponse,
 } from './dto/reports.dto';
 
+// Interface for report parameters
+interface ReportParameter {
+  type: string;
+  required: boolean;
+  description: string;
+  default?: string | boolean | number;
+}
+
+interface ReportParameters {
+  [key: string]: ReportParameter;
+}
+
 /**
  * Reports Controller - RESTful API endpoints
  * Follows KISS principle with simple, focused endpoints
@@ -97,7 +109,7 @@ export class ReportsController {
    * Generate custom report from definition
    */
   @Post('custom')
-  async generateCustomReport(@Body() generateReportDto: GenerateReportDto): Promise<any> {
+  async generateCustomReport(@Body() generateReportDto: GenerateReportDto): Promise<Record<string, unknown>> {
     this.logger.log(`Generating custom report!: ${generateReportDto.reportDefinitionId}`);
     return this.reportsService.generateCustomReport(generateReportDto);
   }
@@ -142,7 +154,7 @@ export class ReportsController {
    * Get sample report parameters
    */
   @Get('parameters/:type')
-  async getReportParameters(@Param('type') reportType: string): Promise<any> {
+  async getReportParameters(@Param('type') reportType: string): Promise<ReportParameters> {
     this.logger.log(`Fetching parameters for report type!: ${reportType}`);
 
     switch (reportType.toUpperCase()) {

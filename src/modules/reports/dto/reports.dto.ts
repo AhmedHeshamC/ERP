@@ -57,7 +57,7 @@ export class CreateReportDefinitionDto {
 
   @IsOptional()
   @IsObject()
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 
   @IsOptional()
   @IsBoolean()
@@ -89,7 +89,7 @@ export class UpdateReportDefinitionDto {
 
   @IsOptional()
   @IsObject()
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 
   @IsOptional()
   @IsBoolean()
@@ -102,7 +102,7 @@ export class GenerateReportDto {
 
   @IsOptional()
   @IsObject()
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 
   @IsOptional()
   @IsEnum(ReportFormat)
@@ -219,10 +219,10 @@ export class CreateDashboardDto {
   description?: string;
 
   @IsObject()
-  layout!: Record<string, any>;
+  layout!: Record<string, unknown>;
 
   @IsArray()
-  widgets!: Array<Record<string, any>>;
+  widgets!: Array<Record<string, unknown>>;
 
   @IsOptional()
   @IsBoolean()
@@ -272,7 +272,7 @@ export interface ReportDefinitionResponse {
   type: string;
   category: string;
   query: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   isActive: boolean;
   isSystem: boolean;
   createdAt: Date;
@@ -283,8 +283,8 @@ export interface GeneratedReportResponse {
   id: string;
   reportDefinitionId: string;
   name: string;
-  parameters?: Record<string, any>;
-  data: Record<string, any>;
+  parameters?: Record<string, unknown>;
+  data: Record<string, unknown>;
   format: string;
   status: string;
   generatedAt: Date;
@@ -303,8 +303,8 @@ export interface DashboardResponse {
   id: string;
   name: string;
   description?: string;
-  layout: Record<string, any>;
-  widgets: Array<Record<string, any>>;
+  layout: Record<string, unknown>;
+  widgets: Array<Record<string, unknown>>;
   isActive: boolean;
   isPublic: boolean;
   createdAt: Date;

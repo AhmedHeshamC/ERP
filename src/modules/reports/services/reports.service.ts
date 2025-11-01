@@ -15,6 +15,47 @@ import {
   ReportStatus,
 } from '../dto/reports.dto';
 
+// Interface for executive alerts KPIs
+interface ExecutiveKpis {
+  revenue: { current: number; target: number; trend: number };
+  profit: { current: number; target: number; trend: number };
+  orders: { current: number; target: number; trend: number };
+  customers: { current: number; target: number; trend: number };
+}
+
+// Interface for executive alerts
+interface ExecutiveAlert {
+  type: string;
+  message: string;
+  severity: string;
+  createdAt: Date;
+}
+
+// Interface for report data by type
+interface ReportDataByType {
+  FINANCIAL: {
+    totalRevenue: number;
+    totalExpenses: number;
+    netProfit: number;
+    profitMargin: number;
+  };
+  SALES: {
+    totalSales: number;
+    totalOrders: number;
+    averageOrderValue: number;
+  };
+  INVENTORY: {
+    totalProducts: number;
+    totalValue: number;
+    lowStockItems: number;
+  };
+  PURCHASING: {
+    totalSpend: number;
+    totalOrders: number;
+    averageOrderValue: number;
+  };
+}
+
 /**
  * Enterprise Reports Service
  * Implements SOLID principles with single responsibility for report generation
@@ -58,7 +99,7 @@ export class ReportsService {
 
       const response: ReportDefinitionResponse = {
         ...reportDefinition,
-        parameters: reportDefinition.parameters as Record<string, any>,
+        parameters: reportDefinition.parameters as Record<string, unknown>,
         description: reportDefinition.description || undefined,
       };
 
@@ -445,7 +486,7 @@ export class ReportsService {
   /**
    * Generate custom report from definition
    */
-  async generateCustomReport(generateReportDto: GenerateReportDto): Promise<any> {
+  async generateCustomReport(generateReportDto: GenerateReportDto): Promise<Record<string, unknown>> {
     try {
       this.logger.log(`Generating custom report!: ${generateReportDto.reportDefinitionId}`);
 
@@ -609,8 +650,8 @@ export class ReportsService {
     return chart;
   }
 
-  private async generateExecutiveAlerts(kpis: any): Promise<Array<any>> {
-    const alerts = [];
+  private async generateExecutiveAlerts(kpis: ExecutiveKpis): Promise<ExecutiveAlert[]> {
+    const alerts: ExecutiveAlert[] = [];
 
     // Check for low revenue
     if (kpis.revenue.current < kpis.revenue.target * 0.8) {
@@ -645,7 +686,7 @@ export class ReportsService {
     return alerts;
   }
 
-  private generateMockReportData(reportType: string): any {
+  private generateMockReportData(reportType: string): Record<string, number> | { message: string } {
     switch (reportType) {
       case 'FINANCIAL':
         return {

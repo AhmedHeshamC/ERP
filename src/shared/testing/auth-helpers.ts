@@ -144,7 +144,6 @@ export class AuthHelpers {
     try {
       return this.createTestTokenDirect(role, overrides);
     } catch (error) {
-      console.warn('Direct token creation failed, falling back to HTTP method!: ', error instanceof Error ? error.message : "Unknown error");
     }
 
     const userData = {
@@ -195,7 +194,6 @@ export class AuthHelpers {
       try {
         tokens[role] = this.createTestTokenDirect(role);
       } catch (error) {
-        console.warn(`Failed to create token for role ${role}!: `, error instanceof Error ? error.message : "Unknown error");
         // Continue with other roles
       }
     }
@@ -219,7 +217,6 @@ export class AuthHelpers {
     try {
       return this.createTestTokensForRolesDirect(roles);
     } catch (error) {
-      console.warn('Direct token creation failed, falling back to HTTP method!: ', error instanceof Error ? error.message : "Unknown error");
     }
 
     const tokens: Partial<Record<UserRole, string>> = {};
@@ -228,7 +225,6 @@ export class AuthHelpers {
       try {
         tokens[role] = await this.createTestToken(app, role);
       } catch (error) {
-        console.warn(`Failed to create token for role ${role}!: `, error instanceof Error ? error.message : "Unknown error");
         // Continue with other roles
       }
     }
@@ -276,7 +272,6 @@ export class AuthHelpers {
   ): Promise<string> {
     // This would require a custom endpoint that accepts expiration time
     // For now, we'll use the standard token and note the limitation
-    console.warn(`Custom expiration (${expiresIn}) not supported by default auth endpoint. Using standard token.`);
     return this.createTestToken(app, role);
   }
 
@@ -428,7 +423,6 @@ export class AuthHelpers {
     // For now, this is a placeholder for the cleanup concept
     const emailsToClean = emails || Object.values(this.TEST_USERS).map(user => user.email);
 
-    console.log('Test user cleanup needed for emails!: ', emailsToClean);
     // Implementation would depend on database access patterns in tests
   }
 

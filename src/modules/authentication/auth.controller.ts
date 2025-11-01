@@ -33,6 +33,7 @@ import {
 } from './dto/auth.dto';
 import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
 import { CurrentUser } from '../../shared/security/decorators/current-user.decorator';
+import { AuthenticatedUser, UserProfileResponse } from '../../shared/security/interfaces/jwt.interface';
 
 /**
  * Enterprise Authentication Controller
@@ -176,7 +177,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getProfile(@CurrentUser() user: any): Promise<any> {
+  async getProfile(@CurrentUser() user: AuthenticatedUser): Promise<UserProfileResponse> {
     try {
       this.logger.log(`Profile request for user!: ${user.sub}`);
 
@@ -211,7 +212,7 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid current password' })
   async changePassword(
     @Body(ValidationPipe) changePasswordDto: ChangePasswordDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<PasswordChangeResponseDto> {
     try {
       this.logger.log(`Password change attempt for user!: ${user.sub}`);
@@ -303,7 +304,7 @@ export class AuthController {
   @ApiOperation({ summary: 'User logout' })
   @ApiResponse({ status: 200, description: 'Logout successful', type: LogoutResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async logout(@CurrentUser() user: any): Promise<LogoutResponseDto> {
+  async logout(@CurrentUser() user: AuthenticatedUser): Promise<LogoutResponseDto> {
     try {
       this.logger.log(`Logout request for user!: ${user.sub}`);
 
@@ -331,7 +332,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Validate JWT token' })
   @ApiResponse({ status: 200, description: 'Token is valid' })
   @ApiResponse({ status: 401, description: 'Invalid token' })
-  async validateToken(@CurrentUser() user: any): Promise<{ valid: boolean; user: any }> {
+  async validateToken(@CurrentUser() user: AuthenticatedUser): Promise<{ valid: boolean; user: UserProfileResponse }> {
     try {
       return {
         valid: true,
@@ -359,7 +360,7 @@ export class AuthController {
   @Post('validate-token')
   @ApiOperation({ summary: 'Validate JWT token (public endpoint)' })
   @ApiResponse({ status: 200, description: 'Token validation result' })
-  async validateTokenPublic(@Body() token: { token: string }): Promise<{ valid: boolean; user?: any }> {
+  async validateTokenPublic(@Body() token: { token: string }): Promise<{ valid: boolean; user?: UserProfileResponse }> {
     try {
       this.logger.log('Public token validation attempt');
 

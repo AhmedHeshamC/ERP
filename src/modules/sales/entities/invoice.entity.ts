@@ -346,8 +346,8 @@ export class Invoice {
   /**
    * KISS: Simple, straightforward serialization
    */
-  public toJSON(): any {
-    const result: any = {
+  public toJSON(): Record<string, unknown> {
+    const result: Record<string, unknown> = {
       invoiceNumber: this.invoiceNumber,
       customerId: this.customerId,
       description: this.description,
@@ -374,14 +374,14 @@ export class Invoice {
     };
 
     // Only include optional properties if they have values
-    if (this.id) result.id = this.id;
-    if (this.orderId) result.orderId = this.orderId;
-    if (this.confirmedAt) result.confirmedAt = this.confirmedAt.toISOString();
-    if (this.paidAt) result.paidAt = this.paidAt.toISOString();
-    if (this.deliveredAt) result.deliveredAt = this.deliveredAt.toISOString();
-    if (this.shippedAt) result.shippedAt = this.shippedAt.toISOString();
-    if (this.cancelledAt) result.cancelledAt = this.cancelledAt.toISOString();
-    if (this.cancellationReason) result.cancellationReason = this.cancellationReason;
+    if (this.id) {result.id = this.id;}
+    if (this.orderId) {result.orderId = this.orderId;}
+    if (this.confirmedAt) {result.confirmedAt = this.confirmedAt.toISOString();}
+    if (this.paidAt) {result.paidAt = this.paidAt.toISOString();}
+    if (this.deliveredAt) {result.deliveredAt = this.deliveredAt.toISOString();}
+    if (this.shippedAt) {result.shippedAt = this.shippedAt.toISOString();}
+    if (this.cancelledAt) {result.cancelledAt = this.cancelledAt.toISOString();}
+    if (this.cancellationReason) {result.cancellationReason = this.cancellationReason;}
 
     return result;
   }

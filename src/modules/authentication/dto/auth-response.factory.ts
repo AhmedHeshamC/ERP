@@ -1,4 +1,5 @@
 import { AuthResponseDto } from './auth.dto';
+import { UserResponse } from '../../users/dto/user.dto';
 
 /**
  * Factory for creating authentication responses
@@ -6,7 +7,7 @@ import { AuthResponseDto } from './auth.dto';
  */
 export class AuthResponseFactory {
   static create(
-    user: any,
+    user: UserResponse,
     accessToken: string,
     refreshToken: string,
     expiresIn: number,

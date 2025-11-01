@@ -29,7 +29,7 @@ export interface ErrorDetail {
   code: string;
   message: string;
   field?: string;
-  value?: any;
+  value?: string | number | boolean | Record<string, unknown>;
   timestamp?: string;
 }
 
@@ -45,7 +45,7 @@ export interface BaseApiResponse {
   errors?: ErrorDetail[];
 }
 
-export interface SuccessApiResponse<T = any> extends BaseApiResponse {
+export interface SuccessApiResponse<T = unknown> extends BaseApiResponse {
   success: true;
   data: T;
   pagination?: PaginationMetadata;
@@ -76,7 +76,7 @@ export interface BulkOperationResult {
   errors: Array<{
     index: number;
     error: string;
-    item?: any;
+    item?: unknown;
   }>;
 }
 
@@ -85,7 +85,7 @@ export interface BulkApiResponse<T> extends BaseApiResponse {
   data: {
     successful: T[];
     failed: Array<{
-      item: any;
+      item: T;
       error: string;
       index: number;
     }>;
@@ -240,7 +240,7 @@ export class ApiResponseBuilder {
    */
   static bulk<T>(
     successful: T[],
-    failed: Array<{ item: any; error: string; index: number }>,
+    failed: Array<{ item: T; error: string; index: number }>,
     message = 'Bulk operation completed',
     metadata?: Partial<ApiResponseMetadata>
   ): BulkApiResponse<T> {

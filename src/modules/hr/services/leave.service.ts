@@ -362,7 +362,7 @@ export class LeaveService {
 
   private async updateEmployeeLeaveBalance(employee: Employee, leaveRequest: LeaveRequest): Promise<void> {
     // Only update balance for paid leave
-    if (!leaveRequest.paidLeave) return;
+    if (!leaveRequest.paidLeave) {return;}
 
     const updateData: any = {};
 

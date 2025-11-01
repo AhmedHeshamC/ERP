@@ -102,9 +102,9 @@ export class SecurityValidationService {
 
     // Path traversal
     PATH_TRAVERSAL: [
-      /\.\.[\/\\]/,
+      /\.\.[/\\]/,
       /\//,
-      /%2e%2e[\/\\]/i,
+      /%2e%2e[/\\]/i,
       /\.\.%2f/i,
       /\.\.%5c/i,
     ],
@@ -134,7 +134,7 @@ export class SecurityValidationService {
     EMAIL: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
 
     // Phone validation
-    PHONE: /^\+?[\d\s\-\(\)]{10,}$/,
+    PHONE: /^\+?[\d\s\-()]{10,}$/,
 
     // Password strength
     PASSWORD: {

@@ -330,7 +330,7 @@ export class UserController {
    * Note: This route is placed at the end to avoid conflicts with parameterized routes
    */
   @Get('security-events')
-  async getSecurityEvents(@Query() query: any) {
+  async getSecurityEvents(@Query() query: Record<string, unknown>) {
     try {
       this.logger.log('Retrieving security events', { query });
 

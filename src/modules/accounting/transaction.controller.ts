@@ -13,7 +13,9 @@ import { Request as ExpressRequest } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { TransactionQueryDto } from './dto/transaction-query.dto';
 import { TransactionStatus, TransactionType } from './enums/accounting.enum';
+import { AuthenticatedUser } from '../../shared/security/interfaces/jwt.interface';
 import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/security/guards/roles.guard';
 import { Roles } from '../../shared/security/decorators/roles.decorator';
@@ -30,7 +32,7 @@ export class TransactionController {
   @ApiResponse({ status: 201, description: 'Transaction created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid transaction data or double-entry rules violated' })
   create(@Body() createTransactionDto: CreateTransactionDto, @Request() req: ExpressRequest) {
-    return this.transactionService.create(createTransactionDto, (req.user as any)?.id);
+    return this.transactionService.create(createTransactionDto, (req.user as AuthenticatedUser)?.id);
   }
 
   @Get()
@@ -44,7 +46,7 @@ export class TransactionController {
   @ApiQuery({ name: 'startDate', required: false, type: Date })
   @ApiQuery({ name: 'endDate', required: false, type: Date })
   @ApiQuery({ name: 'search', required: false, type: String })
-  findAll(@Query() query: any) {
+  findAll(@Query() query: TransactionQueryDto) {
     return this.transactionService.findAll(query);
   }
 
@@ -74,7 +76,7 @@ export class TransactionController {
   @ApiResponse({ status: 400, description: 'Transaction is already posted or not found' })
   @ApiParam({ name: 'id', type: String })
   postTransaction(@Param('id') id: string, @Request() req: ExpressRequest) {
-    return this.transactionService.postTransaction(id, (req.user as any)?.id);
+    return this.transactionService.postTransaction(id, (req.user as AuthenticatedUser)?.id);
   }
 
   @Patch(':id/cancel')
@@ -84,7 +86,7 @@ export class TransactionController {
   @ApiResponse({ status: 400, description: 'Cannot cancel posted transaction' })
   @ApiParam({ name: 'id', type: String })
   cancelTransaction(@Param('id') id: string, @Request() req: ExpressRequest) {
-    return this.transactionService.cancelTransaction(id, (req.user as any)?.id);
+    return this.transactionService.cancelTransaction(id, (req.user as AuthenticatedUser)?.id);
   }
 
   @Get('accounts/:accountId/balance')

@@ -21,11 +21,13 @@ import {
   ProductQueryDto,
   ProductResponse,
   ProductsQueryResponse,
+  StockMovementDto,
 } from './dto/product.dto';
 import { Roles } from '../../shared/security/decorators/roles.decorator';
 import { CurrentUser } from '../../shared/security/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/security/guards/roles.guard';
+import { AuthenticatedUser } from '../../shared/security/interfaces/jwt.interface';
 
 /**
  * Enterprise Product Controller
@@ -66,7 +68,7 @@ export class ProductController {
   @ApiOperation({ summary: 'Create a new product' })
   async createProduct(
     @Body() createProductDto: CreateProductDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductResponse> {
     this.logger.log(`Product creation request received from user!: ${user?.id}`);
     return await this.productService.createProduct(createProductDto);
@@ -85,7 +87,7 @@ export class ProductController {
   @ApiOperation({ summary: 'Get all products with pagination' })
   async getProducts(
     @Query() query: ProductQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductsQueryResponse> {
     this.logger.log(`Product listing request received from user!: ${user?.id}`);
     return await this.productService.getProducts(query);
@@ -102,7 +104,7 @@ export class ProductController {
   @ApiOperation({ summary: 'Get product by ID' })
   async getProductById(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductResponse> {
     this.logger.log(`Product retrieval request!: ${id} by user: ${user?.id}`);
     return await this.productService.getProductById(id);
@@ -122,7 +124,7 @@ export class ProductController {
   async updateProduct(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductResponse> {
     this.logger.log(`Product update request!: ${id} by user: ${user?.id}`);
     return await this.productService.updateProduct(id, updateProductDto);
@@ -140,7 +142,7 @@ export class ProductController {
   @ApiOperation({ summary: 'Delete product' })
   async deleteProduct(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductResponse> {
     this.logger.log(`Product deletion request!: ${id} by user: ${user?.id}`);
     return await this.productService.deleteProduct(id);
@@ -157,7 +159,7 @@ export class ProductController {
   @ApiOperation({ summary: 'Get products by category' })
   async getProductsByCategory(
     @Param('categoryId') categoryId: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductResponse[]> {
     this.logger.log(`Products by category request!: ${categoryId} by user: ${user?.id}`);
     return await this.productService.getProductsByCategory(categoryId);
@@ -173,7 +175,7 @@ export class ProductController {
   @ApiResponse({ status: HttpStatus.OK })
   @ApiOperation({ summary: 'Get low stock products' })
   async getLowStockProducts(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductResponse[]> {
     this.logger.log('Low stock products request by user!: ' + (user?.id || 'anonymous'));
     return await this.productService.getLowStockProducts();
@@ -191,7 +193,7 @@ export class ProductController {
   @ApiOperation({ summary: 'Search products' })
   async searchProducts(
     @Query('q') searchTerm: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ProductResponse[]> {
     this.logger.log(`Product search request!: "${searchTerm}" by user: ${user?.id}`);
     return await this.productService.searchProducts(searchTerm);
@@ -208,8 +210,8 @@ export class ProductController {
   @ApiOperation({ summary: 'Get product stock information' })
   async getProductStock(
     @Param('id') id: string,
-    @CurrentUser() user: any,
-  ): Promise<any> {
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Record<string, unknown>> {
     this.logger.log(`Product stock request!: ${id} by user: ${user?.id}`);
     return await this.productService.getProductStock(id);
   }
@@ -227,9 +229,9 @@ export class ProductController {
   @ApiOperation({ summary: 'Adjust product stock' })
   async adjustStock(
     @Param('id') id: string,
-    @Body() stockMovementDto: any,
-    @CurrentUser() user: any,
-  ): Promise<any> {
+    @Body() stockMovementDto: StockMovementDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Record<string, unknown>> {
     this.logger.log(`Stock adjustment request!: ${id} by user: ${user?.id}`);
     return await this.productService.adjustStock(
       id,

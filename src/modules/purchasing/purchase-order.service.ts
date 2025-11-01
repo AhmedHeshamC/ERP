@@ -122,7 +122,10 @@ export class PurchaseOrderService {
       const completeOrder = await this.getPurchaseOrderById(result.purchaseOrder.id);
 
       this.logger.log(`Successfully created purchase order!: ${orderNumber} (ID: ${result.purchaseOrder.id})`);
-      return completeOrder!;
+      if (!completeOrder) {
+        throw new InternalServerErrorException('Failed to retrieve created purchase order');
+      }
+      return completeOrder;
 
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
@@ -165,7 +168,10 @@ export class PurchaseOrderService {
       const completeOrder = await this.getPurchaseOrderById(orderId);
 
       this.logger.log(`Successfully submitted order for approval!: ${order.orderNumber}`);
-      return completeOrder!;
+      if (!completeOrder) {
+        throw new InternalServerErrorException('Failed to retrieve updated purchase order');
+      }
+      return completeOrder;
 
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
@@ -301,20 +307,20 @@ export class PurchaseOrderService {
 
       if (orderDateFrom || orderDateTo) {
         where.orderDate = {};
-        if (orderDateFrom) where.orderDate.gte = orderDateFrom;
-        if (orderDateTo) where.orderDate.lte = orderDateTo;
+        if (orderDateFrom) {where.orderDate.gte = orderDateFrom;}
+        if (orderDateTo) {where.orderDate.lte = orderDateTo;}
       }
 
       if (expectedDeliveryDateFrom || expectedDeliveryDateTo) {
         where.expectedDate = {};
-        if (expectedDeliveryDateFrom) where.expectedDate.gte = expectedDeliveryDateFrom;
-        if (expectedDeliveryDateTo) where.expectedDate.lte = expectedDeliveryDateTo;
+        if (expectedDeliveryDateFrom) {where.expectedDate.gte = expectedDeliveryDateFrom;}
+        if (expectedDeliveryDateTo) {where.expectedDate.lte = expectedDeliveryDateTo;}
       }
 
       if (minTotalAmount || maxTotalAmount) {
         where.totalAmount = {};
-        if (minTotalAmount) where.totalAmount.gte = minTotalAmount;
-        if (maxTotalAmount) where.totalAmount.lte = maxTotalAmount;
+        if (minTotalAmount) {where.totalAmount.gte = minTotalAmount;}
+        if (maxTotalAmount) {where.totalAmount.lte = maxTotalAmount;}
       }
 
       // Execute queries in parallel for performance

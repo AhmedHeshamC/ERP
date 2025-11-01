@@ -100,7 +100,7 @@ export class CreateScheduledReportDto {
 
   @ApiPropertyOptional({ description: 'Default parameters for the report' })
   @IsOptional()
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 
   @ApiPropertyOptional({ description: 'Report format', enum: ReportFormat, default: ReportFormat.PDF })
   @IsOptional()
@@ -195,7 +195,7 @@ export class UpdateScheduledReportDto {
 
   @ApiPropertyOptional({ description: 'Default parameters for the report' })
   @IsOptional()
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 
   @ApiPropertyOptional({ description: 'Report format', enum: ReportFormat })
   @IsOptional()
@@ -363,11 +363,11 @@ export class CreateReportSubscriptionDto {
 
   @ApiPropertyOptional({ description: 'Subscription preferences' })
   @IsOptional()
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
 
   @ApiPropertyOptional({ description: 'Subscription criteria' })
   @IsOptional()
-  criteria?: Record<string, any>;
+  criteria?: Record<string, unknown>;
 
   @ApiPropertyOptional({ description: 'Send email notification', default: true })
   @IsOptional()
@@ -381,7 +381,7 @@ export class CreateReportSubscriptionDto {
 
   @ApiPropertyOptional({ description: 'Quiet hours configuration' })
   @IsOptional()
-  quietHours?: Record<string, any>;
+  quietHours?: Record<string, unknown>;
 }
 
 /**
@@ -390,7 +390,7 @@ export class CreateReportSubscriptionDto {
 export class ManualReportTriggerDto {
   @ApiPropertyOptional({ description: 'Override parameters' })
   @IsOptional()
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 
   @ApiPropertyOptional({ description: 'Override format', enum: ReportFormat })
   @IsOptional()
@@ -460,7 +460,7 @@ export class ScheduledReportResponse {
   lastRunAt?: Date;
 
   @ApiPropertyOptional({ description: 'Default parameters for the report' })
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 
   @ApiProperty({ description: 'Report format', enum: ReportFormat })
   format!: ReportFormat;
@@ -608,11 +608,11 @@ export interface ReportSubscriptionResponse {
   };
   subscriptionType: SubscriptionType;
   isActive: boolean;
-  preferences?: Record<string, any>;
-  criteria?: Record<string, any>;
+  preferences?: Record<string, unknown>;
+  criteria?: Record<string, unknown>;
   sendEmail: boolean;
   sendInApp: boolean;
-  quietHours?: Record<string, any>;
+  quietHours?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string;

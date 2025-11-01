@@ -16,10 +16,36 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth }
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
 import { SupplierPerformanceService } from './performance.service';
+import { AuthenticatedRequest } from '../../../shared/security/interfaces/jwt.interface';
+
+// Type definitions for performance operations
+interface ScorecardDetailResponse {
+  id: string;
+  performanceId: string;
+  metricName: string;
+  score: number;
+  maxScore: number;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PerformanceEventResponse {
+  id: string;
+  supplierId: string;
+  eventType: string;
+  description: string;
+  impactLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  eventDate: Date;
+  resolvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 import {
   CreateSupplierPerformanceDto,
   UpdateSupplierPerformanceDto,
   SupplierPerformanceQueryDto,
+  SupplierTier,
   SupplierPerformanceResponse,
   SupplierPerformanceQueryResponse,
   PerformanceAnalyticsResponse,
@@ -52,7 +78,7 @@ export class SupplierPerformanceController {
   @ApiResponse({ status: 409, description: 'Performance record already exists' })
   async createPerformance(
     @Body() createPerformanceDto: CreateSupplierPerformanceDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<SupplierPerformanceResponse> {
     // Add current user as calculator if not specified
     if (!createPerformanceDto.calculatedBy) {
@@ -116,7 +142,7 @@ export class SupplierPerformanceController {
   async updatePerformance(
     @Param('id') id: string,
     @Body() updatePerformanceDto: UpdateSupplierPerformanceDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<SupplierPerformanceResponse> {
     // Add current user as reviewer if not specified
     if (!updatePerformanceDto.reviewedBy) {
@@ -147,7 +173,7 @@ export class SupplierPerformanceController {
   @ApiResponse({ status: 201, description: 'Scorecard detail added successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 404, description: 'Performance record not found' })
-  async addScorecardDetail(@Body() detailDto: CreateScorecardDetailDto): Promise<any> {
+  async addScorecardDetail(@Body() detailDto: CreateScorecardDetailDto): Promise<ScorecardDetailResponse> {
     return this.supplierPerformanceService.addScorecardDetail(detailDto);
   }
 
@@ -161,7 +187,7 @@ export class SupplierPerformanceController {
   @ApiResponse({ status: 201, description: 'Performance event recorded successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 404, description: 'Supplier not found' })
-  async recordPerformanceEvent(@Body() eventDto: CreatePerformanceEventDto): Promise<any> {
+  async recordPerformanceEvent(@Body() eventDto: CreatePerformanceEventDto): Promise<PerformanceEventResponse> {
     return this.supplierPerformanceService.recordPerformanceEvent(eventDto);
   }
 
@@ -178,7 +204,7 @@ export class SupplierPerformanceController {
   async getSupplierTrends(
     @Param('supplierId') supplierId: string,
     @Query('periods') periods?: number,
-  ): Promise<any> {
+  ): Promise<SupplierPerformanceQueryResponse> {
     // Implementation for trend analysis would go here
     // For now, delegate to the main service with appropriate filters
     const queryDto: SupplierPerformanceQueryDto = {
@@ -203,9 +229,9 @@ export class SupplierPerformanceController {
   async getTopPerformers(
     @Query('limit') limit?: number,
     @Query('tier') tier?: string,
-  ): Promise<any> {
+  ): Promise<SupplierPerformanceQueryResponse> {
     const queryDto: SupplierPerformanceQueryDto = {
-      tier: tier as any,
+      tier: tier as SupplierTier | undefined,
       minOverallScore: 80, // Only high performers
       take: limit || 10,
       sortBy: 'overallScore',
@@ -223,7 +249,7 @@ export class SupplierPerformanceController {
   @ApiOperation({ summary: 'Get suppliers requiring attention' })
   @ApiResponse({ status: 200, description: 'Suppliers requiring attention retrieved successfully' })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of suppliers to return', example: 10 })
-  async getSuppliersRequiringAttention(@Query('limit') limit?: number): Promise<any> {
+  async getSuppliersRequiringAttention(@Query('limit') limit?: number): Promise<SupplierPerformanceQueryResponse> {
     const queryDto: SupplierPerformanceQueryDto = {
       maxOverallScore: 70, // Low performers
       take: limit || 10,

@@ -522,10 +522,12 @@ describe('SupplierPerformanceService', () => {
 
       // Assert
       expect(result).to.not.be.null;
-      expect(result!.id).to.equal(performanceId);
-      expect(result!.supplierId).to.equal('supplier-123');
-      expect(result!.supplier!.name).to.equal('Test Supplier');
-      expect(result!.calculator!.firstName).to.equal('John');
+      if (result) {
+        expect(result.id).to.equal(performanceId);
+        expect(result.supplierId).to.equal('supplier-123');
+        expect(result.supplier?.name).to.equal('Test Supplier');
+        expect(result.calculator?.firstName).to.equal('John');
+      }
     });
 
     it('should return null for non-existent performance ID', async () => {

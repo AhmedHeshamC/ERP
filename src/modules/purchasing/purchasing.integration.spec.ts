@@ -957,7 +957,6 @@ describe('Purchasing Module Integration Tests', () => {
         },
       });
     } catch (error) {
-      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

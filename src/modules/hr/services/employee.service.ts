@@ -9,6 +9,7 @@ import {
   CreateEmployeeData,
   UpdateEmployeeData,
   EmployeeListResponse,
+  EmployeeSummary,
 } from '../interfaces/employee.interface';
 
 @Injectable()
@@ -356,7 +357,7 @@ export class EmployeeService {
     });
   }
 
-  async getEmployeeSummary(): Promise<any> {
+  async getEmployeeSummary(): Promise<EmployeeSummary> {
     const [total, active, inactive, byStatus, byDepartment] = await Promise.all([
       this.prismaService.employee.count(),
       this.prismaService.employee.count({ where: { isActive: true } }),

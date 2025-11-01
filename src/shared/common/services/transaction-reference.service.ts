@@ -388,7 +388,7 @@ export class TransactionReferenceService {
    * Validate checksum of reference
    */
   private validateChecksum(reference: string): boolean {
-    if (reference.length < 2) return false;
+    if (reference.length < 2) {return false;}
 
     const expectedChecksum = reference.charAt(reference.length - 1);
     const actualChecksum = this.calculateChecksum(reference.substring(0, reference.length - 1));

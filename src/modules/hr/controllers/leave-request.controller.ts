@@ -33,6 +33,7 @@ import {
 } from '../dto/leave-request.dto';
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
+import { AuthenticatedRequest } from '../../../shared/security/interfaces/jwt.interface';
 
 /**
  * Enterprise Leave Request Controller
@@ -65,7 +66,7 @@ export class LeaveRequestController {
   @ApiResponse({ status: 409, description: 'Leave request conflicts' })
   async createLeaveRequest(
     @Body(ValidationPipe) createLeaveRequestDto: CreateLeaveRequestDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<LeaveRequestResponse> {
     try {
       this.logger.log(`Creating leave request for employee!: ${createLeaveRequestDto.employeeId}`);

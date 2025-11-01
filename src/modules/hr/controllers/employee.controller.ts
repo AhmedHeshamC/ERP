@@ -18,10 +18,11 @@ import { EmployeeService } from '../services/employee.service';
 import { SecurityService } from '../../../shared/security/security.service';
 import { CreateEmployeeDto } from '../dto/create-employee.dto';
 import { UpdateEmployeeDto } from '../dto/update-employee.dto';
-import { EmployeeWithDepartment, EmployeeFilters } from '../interfaces/employee.interface';
+import { EmployeeWithDepartment, EmployeeFilters, EmployeeListResponse, EmployeeSummary } from '../interfaces/employee.interface';
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
 import { Roles } from '../../../shared/security/decorators/roles.decorator';
+import { AuthenticatedRequest } from '../../../shared/security/interfaces/jwt.interface';
 
 /**
  * Enterprise Employee Controller
@@ -52,7 +53,7 @@ export class EmployeeController {
   @Roles('HR_ADMIN', 'ADMIN')
   async createEmployee(
     @Body() createEmployeeDto: CreateEmployeeDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<EmployeeWithDepartment> {
     try {
       this.logger.log(`Creating new employee!: ${createEmployeeDto.email}`);
@@ -134,7 +135,7 @@ export class EmployeeController {
    */
   @Get()
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
-  async getEmployees(@Query() filters: EmployeeFilters): Promise<any> {
+  async getEmployees(@Query() filters: EmployeeFilters): Promise<EmployeeListResponse> {
     try {
       this.logger.log(`Fetching employees with filters!: ${JSON.stringify(filters)}`);
       const result = await this.employeeService.findAll(filters);
@@ -156,7 +157,7 @@ export class EmployeeController {
   async updateEmployee(
     @Param('id') id: string,
     @Body() updateEmployeeDto: UpdateEmployeeDto,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<EmployeeWithDepartment> {
     try {
       this.logger.log(`Updating employee!: ${id}`);
@@ -197,7 +198,7 @@ export class EmployeeController {
   @Roles('HR_ADMIN', 'ADMIN')
   async deleteEmployee(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<EmployeeWithDepartment> {
     try {
       this.logger.log(`Soft deleting employee!: ${id}`);
@@ -233,7 +234,7 @@ export class EmployeeController {
   @Roles('HR_ADMIN', 'ADMIN')
   async activateEmployee(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<EmployeeWithDepartment> {
     try {
       this.logger.log(`Activating employee!: ${id}`);
@@ -268,7 +269,7 @@ export class EmployeeController {
   @Roles('HR_ADMIN', 'ADMIN')
   async deactivateEmployee(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<EmployeeWithDepartment> {
     try {
       this.logger.log(`Deactivating employee!: ${id}`);
@@ -301,7 +302,7 @@ export class EmployeeController {
    */
   @Get('summary')
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
-  async getEmployeeSummary(): Promise<any> {
+  async getEmployeeSummary(): Promise<EmployeeSummary> {
     try {
       this.logger.log('Fetching employee summary statistics');
       const summary = await this.employeeService.getEmployeeSummary();

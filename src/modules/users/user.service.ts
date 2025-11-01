@@ -118,7 +118,7 @@ export class UserService {
 
       // Handle Prisma unique constraint violations
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-        const target = (error as any).meta?.target as string[] || [];
+        const target = (error as { meta?: { target?: string[] } }).meta?.target || [];
         const conflictField = target.includes('email') ? 'email' : 'username';
 
         await this.securityService.logSecurityEvent(
@@ -361,7 +361,7 @@ export class UserService {
     try {
       const { role, isActive, search, skip = '0', take = '10', sortBy, sortOrder } = query;
 
-      const where: any = {};
+      const where: Record<string, unknown> = {};
 
       if (role) {
         where.role = role;
@@ -381,7 +381,7 @@ export class UserService {
       }
 
       // Build sort order
-      let orderBy: any = { createdAt: 'desc' };
+      let orderBy: Record<string, 'asc' | 'desc'> = { createdAt: 'desc' };
       if (sortBy) {
         const allowedSortFields = ['email', 'username', 'firstName', 'lastName', 'createdAt', 'updatedAt'];
         if (allowedSortFields.includes(sortBy)) {

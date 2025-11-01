@@ -153,7 +153,7 @@ export class SecurityService {
       errors.push('Password must contain at least one number');
     }
 
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password)) {
       errors.push('Password must contain at least one special character');
     }
 
@@ -218,7 +218,7 @@ export class SecurityService {
 
       // Block private/internal IP ranges
       const hostname = parsedUrl.hostname;
-      if (!hostname) return false;
+      if (!hostname) {return false;}
 
       // Block localhost and private IP ranges
       if (
@@ -299,10 +299,10 @@ export class SecurityService {
    * Validate input object (for DTOs)
    */
   validateInput(input: any): boolean {
-    if (!input) return false;
+    if (!input) {return false;}
 
     // Basic validation - ensure input is an object with required fields
-    if (typeof input !== 'object') return false;
+    if (typeof input !== 'object') {return false;}
 
     return true;
   }
@@ -311,7 +311,7 @@ export class SecurityService {
    * Sanitize input object (for DTOs)
    */
   sanitizeInput(input: any): any {
-    if (!input) return input;
+    if (!input) {return input;}
 
     const sanitized = { ...input };
 
@@ -379,14 +379,14 @@ export class SecurityService {
    * Validate personal information for security
    */
   validatePersonalInfo(data: any): boolean {
-    if (!data || typeof data !== 'object') return false;
+    if (!data || typeof data !== 'object') {return false;}
 
     // Check for required personal fields
-    if (!data.firstName || !data.lastName || !data.email) return false;
+    if (!data.firstName || !data.lastName || !data.email) {return false;}
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) return false;
+    if (!emailRegex.test(data.email)) {return false;}
 
     // Check for potentially malicious content
     const dangerousPatterns = [
@@ -409,7 +409,7 @@ export class SecurityService {
    * Validate tax information
    */
   validateTaxInfo(employee: any): boolean {
-    if (!employee) return false;
+    if (!employee) {return false;}
 
     // Check for required tax fields (basic validation)
     if (!employee.socialSecurity && !employee.taxId) {
@@ -431,10 +431,10 @@ export class SecurityService {
    * Validate bank account information
    */
   validateBankAccount(employee: any): boolean {
-    if (!employee) return false;
+    if (!employee) {return false;}
 
     // Bank account is optional (some employees may be paid by check)
-    if (!employee.bankAccount) return true;
+    if (!employee.bankAccount) {return true;}
 
     const bankAccount = employee.bankAccount;
     if (!bankAccount.accountNumber || !bankAccount.routingNumber) {
@@ -476,7 +476,7 @@ export class SecurityService {
    * Validate leave request
    */
   validateLeaveRequest(data: any): boolean {
-    if (!data || typeof data !== 'object') return false;
+    if (!data || typeof data !== 'object') {return false;}
 
     // Check required fields
     if (!data.employeeId || !data.leaveType || !data.startDate || !data.endDate) {
@@ -539,7 +539,7 @@ export class SecurityService {
    * Validate leave balance
    */
   validateLeaveBalance(employee: any, leaveType: string, daysRequested: number): boolean {
-    if (!employee || daysRequested <= 0) return false;
+    if (!employee || daysRequested <= 0) {return false;}
 
     let availableBalance = 0;
 

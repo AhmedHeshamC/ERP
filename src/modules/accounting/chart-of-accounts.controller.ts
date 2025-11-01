@@ -13,8 +13,10 @@ import {
 import { Request as ExpressRequest } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { ChartOfAccountsService } from './chart-of-accounts.service';
+import { AuthenticatedUser } from '../../shared/security/interfaces/jwt.interface';
 import { CreateChartOfAccountsDto } from './dto/create-chart-of-accounts.dto';
 import { UpdateChartOfAccountsDto } from './dto/update-chart-of-accounts.dto';
+import { ChartOfAccountsQueryDto } from './dto/chart-of-accounts-query.dto';
 import { AccountType } from './enums/accounting.enum';
 import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/security/guards/roles.guard';
@@ -33,7 +35,7 @@ export class ChartOfAccountsController {
   @ApiResponse({ status: 400, description: 'Invalid input' })
   @ApiResponse({ status: 409, description: 'Account code already exists' })
   create(@Body() createChartOfAccountsDto: CreateChartOfAccountsDto, @Request() req: ExpressRequest) {
-    return this.chartOfAccountsService.create(createChartOfAccountsDto, (req.user as any)?.id);
+    return this.chartOfAccountsService.create(createChartOfAccountsDto, (req.user as AuthenticatedUser)?.id);
   }
 
   @Get()
@@ -44,7 +46,7 @@ export class ChartOfAccountsController {
   @ApiQuery({ name: 'take', required: false, type: Number })
   @ApiQuery({ name: 'type', required: false, enum: AccountType })
   @ApiQuery({ name: 'search', required: false, type: String })
-  findAll(@Query() query: any) {
+  findAll(@Query() query: ChartOfAccountsQueryDto) {
     return this.chartOfAccountsService.findAll(query);
   }
 
@@ -84,7 +86,7 @@ export class ChartOfAccountsController {
   @ApiResponse({ status: 403, description: 'System accounts cannot be modified' })
   @ApiParam({ name: 'id', type: String })
   update(@Param('id') id: string, @Body() updateChartOfAccountsDto: UpdateChartOfAccountsDto, @Request() req: ExpressRequest) {
-    return this.chartOfAccountsService.update(id, updateChartOfAccountsDto, (req.user as any)?.id);
+    return this.chartOfAccountsService.update(id, updateChartOfAccountsDto, (req.user as AuthenticatedUser)?.id);
   }
 
   @Delete(':id')
@@ -95,6 +97,6 @@ export class ChartOfAccountsController {
   @ApiResponse({ status: 403, description: 'System accounts cannot be deleted' })
   @ApiParam({ name: 'id', type: String })
   remove(@Param('id') id: string, @Request() req: ExpressRequest) {
-    return this.chartOfAccountsService.remove(id, (req.user as any)?.id);
+    return this.chartOfAccountsService.remove(id, (req.user as AuthenticatedUser)?.id);
   }
 }

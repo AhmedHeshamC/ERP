@@ -351,10 +351,10 @@ export class SupplierPerformanceDemo {
    * Helper method to calculate tier (for demo)
    */
   private calculateTier(score: number): SupplierTier {
-    if (score >= 90) return SupplierTier.PREFERRED;
-    if (score >= 80) return SupplierTier.APPROVED;
-    if (score >= 70) return SupplierTier.STANDARD;
-    if (score >= 50) return SupplierTier.CONDITIONAL;
+    if (score >= 90) {return SupplierTier.PREFERRED;}
+    if (score >= 80) {return SupplierTier.APPROVED;}
+    if (score >= 70) {return SupplierTier.STANDARD;}
+    if (score >= 50) {return SupplierTier.CONDITIONAL;}
     return SupplierTier.UNDER_REVIEW;
   }
 
@@ -363,10 +363,10 @@ export class SupplierPerformanceDemo {
    */
   private getSeverityIcon(severity: EventSeverity): string {
     switch (severity) {
-      case EventSeverity.CRITICAL!: return '🔴';
-      case EventSeverity.HIGH!: return '🟠';
-      case EventSeverity.MEDIUM!: return '🟡';
-      case EventSeverity.LOW!: return '🟢';
+      case EventSeverity.CRITICAL: return '🔴';
+      case EventSeverity.HIGH: return '🟠';
+      case EventSeverity.MEDIUM: return '🟡';
+      case EventSeverity.LOW: return '🟢';
       default: return '⚪';
     }
   }

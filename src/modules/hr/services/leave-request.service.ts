@@ -723,11 +723,11 @@ export class LeaveRequestService {
 
       // Build where clause
       const where: any = {};
-      if (employeeId) where.employeeId = employeeId;
+      if (employeeId) {where.employeeId = employeeId;}
       if (startDateFrom || startDateTo) {
         where.startDate = {};
-        if (startDateFrom) where.startDate.gte = new Date(startDateFrom);
-        if (startDateTo) where.startDate.lte = new Date(startDateTo);
+        if (startDateFrom) {where.startDate.gte = new Date(startDateFrom);}
+        if (startDateTo) {where.startDate.lte = new Date(startDateTo);}
       }
 
       // Fetch leave requests with employee and department info

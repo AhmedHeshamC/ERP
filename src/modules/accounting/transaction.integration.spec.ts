@@ -713,8 +713,7 @@ describe('Database Transaction Integration Tests', () => {
         });
       }
     } catch (error) {
-      // Ignore cleanup errors but log them
-      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
+      // Ignore cleanup errors in test environment
     }
   }
 });
