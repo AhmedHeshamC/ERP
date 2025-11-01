@@ -1,4 +1,3 @@
-// Test schema - PostgreSQL for enterprise-grade testing
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,212 +8,180 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  firstName String
-  lastName  String
-  phone     String?
-  avatar    String?
-  role      String   @default("USER")
-  isActive  Boolean  @default(true)
-  isEmailVerified Boolean @default(false)
-
-  // Audit fields
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lastLoginAt DateTime?
-
-  // Relationships
-  employee            Employee? @relation("EmployeeUser")
-  calculatedPerformances SupplierPerformance[] @relation("PerformanceCalculator")
-  reviewedPerformances SupplierPerformance[] @relation("PerformanceReviewer")
-  resolvedEvents SupplierPerformanceEvent[] @relation("EventResolver")
-  conductedReviews SupplierPerformanceReview[] @relation("PerformanceReviewBy")
+  id                           String                            @id @default(cuid())
+  email                        String                            @unique
+  username                     String                            @unique
+  password                     String
+  firstName                    String
+  lastName                     String
+  phone                        String?
+  avatar                       String?
+  role                         String                            @default("USER")
+  isActive                     Boolean                           @default(true)
+  isEmailVerified              Boolean                           @default(false)
+  createdAt                    DateTime                          @default(now())
+  updatedAt                    DateTime                          @updatedAt
+  lastLoginAt                  DateTime?
+  employee                     Employee?                         @relation("EmployeeUser")
+  userSubscriptions            ReportSubscription[]              @relation("UserSubscriptions")
+  resourceLocks                ResourceLock[]
   scheduledReportDistributions ScheduledReportDistributionList[]
-  userSubscriptions ReportSubscription[] @relation("UserSubscriptions")
-  resourceLocks ResourceLock[]
+  calculatedPerformances       SupplierPerformance[]             @relation("PerformanceCalculator")
+  reviewedPerformances         SupplierPerformance[]             @relation("PerformanceReviewer")
+  resolvedEvents               SupplierPerformanceEvent[]        @relation("EventResolver")
+  conductedReviews             SupplierPerformanceReview[]       @relation("PerformanceReviewBy")
 
-  @@map("users")
   @@index([email])
   @@index([isActive])
+  @@map("users")
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  refreshToken String? @unique
-  expiresAt DateTime
-  isActive  Boolean  @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  refreshToken String?  @unique
+  expiresAt    DateTime
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("sessions")
 }
 
 model ProductCategory {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
   parentId    String?
-  level       Int      @default(0)
-  isActive    Boolean  @default(true)
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Reverse relationship
+  level       Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   products    Product[]
 
-  @@map("product_categories")
   @@index([parentId])
   @@index([isActive])
   @@index([level])
+  @@map("product_categories")
 }
 
 model Product {
-  id                String    @id @default(cuid())
+  id                String          @id @default(cuid())
   name              String
-  sku               String
+  sku               String          @unique
   description       String?
-  price             Decimal   @db.Decimal(10, 2)
+  price             Decimal         @db.Decimal(10, 2)
   categoryId        String
-  status            String    @default("ACTIVE")
-  stockQuantity     Int       @default(0)
-  lowStockThreshold Int       @default(10)
-  isActive          Boolean   @default(true)
-
-  // Audit fields
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-
-  // Relationships
+  status            String          @default("ACTIVE")
+  stockQuantity     Int             @default(0)
+  lowStockThreshold Int             @default(10)
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  orderItems        OrderItem[]     @relation("OrderProductItems")
   category          ProductCategory @relation(fields: [categoryId], references: [id])
   stockMovements    StockMovement[] @relation("ProductStockMovements")
-  orderItems        OrderItem[] @relation("OrderProductItems")
 
-  @@map("products")
-  @@unique([sku])
   @@index([categoryId])
   @@index([status])
   @@index([isActive])
   @@index([stockQuantity])
+  @@map("products")
 }
 
 model StockMovement {
   id          String   @id @default(cuid())
-  productId  String
-  type        String    @default("IN")
+  productId   String
+  type        String   @default("IN")
   quantity    Int
   reason      String
   reference   String?
-  createdById  String?
-
+  createdById String?
   createdAt   DateTime @default(now())
+  product     Product  @relation("ProductStockMovements", fields: [productId], references: [id])
 
-  // Relationships
-  product     Product @relation("ProductStockMovements", fields: [productId], references: [id])
-
-  @@map("stock_movements")
   @@index([productId])
   @@index([type])
   @@index([createdAt])
+  @@map("stock_movements")
 }
 
-// Accounting Module - Chart of Accounts
 model ChartOfAccounts {
-  id          String   @id @default(cuid())
-  code        String   @unique(map: "chart_of_accounts_code_unique")
-  name        String
-  description String?
-  type        String   // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
-  category    String   // Current Assets, Fixed Assets, etc.
-  subcategory String?
-  parentId    String?
-  level       Int      @default(0)
-  isActive    Boolean  @default(true)
-  isSystem    Boolean  @default(false) // System accounts cannot be deleted
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
-  updatedBy   String?
-
-  // Relationships
-  parent      ChartOfAccounts? @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children    ChartOfAccounts[] @relation("AccountHierarchy")
+  id             String            @id @default(cuid())
+  code           String            @unique(map: "chart_of_accounts_code_unique")
+  name           String
+  description    String?
+  type           String
+  category       String
+  subcategory    String?
+  parentId       String?
+  level          Int               @default(0)
+  isActive       Boolean           @default(true)
+  isSystem       Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  createdBy      String?
+  updatedBy      String?
+  parent         ChartOfAccounts?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children       ChartOfAccounts[] @relation("AccountHierarchy")
   journalEntries JournalEntry[]
 
-  @@map("chart_of_accounts")
-    @@index([type])
+  @@index([type])
   @@index([category])
   @@index([parentId])
   @@index([isActive])
+  @@map("chart_of_accounts")
 }
 
-// Accounting Module - Transactions
 model Transaction {
-  id          String   @id @default(cuid())
-  reference   String   @unique(map: "transactions_reference_unique")
+  id          String         @id @default(cuid())
+  reference   String         @unique(map: "transactions_reference_unique")
   description String
-  date        DateTime @default(now())
-  amount      Decimal  @db.Decimal(15, 2)
-  currency    String   @default("USD")
-  status      String   @default("PENDING") // PENDING, POSTED, CANCELLED
-  type        String   // SALE, PURCHASE, PAYMENT, RECEIPT, ADJUSTMENT, etc.
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  date        DateTime       @default(now())
+  amount      Decimal        @db.Decimal(15, 2)
+  currency    String         @default("USD")
+  status      String         @default("PENDING")
+  type        String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   createdBy   String?
   updatedBy   String?
   postedBy    String?
   postedAt    DateTime?
-
-  // Relationships
   entries     JournalEntry[]
 
-  @@map("transactions")
-    @@index([date])
+  @@index([date])
   @@index([status])
   @@index([type])
   @@index([createdBy])
+  @@map("transactions")
 }
 
-// Accounting Module - Journal Entries (Double-entry bookkeeping)
 model JournalEntry {
-  id            String   @id @default(cuid())
+  id            String          @id @default(cuid())
   transactionId String
   accountId     String
   description   String?
-  debitAmount   Decimal  @db.Decimal(15, 2) @default(0)
-  creditAmount  Decimal  @db.Decimal(15, 2) @default(0)
-  balance       Decimal  @db.Decimal(15, 2) @default(0)
-
-  createdAt     DateTime @default(now())
-
-  // Relationships
-  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  debitAmount   Decimal         @default(0) @db.Decimal(15, 2)
+  creditAmount  Decimal         @default(0) @db.Decimal(15, 2)
+  balance       Decimal         @default(0) @db.Decimal(15, 2)
+  createdAt     DateTime        @default(now())
   account       ChartOfAccounts @relation(fields: [accountId], references: [id])
+  transaction   Transaction     @relation(fields: [transactionId], references: [id])
 
-  @@map("journal_entries")
   @@index([transactionId])
   @@index([accountId])
   @@index([debitAmount])
   @@index([creditAmount])
+  @@map("journal_entries")
 }
 
-// Sales Module - Customers
 model Customer {
-  id          String   @id @default(cuid())
-  code        String   @unique
+  id          String    @id @default(cuid())
+  code        String    @unique
   name        String
-  email       String   @unique
+  email       String    @unique
   phone       String?
   address     String?
   city        String?
@@ -222,737 +189,610 @@ model Customer {
   postalCode  String?
   country     String?
   taxId       String?
-  isActive    Boolean  @default(true)
-  creditLimit Decimal  @db.Decimal(15, 2) @default(0)
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  creditLimit Decimal   @default(0) @db.Decimal(15, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   createdBy   String?
   updatedBy   String?
-
-  // Relationships
-  orders      Order[]
   invoices    Invoice[]
+  orders      Order[]
 
-  @@map("customers")
   @@index([isActive])
   @@index([email])
+  @@map("customers")
 }
 
-// Sales Module - Orders
 model Order {
-  id          String   @id @default(cuid())
-  orderNumber String   @unique
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
   customerId  String
   reference   String?
   description String?
-  status      String   @default("DRAFT") // DRAFT, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
-  orderDate   DateTime @default(now())
+  status      String      @default("DRAFT")
+  orderDate   DateTime    @default(now())
   dueDate     DateTime?
-  subtotal    Decimal  @db.Decimal(15, 2) @default(0)
-  taxAmount   Decimal  @db.Decimal(15, 2) @default(0)
-  totalAmount Decimal  @db.Decimal(15, 2) @default(0)
-  currency    String   @default("USD")
+  subtotal    Decimal     @default(0) @db.Decimal(15, 2)
+  taxAmount   Decimal     @default(0) @db.Decimal(15, 2)
+  totalAmount Decimal     @default(0) @db.Decimal(15, 2)
+  currency    String      @default("USD")
   notes       String?
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   createdBy   String?
   updatedBy   String?
-
-  // Relationships
-  customer    Customer @relation(fields: [customerId], references: [id])
-  orderItems  OrderItem[]
   invoice     Invoice?
+  orderItems  OrderItem[]
+  customer    Customer    @relation(fields: [customerId], references: [id])
 
-  @@map("orders")
   @@index([customerId])
   @@index([status])
   @@index([orderDate])
   @@index([totalAmount])
+  @@map("orders")
 }
 
-// Sales Module - Order Items
 model OrderItem {
   id          String   @id @default(cuid())
   orderId     String
   productId   String
   quantity    Int
   unitPrice   Decimal  @db.Decimal(10, 2)
-  discount    Decimal  @db.Decimal(10, 2) @default(0)
-  totalPrice  Decimal  @db.Decimal(15, 2) @default(0)
+  discount    Decimal  @default(0) @db.Decimal(10, 2)
+  totalPrice  Decimal  @default(0) @db.Decimal(15, 2)
   description String?
-
   createdAt   DateTime @default(now())
+  order       Order    @relation(fields: [orderId], references: [id])
+  product     Product  @relation("OrderProductItems", fields: [productId], references: [id])
 
-  // Relationships
-  order       Order @relation(fields: [orderId], references: [id])
-  product     Product @relation("OrderProductItems", fields: [productId], references: [id])
-
-  @@map("order_items")
   @@index([orderId])
   @@index([productId])
+  @@map("order_items")
 }
 
-// Sales Module - Invoices
 model Invoice {
-  id            String   @id @default(cuid())
-  invoiceNumber String   @unique
-  orderId      String   @unique
+  id            String    @id @default(cuid())
+  invoiceNumber String    @unique
+  orderId       String    @unique
   customerId    String
-  status        String   @default("DRAFT") // DRAFT, SENT, PAID, OVERDUE, CANCELLED
-  issueDate     DateTime @default(now())
+  status        String    @default("DRAFT")
+  issueDate     DateTime  @default(now())
   dueDate       DateTime?
-  subtotal      Decimal  @db.Decimal(15, 2) @default(0)
-  taxAmount     Decimal  @db.Decimal(15, 2) @default(0)
-  totalAmount   Decimal  @db.Decimal(15, 2) @default(0)
-  paidAmount    Decimal  @db.Decimal(15, 2) @default(0)
-  balanceDue    Decimal  @db.Decimal(15, 2) @default(0)
-  currency      String   @default("USD")
+  subtotal      Decimal   @default(0) @db.Decimal(15, 2)
+  taxAmount     Decimal   @default(0) @db.Decimal(15, 2)
+  totalAmount   Decimal   @default(0) @db.Decimal(15, 2)
+  paidAmount    Decimal   @default(0) @db.Decimal(15, 2)
+  balanceDue    Decimal   @default(0) @db.Decimal(15, 2)
+  currency      String    @default("USD")
   notes         String?
-
-  // Audit fields
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   createdBy     String?
   updatedBy     String?
-
-  // Relationships
-  customer      Customer @relation(fields: [customerId], references: [id])
-  order         Order @relation(fields: [orderId], references: [id])
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  order         Order     @relation(fields: [orderId], references: [id])
   payments      Payment[]
 
-  @@map("invoices")
   @@index([customerId])
   @@index([status])
   @@index([issueDate])
   @@index([dueDate])
+  @@map("invoices")
 }
 
-// Sales Module - Payments
 model Payment {
   id            String   @id @default(cuid())
   invoiceId     String
   reference     String?
   amount        Decimal  @db.Decimal(15, 2)
-  paymentMethod  String   // CASH, BANK_TRANSFER, CREDIT_CARD, CHECK, OTHER
+  paymentMethod String
   paymentDate   DateTime @default(now())
-  status        String   @default("PENDING") // PENDING, COMPLETED, FAILED, CANCELLED
+  status        String   @default("PENDING")
   notes         String?
-
-  // Audit fields
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   createdBy     String?
   updatedBy     String?
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
 
-  // Relationships
-  invoice       Invoice @relation(fields: [invoiceId], references: [id])
-
-  @@map("payments")
   @@index([invoiceId])
   @@index([status])
   @@index([paymentDate])
   @@index([amount])
+  @@map("payments")
 }
 
-// Purchasing Module - Suppliers
 model Supplier {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String
-  email       String   @unique
-  phone       String?
-  address     String?
-  city        String?
-  state       String?
-  postalCode  String?
-  country     String?
-  taxId       String?
-  isActive    Boolean  @default(true)
-  creditLimit Decimal  @db.Decimal(15, 2) @default(0)
-  paymentTerms String  @default("NET30") // NET15, NET30, NET60, etc.
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
-  updatedBy   String?
-
-  // Relationships
-  purchaseOrders PurchaseOrder[]
+  id                 String                      @id @default(cuid())
+  code               String                      @unique
+  name               String
+  email              String                      @unique
+  phone              String?
+  address            String?
+  city               String?
+  state              String?
+  postalCode         String?
+  country            String?
+  taxId              String?
+  isActive           Boolean                     @default(true)
+  creditLimit        Decimal                     @default(0) @db.Decimal(15, 2)
+  paymentTerms       String                      @default("NET30")
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  createdBy          String?
+  updatedBy          String?
+  purchaseOrders     PurchaseOrder[]
   performanceRecords SupplierPerformance[]
-  performanceEvents SupplierPerformanceEvent[] @relation("SupplierEvents")
+  performanceEvents  SupplierPerformanceEvent[]  @relation("SupplierEvents")
   performanceReviews SupplierPerformanceReview[] @relation("SupplierReviews")
 
-  @@map("suppliers")
   @@index([isActive])
   @@index([email])
+  @@map("suppliers")
 }
 
-// Purchasing Module - Purchase Orders
 model PurchaseOrder {
-  id            String   @id @default(cuid())
-  orderNumber   String   @unique
-  supplierId    String
-  reference     String?
-  description   String?
-  status        String   @default("DRAFT") // DRAFT, SENT, CONFIRMED, RECEIVED, CANCELLED
-  orderDate     DateTime @default(now())
-  expectedDate  DateTime?
-  subtotal      Decimal  @db.Decimal(15, 2) @default(0)
-  taxAmount     Decimal  @db.Decimal(15, 2) @default(0)
-  totalAmount   Decimal  @db.Decimal(15, 2) @default(0)
-  currency      String   @default("USD")
-  notes         String?
-
-  // Audit fields
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  createdBy     String?
-  updatedBy     String?
-
-  // Relationships
-  supplier      Supplier @relation(fields: [supplierId], references: [id])
-  orderItems    PurchaseOrderItem[]
-  receipts      PurchaseReceipt[]
+  id                String                     @id @default(cuid())
+  orderNumber       String                     @unique
+  supplierId        String
+  reference         String?
+  description       String?
+  status            String                     @default("DRAFT")
+  orderDate         DateTime                   @default(now())
+  expectedDate      DateTime?
+  subtotal          Decimal                    @default(0) @db.Decimal(15, 2)
+  taxAmount         Decimal                    @default(0) @db.Decimal(15, 2)
+  totalAmount       Decimal                    @default(0) @db.Decimal(15, 2)
+  currency          String                     @default("USD")
+  notes             String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  createdBy         String?
+  updatedBy         String?
+  orderItems        PurchaseOrderItem[]
+  supplier          Supplier                   @relation(fields: [supplierId], references: [id])
+  receipts          PurchaseReceipt[]
   performanceEvents SupplierPerformanceEvent[] @relation("OrderEvents")
 
-  @@map("purchase_orders")
   @@index([supplierId])
   @@index([status])
   @@index([orderDate])
   @@index([totalAmount])
+  @@map("purchase_orders")
 }
 
-// Purchasing Module - Purchase Order Items
 model PurchaseOrderItem {
-  id            String   @id @default(cuid())
-  orderId       String
-  productId     String?
-  description   String
-  quantity      Int
-  unitPrice     Decimal  @db.Decimal(10, 2)
-  discount      Decimal  @db.Decimal(10, 2) @default(0)
-  totalPrice    Decimal  @db.Decimal(15, 2) @default(0)
-  receivedQty   Int      @default(0)
-
-  createdAt     DateTime @default(now())
-
-  // Relationships
-  order         PurchaseOrder @relation(fields: [orderId], references: [id])
+  id                String                     @id @default(cuid())
+  orderId           String
+  productId         String?
+  description       String
+  quantity          Int
+  unitPrice         Decimal                    @db.Decimal(10, 2)
+  discount          Decimal                    @default(0) @db.Decimal(10, 2)
+  totalPrice        Decimal                    @default(0) @db.Decimal(15, 2)
+  receivedQty       Int                        @default(0)
+  createdAt         DateTime                   @default(now())
+  order             PurchaseOrder              @relation(fields: [orderId], references: [id])
   performanceEvents SupplierPerformanceEvent[] @relation("ItemEvents")
 
-  @@map("purchase_order_items")
   @@index([orderId])
   @@index([productId])
+  @@map("purchase_order_items")
 }
 
-// Purchasing Module - Purchase Receipts
 model PurchaseReceipt {
-  id            String   @id @default(cuid())
-  receiptNumber String   @unique
+  id            String        @id @default(cuid())
+  receiptNumber String        @unique
   orderId       String
   reference     String?
-  status        String   @default("DRAFT") // DRAFT, CONFIRMED, CANCELLED
-  receiptDate   DateTime @default(now())
+  status        String        @default("DRAFT")
+  receiptDate   DateTime      @default(now())
   notes         String?
-
-  // Audit fields
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   createdBy     String?
   updatedBy     String?
-
-  // Relationships
   order         PurchaseOrder @relation(fields: [orderId], references: [id])
 
-  @@map("purchase_receipts")
   @@index([orderId])
   @@index([status])
   @@index([receiptDate])
+  @@map("purchase_receipts")
 }
 
-// Reports Module - Report Definitions
 model ReportDefinition {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  type        String   // FINANCIAL, SALES, INVENTORY, PURCHASING, EXECUTIVE
-  category    String   // SUMMARY, DETAILED, ANALYTICS, KPI
-  query       String   // SQL query or JSON definition
-  parameters  Json?    // Report parameters definition
-  isActive    Boolean  @default(true)
-  isSystem    Boolean  @default(false) // System reports cannot be deleted
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String?
-  updatedBy   String?
-
-  // Relationships
+  id               String            @id @default(cuid())
+  name             String
+  description      String?
+  type             String
+  category         String
+  query            String
+  parameters       Json?
+  isActive         Boolean           @default(true)
+  isSystem         Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  createdBy        String?
+  updatedBy        String?
   generatedReports GeneratedReport[]
   scheduledReports ScheduledReport[]
 
-  @@map("report_definitions")
   @@index([type])
   @@index([category])
   @@index([isActive])
+  @@map("report_definitions")
 }
 
-// Reports Module - Generated Reports
 model GeneratedReport {
-  id            String   @id @default(cuid())
+  id                 String                   @id @default(cuid())
   reportDefinitionId String
-  name          String
-  parameters    Json?    // Used parameters
-  data          Json     // Report data
-  format        String   @default("JSON") // JSON, CSV, PDF, EXCEL
-  status        String   @default("GENERATING") // GENERATING, COMPLETED, FAILED
-  generatedAt   DateTime @default(now())
-  expiresAt     DateTime? // For cached reports
-  fileUrl       String?  // For exported files
+  name               String
+  parameters         Json?
+  data               Json
+  format             String                   @default("JSON")
+  status             String                   @default("GENERATING")
+  generatedAt        DateTime                 @default(now())
+  expiresAt          DateTime?
+  fileUrl            String?
+  createdAt          DateTime                 @default(now())
+  createdBy          String?
+  scheduledExecution ScheduledReportExecution @relation("ScheduledExecution", fields: [id], references: [id])
+  reportDefinition   ReportDefinition         @relation(fields: [reportDefinitionId], references: [id])
 
-  // Audit fields
-  createdAt     DateTime @default(now())
-  createdBy     String?
-
-  // Relationships
-  reportDefinition ReportDefinition @relation(fields: [reportDefinitionId], references: [id])
-  scheduledExecution ScheduledReportExecution? @relation("ScheduledExecution", fields: [id], references: [id])
-
-  @@map("generated_reports")
   @@index([reportDefinitionId])
   @@index([status])
   @@index([generatedAt])
   @@index([expiresAt])
+  @@map("generated_reports")
 }
 
-// Reports Module - Scheduled Report Definitions
 model ScheduledReport {
-  id                String   @id @default(cuid())
-  reportDefinitionId String
-  name              String
-  description       String?
-  schedule          String   // Cron expression (e.g., "0 9 * * 1" for every Monday 9 AM)
-  scheduleType      String   // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY, CUSTOM
-  isActive          Boolean  @default(true)
-  nextRunAt         DateTime @default(now())
-  lastRunAt         DateTime?
-  parameters        Json?    // Default parameters for the scheduled report
-  format            String   @default("PDF") // PDF, EXCEL, CSV, JSON
-  timezone          String   @default("UTC")
-
-  // Notification settings
-  sendEmail         Boolean  @default(true)
-  emailRecipients   String[] // Array of email addresses
-  emailSubject      String?
-  emailBody         String?
-
-  // Retry settings
-  maxRetries        Int      @default(3)
-  retryInterval     Int      @default(300) // seconds
-
-  // Archive settings
-  archiveAfter      Int?     // Number of days before archiving
-  deleteAfter       Int?     // Number of days before deletion
-
-  // Audit fields
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  createdBy         String?
-  updatedBy         String?
-
-  // Relationships
-  reportDefinition  ReportDefinition @relation(fields: [reportDefinitionId], references: [id])
+  id                  String                            @id @default(cuid())
+  reportDefinitionId  String
+  name                String
+  description         String?
+  schedule            String
+  scheduleType        String
+  isActive            Boolean                           @default(true)
+  nextRunAt           DateTime                          @default(now())
+  lastRunAt           DateTime?
+  parameters          Json?
+  format              String                            @default("PDF")
+  timezone            String                            @default("UTC")
+  sendEmail           Boolean                           @default(true)
+  emailRecipients     String[]
+  emailSubject        String?
+  emailBody           String?
+  maxRetries          Int                               @default(3)
+  retryInterval       Int                               @default(300)
+  archiveAfter        Int?
+  deleteAfter         Int?
+  createdAt           DateTime                          @default(now())
+  updatedAt           DateTime                          @updatedAt
+  createdBy           String?
+  updatedBy           String?
+  distributionLists   ScheduledReportDistributionList[]
   scheduledExecutions ScheduledReportExecution[]
-  distributionLists ScheduledReportDistributionList[]
+  reportDefinition    ReportDefinition                  @relation(fields: [reportDefinitionId], references: [id])
 
-  @@map("scheduled_reports")
   @@index([reportDefinitionId])
   @@index([scheduleType])
   @@index([isActive])
   @@index([nextRunAt])
   @@index([lastRunAt])
+  @@map("scheduled_reports")
 }
 
-// Reports Module - Scheduled Report Execution History
 model ScheduledReportExecution {
-  id              String   @id @default(cuid())
+  id                String           @id @default(cuid())
   scheduledReportId String
-  scheduledAt     DateTime // When it was scheduled to run
-  startedAt       DateTime // When execution started
-  completedAt     DateTime? // When execution completed
-  status          String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
-  generatedReportId String? @unique // Link to the generated report if successful
-  errorMessage    String?  // Error message if failed
-  retryCount      Int      @default(0)
-  deliveryStatus  String   @default("PENDING") // PENDING, SENDING, DELIVERED, FAILED
-  deliveryAttempts Int     @default(0)
-  deliveryLog     Json?    // Delivery log with timestamps
+  scheduledAt       DateTime
+  startedAt         DateTime
+  completedAt       DateTime?
+  status            String           @default("PENDING")
+  generatedReportId String?          @unique
+  errorMessage      String?
+  retryCount        Int              @default(0)
+  deliveryStatus    String           @default("PENDING")
+  deliveryAttempts  Int              @default(0)
+  deliveryLog       Json?
+  executionTimeMs   Int?
+  createdAt         DateTime         @default(now())
+  createdBy         String?
+  generatedReport   GeneratedReport? @relation("ScheduledExecution")
+  scheduledReport   ScheduledReport  @relation(fields: [scheduledReportId], references: [id])
 
-  // Execution metrics
-  executionTimeMs Int?    // Execution time in milliseconds
-
-  // Audit fields
-  createdAt       DateTime @default(now())
-  createdBy       String?
-
-  // Relationships
-  scheduledReport ScheduledReport @relation(fields: [scheduledReportId], references: [id])
-  generatedReport GeneratedReport? @relation("ScheduledExecution")
-
-  @@map("scheduled_report_executions")
   @@index([scheduledReportId])
   @@index([status])
   @@index([scheduledAt])
   @@index([deliveryStatus])
+  @@map("scheduled_report_executions")
 }
 
-// Reports Module - Scheduled Report Distribution Lists
 model ScheduledReportDistributionList {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   scheduledReportId String
-  userId            String   // User who should receive the report
-  email             String   // User's email address
-  isActive          Boolean  @default(true)
-  subscribedAt      DateTime @default(now())
+  userId            String
+  email             String
+  isActive          Boolean         @default(true)
+  subscribedAt      DateTime        @default(now())
   unsubscribedAt    DateTime?
-
-  // Personalization
   customSubject     String?
   customBody        String?
-  deliveryMethod    String   @default("EMAIL") // EMAIL, DOWNLOAD, BOTH
-  preferredFormat   String?  // PDF, EXCEL, CSV, JSON
-
-  // Audit fields
-  createdAt         DateTime @default(now())
+  deliveryMethod    String          @default("EMAIL")
+  preferredFormat   String?
+  createdAt         DateTime        @default(now())
   createdBy         String?
-
-  // Relationships
   scheduledReport   ScheduledReport @relation(fields: [scheduledReportId], references: [id])
-  user              User @relation(fields: [userId], references: [id])
+  user              User            @relation(fields: [userId], references: [id])
 
-  @@map("scheduled_report_distribution_lists")
+  @@unique([scheduledReportId, userId])
   @@index([scheduledReportId])
   @@index([userId])
   @@index([isActive])
-  @@unique([scheduledReportId, userId]) // One subscription per user per report
+  @@map("scheduled_report_distribution_lists")
 }
 
-// Reports Module - Report Subscriptions
 model ReportSubscription {
-  id                String   @id @default(cuid())
-  userId            String
+  id                 String   @id @default(cuid())
+  userId             String
   reportDefinitionId String
-  subscriptionType  String   // IMMEDIATE, DAILY_DIGEST, WEEKLY_DIGEST, CUSTOM
-  isActive          Boolean  @default(true)
-  preferences       Json?    // User preferences for notifications
+  subscriptionType   String
+  isActive           Boolean  @default(true)
+  preferences        Json?
+  criteria           Json?
+  sendEmail          Boolean  @default(true)
+  sendInApp          Boolean  @default(true)
+  quietHours         Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  createdBy          String?
+  updatedBy          String?
+  user               User     @relation("UserSubscriptions", fields: [userId], references: [id])
 
-  // Subscription criteria
-  criteria          Json?    // Dynamic filtering criteria
-
-  // Notification settings
-  sendEmail         Boolean  @default(true)
-  sendInApp         Boolean  @default(true)
-  quietHours        Json?    // Quiet hours configuration
-
-  // Audit fields
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  createdBy         String?
-  updatedBy         String?
-
-  // Relationships
-  user              User @relation("UserSubscriptions", fields: [userId], references: [id])
-
-  @@map("report_subscriptions")
+  @@unique([userId, reportDefinitionId])
   @@index([userId])
   @@index([reportDefinitionId])
   @@index([subscriptionType])
   @@index([isActive])
-  @@unique([userId, reportDefinitionId]) // One subscription per user per report definition
+  @@map("report_subscriptions")
 }
 
-// Reports Module - Dashboard Definitions
 model Dashboard {
   id          String   @id @default(cuid())
   name        String
   description String?
-  layout      Json     // Dashboard layout configuration
-  widgets     Json     // Widget definitions
+  layout      Json
+  widgets     Json
   isActive    Boolean  @default(true)
   isPublic    Boolean  @default(false)
-
-  // Audit fields
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdBy   String?
   updatedBy   String?
 
-  @@map("dashboards")
   @@index([isActive])
   @@index([isPublic])
+  @@map("dashboards")
 }
 
-// Reports Module - KPI Definitions
 model KpiDefinition {
   id          String   @id @default(cuid())
   name        String
   description String?
-  category    String   // FINANCIAL, SALES, INVENTORY, PURCHASING
-  formula     String   // Calculation formula
-  unit        String?  // Unit of measurement
+  category    String
+  formula     String
+  unit        String?
   target      Decimal? @db.Decimal(15, 2)
   isActive    Boolean  @default(true)
-
-  // Audit fields
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdBy   String?
   updatedBy   String?
 
-  @@map("kpi_definitions")
   @@index([category])
   @@index([isActive])
+  @@map("kpi_definitions")
 }
 
-// Supplier Performance Tracking Module - Supplier Performance Metrics
 model SupplierPerformance {
-  id                    String   @id @default(cuid())
-  supplierId            String
-  period                String   // YYYY-MM format for monthly tracking
-  qualityScore          Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
-  deliveryScore         Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
-  costScore             Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
-  serviceScore          Decimal  @db.Decimal(5, 2) @default(0)    // 0-100 scale
-  overallScore          Decimal  @db.Decimal(5, 2) @default(0)    // Weighted average
-  tier                  String   @default("STANDARD")             // PREFERRED, APPROVED, STANDARD, CONDITIONAL, UNDER_REVIEW
-  onTimeDeliveryRate    Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
-  qualityDefectRate     Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
-  orderAccuracyRate     Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
-  priceVarianceRate     Decimal  @db.Decimal(5, 2) @default(0)    // Percentage
-  responseTimeHours     Decimal  @db.Decimal(8, 2) @default(0)    // Average response time
-  totalOrders           Int      @default(0)
-  totalValue            Decimal  @db.Decimal(15, 2) @default(0)
-  lateDeliveries        Int      @default(0)
-  qualityIssues         Int      @default(0)
-  returnsCount          Int      @default(0)
-  notes                 String?
+  id                 String                    @id @default(cuid())
+  supplierId         String
+  period             String
+  qualityScore       Decimal                   @default(0) @db.Decimal(5, 2)
+  deliveryScore      Decimal                   @default(0) @db.Decimal(5, 2)
+  costScore          Decimal                   @default(0) @db.Decimal(5, 2)
+  serviceScore       Decimal                   @default(0) @db.Decimal(5, 2)
+  overallScore       Decimal                   @default(0) @db.Decimal(5, 2)
+  tier               String                    @default("STANDARD")
+  onTimeDeliveryRate Decimal                   @default(0) @db.Decimal(5, 2)
+  qualityDefectRate  Decimal                   @default(0) @db.Decimal(5, 2)
+  orderAccuracyRate  Decimal                   @default(0) @db.Decimal(5, 2)
+  priceVarianceRate  Decimal                   @default(0) @db.Decimal(5, 2)
+  responseTimeHours  Decimal                   @default(0) @db.Decimal(8, 2)
+  totalOrders        Int                       @default(0)
+  totalValue         Decimal                   @default(0) @db.Decimal(15, 2)
+  lateDeliveries     Int                       @default(0)
+  qualityIssues      Int                       @default(0)
+  returnsCount       Int                       @default(0)
+  notes              String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  calculatedBy       String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  calculator         User?                     @relation("PerformanceCalculator", fields: [calculatedBy], references: [id])
+  reviewer           User?                     @relation("PerformanceReviewer", fields: [reviewedBy], references: [id])
+  supplier           Supplier                  @relation(fields: [supplierId], references: [id])
+  scorecardDetails   SupplierScorecardDetail[]
 
-  // Audit fields
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  calculatedBy          String?  // User who calculated the metrics
-  reviewedBy            String?  // Manager who reviewed the metrics
-  reviewedAt            DateTime?
-
-  // Relationships
-  supplier              Supplier @relation(fields: [supplierId], references: [id])
-  calculator            User?    @relation("PerformanceCalculator", fields: [calculatedBy], references: [id])
-  reviewer              User?    @relation("PerformanceReviewer", fields: [reviewedBy], references: [id])
-  scorecardDetails      SupplierScorecardDetail[]
-
-  @@map("supplier_performance")
+  @@unique([supplierId, period])
   @@index([supplierId])
   @@index([period])
   @@index([tier])
   @@index([overallScore])
   @@index([createdAt])
-  @@unique([supplierId, period]) // One record per supplier per period
+  @@map("supplier_performance")
 }
 
-// Supplier Performance Scorecard Details
 model SupplierScorecardDetail {
-  id                    String   @id @default(cuid())
-  performanceId         String
-  metricType            String   // QUALITY, DELIVERY, COST, SERVICE, RESPONSIVENESS
-  metricName            String   // e.g., "On-Time Delivery", "Product Quality"
-  metricValue           Decimal  @db.Decimal(15, 2)
-  targetValue           Decimal  @db.Decimal(15, 2)
-  performanceLevel      String   // EXCELLENT, GOOD, AVERAGE, POOR, CRITICAL
-  weight                Decimal  @db.Decimal(5, 2) @default(1)    // Weight in overall calculation
-  score                 Decimal  @db.Decimal(5, 2) @default(0)    // Calculated score
-  trend                 String?  // IMPROVING, STABLE, DECLINING
-  comments              String?
-  supportingData        Json?    // Additional data for calculations
+  id               String              @id @default(cuid())
+  performanceId    String
+  metricType       String
+  metricName       String
+  metricValue      Decimal             @db.Decimal(15, 2)
+  targetValue      Decimal             @db.Decimal(15, 2)
+  performanceLevel String
+  weight           Decimal             @default(1) @db.Decimal(5, 2)
+  score            Decimal             @default(0) @db.Decimal(5, 2)
+  trend            String?
+  comments         String?
+  supportingData   Json?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  performance      SupplierPerformance @relation(fields: [performanceId], references: [id])
 
-  // Audit fields
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  // Relationships
-  performance           SupplierPerformance @relation(fields: [performanceId], references: [id])
-
-  @@map("supplier_scorecard_details")
   @@index([performanceId])
   @@index([metricType])
   @@index([performanceLevel])
+  @@map("supplier_scorecard_details")
 }
 
-// Supplier Performance Events
 model SupplierPerformanceEvent {
-  id                    String   @id @default(cuid())
-  supplierId            String
-  eventType             String   // LATE_DELIVERY, QUALITY_ISSUE, PRICE_INCREASE, SERVICE_COMPLAINT, EXCELLENT_SERVICE
-  eventDate             DateTime
-  severity              String   // LOW, MEDIUM, HIGH, CRITICAL
-  description           String
-  impact                String?  // Description of business impact
-  resolved              Boolean  @default(false)
-  resolvedAt            DateTime?
-  resolvedBy            String?
-  resolutionNotes       String?
-  orderId               String?  // Related purchase order if applicable
-  itemId                String?  // Related order item if applicable
-  costImpact            Decimal  @db.Decimal(15, 2) @default(0)  // Financial impact
-  preventiveAction      String?  // Actions taken to prevent recurrence
+  id               String             @id @default(cuid())
+  supplierId       String
+  eventType        String
+  eventDate        DateTime
+  severity         String
+  description      String
+  impact           String?
+  resolved         Boolean            @default(false)
+  resolvedAt       DateTime?
+  resolvedBy       String?
+  resolutionNotes  String?
+  orderId          String?
+  itemId           String?
+  costImpact       Decimal            @default(0) @db.Decimal(15, 2)
+  preventiveAction String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  createdBy        String?
+  updatedBy        String?
+  relatedItem      PurchaseOrderItem? @relation("ItemEvents", fields: [itemId], references: [id])
+  relatedOrder     PurchaseOrder?     @relation("OrderEvents", fields: [orderId], references: [id])
+  resolver         User?              @relation("EventResolver", fields: [resolvedBy], references: [id])
+  supplier         Supplier           @relation("SupplierEvents", fields: [supplierId], references: [id])
 
-  // Audit fields
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  createdBy             String?
-  updatedBy             String?
-
-  // Relationships
-  supplier              Supplier @relation("SupplierEvents", fields: [supplierId], references: [id])
-  resolver              User?    @relation("EventResolver", fields: [resolvedBy], references: [id])
-  relatedOrder          PurchaseOrder? @relation("OrderEvents", fields: [orderId], references: [id])
-  relatedItem           PurchaseOrderItem? @relation("ItemEvents", fields: [itemId], references: [id])
-
-  @@map("supplier_performance_events")
   @@index([supplierId])
   @@index([eventType])
   @@index([severity])
   @@index([eventDate])
   @@index([resolved])
+  @@map("supplier_performance_events")
 }
 
-// Supplier Performance Reviews
 model SupplierPerformanceReview {
-  id                    String   @id @default(cuid())
-  supplierId            String
-  reviewPeriod          String   // YYYY-MM format
-  reviewType            String   // MONTHLY, QUARTERLY, ANNUAL, ADHOC
-  overallRating         String   // EXCELLENT, GOOD, SATISFACTORY, NEEDS_IMPROVEMENT, UNSATISFACTORY
-  strengths             String[] // Array of supplier strengths
-  weaknesses            String[] // Array of supplier weaknesses
-  recommendations       String[] // Array of improvement recommendations
-  actionItems           Json?    // Action items with responsibilities and deadlines
-  nextReviewDate        DateTime?
-  status                String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
-  reviewedBy            String   // Manager who conducted the review
-  reviewDate            DateTime @default(now())
-  reviewComments        String?
-  followUpRequired      Boolean  @default(false)
-  followUpDate          DateTime?
+  id               String    @id @default(cuid())
+  supplierId       String
+  reviewPeriod     String
+  reviewType       String
+  overallRating    String
+  strengths        String[]
+  weaknesses       String[]
+  recommendations  String[]
+  actionItems      Json?
+  nextReviewDate   DateTime?
+  status           String    @default("PENDING")
+  reviewedBy       String
+  reviewDate       DateTime  @default(now())
+  reviewComments   String?
+  followUpRequired Boolean   @default(false)
+  followUpDate     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  completedAt      DateTime?
+  reviewer         User      @relation("PerformanceReviewBy", fields: [reviewedBy], references: [id])
+  supplier         Supplier  @relation("SupplierReviews", fields: [supplierId], references: [id])
 
-  // Audit fields
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  completedAt           DateTime?
-
-  // Relationships
-  supplier              Supplier @relation("SupplierReviews", fields: [supplierId], references: [id])
-  reviewer              User @relation("PerformanceReviewBy", fields: [reviewedBy], references: [id])
-
-  @@map("supplier_performance_reviews")
   @@index([supplierId])
   @@index([reviewPeriod])
   @@index([reviewType])
   @@index([overallRating])
   @@index([status])
+  @@map("supplier_performance_reviews")
 }
 
-// HR/Payroll Module - Departments
 model Department {
-  id          String   @id @default(cuid())
-  code        String   @unique
+  id          String       @id @default(cuid())
+  code        String       @unique
   name        String
   description String?
   parentId    String?
-  managerId   String?  @unique
-  isActive    Boolean  @default(true)
-
-  // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  managerId   String?      @unique
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   createdBy   String?
   updatedBy   String?
-
-  // Relationships
-  parent      Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  manager     Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
   children    Department[] @relation("DepartmentHierarchy")
-  manager     Employee?   @relation("DepartmentManager", fields: [managerId], references: [id])
   employees   Employee[]
 
-  @@map("departments")
   @@index([parentId])
   @@index([isActive])
   @@index([managerId])
+  @@map("departments")
 }
 
-// HR/Payroll Module - Employees
 model Employee {
-  id            String   @id @default(cuid())
-  employeeId    String   @unique
-  userId        String   @unique
-  firstName     String
-  lastName      String
-  email         String   @unique
-  phone         String?
-  address       String?
-  city          String?
-  state         String?
-  postalCode    String?
-  country       String?
-  dateOfBirth   DateTime
-  hireDate      DateTime @default(now())
-  departmentId  String
-  position      String
-  jobTitle      String
-  employmentType String  @default("FULL_TIME") // FULL_TIME, PART_TIME, CONTRACT, INTERN
-  status        String   @default("ACTIVE")   // ACTIVE, ON_LEAVE, TERMINATED, RETIRED
-  salary        Decimal  @db.Decimal(12, 2)
-  currency      String   @default("USD")
-  workSchedule  Json?    // Work schedule configuration
-  emergencyContact Json? // Emergency contact information
-  socialSecurity  String? // SSN or equivalent
-  taxId         String?  // Tax identification
-  bankAccount   Json?    // Bank account details for payroll
-  isActive      Boolean  @default(true)
+  id                   String              @id @default(cuid())
+  employeeId           String              @unique
+  userId               String              @unique
+  firstName            String
+  lastName             String
+  email                String              @unique
+  phone                String?
+  address              String?
+  city                 String?
+  state                String?
+  postalCode           String?
+  country              String?
+  dateOfBirth          DateTime
+  hireDate             DateTime            @default(now())
+  departmentId         String
+  position             String
+  jobTitle             String
+  employmentType       String              @default("FULL_TIME")
+  status               String              @default("ACTIVE")
+  salary               Decimal             @db.Decimal(12, 2)
+  currency             String              @default("USD")
+  workSchedule         Json?
+  emergencyContact     Json?
+  socialSecurity       String?
+  taxId                String?
+  bankAccount          Json?
+  isActive             Boolean             @default(true)
+  performanceRating    Decimal?            @db.Decimal(3, 1)
+  lastReviewDate       DateTime?
+  nextReviewDate       DateTime?
+  annualLeaveBalance   Decimal             @default(0) @db.Decimal(5, 2)
+  sickLeaveBalance     Decimal             @default(0) @db.Decimal(5, 2)
+  personalLeaveBalance Decimal             @default(0) @db.Decimal(5, 2)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  createdBy            String?
+  updatedBy            String?
+  terminatedAt         DateTime?
+  terminationReason    String?
+  managedDepartment    Department?         @relation("DepartmentManager")
+  department           Department          @relation(fields: [departmentId], references: [id])
+  user                 User                @relation("EmployeeUser", fields: [userId], references: [id])
+  leaveRequests        LeaveRequest[]
+  payrollRecords       PayrollRecord[]
+  performanceReviews   PerformanceReview[]
+  timesheets           Timesheet[]
 
-  // Performance metrics
-  performanceRating Decimal? @db.Decimal(3, 1) // 1.0-5.0 scale
-  lastReviewDate    DateTime?
-  nextReviewDate    DateTime?
-
-  // Leave balances
-  annualLeaveBalance Decimal @db.Decimal(5, 2) @default(0)
-  sickLeaveBalance   Decimal @db.Decimal(5, 2) @default(0)
-  personalLeaveBalance Decimal @db.Decimal(5, 2) @default(0)
-
-  // Audit fields
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  createdBy         String?
-  updatedBy         String?
-  terminatedAt      DateTime?
-  terminationReason String?
-
-  // Relationships
-  user              User @relation("EmployeeUser", fields: [userId], references: [id])
-  department        Department @relation(fields: [departmentId], references: [id])
-  managedDepartment Department? @relation("DepartmentManager")
-  payrollRecords    PayrollRecord[]
-  leaveRequests     LeaveRequest[]
-  performanceReviews PerformanceReview[]
-  timesheets        Timesheet[]
-
-  @@map("employees")
   @@index([employeeId])
   @@index([userId])
   @@index([email])
@@ -960,216 +800,170 @@ model Employee {
   @@index([status])
   @@index([isActive])
   @@index([hireDate])
+  @@map("employees")
 }
 
-// HR/Payroll Module - Payroll Records
 model PayrollRecord {
-  id              String   @id @default(cuid())
-  employeeId      String
-  payPeriod       String   // YYYY-MM format
-  grossPay        Decimal  @db.Decimal(12, 2)
-  netPay          Decimal  @db.Decimal(12, 2)
-  currency        String   @default("USD")
+  id                String    @id @default(cuid())
+  employeeId        String
+  payPeriod         String
+  grossPay          Decimal   @db.Decimal(12, 2)
+  netPay            Decimal   @db.Decimal(12, 2)
+  currency          String    @default("USD")
+  federalTax        Decimal   @default(0) @db.Decimal(10, 2)
+  stateTax          Decimal   @default(0) @db.Decimal(10, 2)
+  socialSecurityTax Decimal   @default(0) @db.Decimal(10, 2)
+  medicareTax       Decimal   @default(0) @db.Decimal(10, 2)
+  otherDeductions   Decimal   @default(0) @db.Decimal(10, 2)
+  totalDeductions   Decimal   @default(0) @db.Decimal(10, 2)
+  healthInsurance   Decimal   @default(0) @db.Decimal(10, 2)
+  dentalInsurance   Decimal   @default(0) @db.Decimal(10, 2)
+  retirement401k    Decimal   @default(0) @db.Decimal(10, 2)
+  otherBenefits     Decimal   @default(0) @db.Decimal(10, 2)
+  totalBenefits     Decimal   @default(0) @db.Decimal(10, 2)
+  regularHours      Decimal   @default(0) @db.Decimal(6, 2)
+  overtimeHours     Decimal   @default(0) @db.Decimal(6, 2)
+  hourlyRate        Decimal   @db.Decimal(8, 2)
+  overtimeRate      Decimal   @db.Decimal(8, 2)
+  paymentMethod     String    @default("DIRECT_DEPOSIT")
+  paymentDate       DateTime  @default(now())
+  paymentStatus     String    @default("PENDING")
+  transactionId     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  processedBy       String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  employee          Employee  @relation(fields: [employeeId], references: [id])
 
-  // Deductions
-  federalTax      Decimal  @db.Decimal(10, 2) @default(0)
-  stateTax        Decimal  @db.Decimal(10, 2) @default(0)
-  socialSecurityTax Decimal @db.Decimal(10, 2) @default(0)
-  medicareTax     Decimal  @db.Decimal(10, 2) @default(0)
-  otherDeductions Decimal  @db.Decimal(10, 2) @default(0)
-  totalDeductions Decimal  @db.Decimal(10, 2) @default(0)
-
-  // Benefits
-  healthInsurance  Decimal @db.Decimal(10, 2) @default(0)
-  dentalInsurance  Decimal @db.Decimal(10, 2) @default(0)
-  retirement401k   Decimal @db.Decimal(10, 2) @default(0)
-  otherBenefits    Decimal @db.Decimal(10, 2) @default(0)
-  totalBenefits    Decimal @db.Decimal(10, 2) @default(0)
-
-  // Hours and rates
-  regularHours    Decimal  @db.Decimal(6, 2) @default(0)
-  overtimeHours   Decimal  @db.Decimal(6, 2) @default(0)
-  hourlyRate      Decimal  @db.Decimal(8, 2)
-  overtimeRate    Decimal  @db.Decimal(8, 2)
-
-  // Payment details
-  paymentMethod   String   @default("DIRECT_DEPOSIT") // DIRECT_DEPOSIT, CHECK, CASH
-  paymentDate     DateTime @default(now())
-  paymentStatus   String   @default("PENDING") // PENDING, PAID, FAILED, CANCELLED
-  transactionId   String?  // Bank transaction reference
-
-  // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  processedBy     String?  // User who processed the payroll
-  approvedBy      String?  // Manager who approved
-  approvedAt      DateTime?
-
-  // Relationships
-  employee        Employee @relation(fields: [employeeId], references: [id])
-
-  @@map("payroll_records")
+  @@unique([employeeId, payPeriod])
   @@index([employeeId])
   @@index([payPeriod])
   @@index([paymentDate])
   @@index([paymentStatus])
-  @@unique([employeeId, payPeriod]) // One record per employee per pay period
+  @@map("payroll_records")
 }
 
-// HR/Payroll Module - Leave Requests
 model LeaveRequest {
-  id            String   @id @default(cuid())
-  employeeId    String
-  leaveType     String   // ANNUAL, SICK, PERSONAL, MATERNITY, PATERNITY, UNPAID
-  startDate     DateTime
-  endDate       DateTime
-  daysRequested Decimal  @db.Decimal(4, 1)
-  reason        String?
-  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED
-
-  // Approval details
-  approvedBy    String?
-  approvedAt    DateTime?
-  rejectedBy    String?
-  rejectedAt    DateTime?
+  id              String    @id @default(cuid())
+  employeeId      String
+  leaveType       String
+  startDate       DateTime
+  endDate         DateTime
+  daysRequested   Decimal   @db.Decimal(4, 1)
+  reason          String?
+  status          String    @default("PENDING")
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
   rejectionReason String?
+  paidLeave       Boolean   @default(true)
+  payRate         Decimal?  @db.Decimal(8, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+  employee        Employee  @relation(fields: [employeeId], references: [id])
 
-  // Payment implications
-  paidLeave     Boolean  @default(true)
-  payRate       Decimal? @db.Decimal(8, 2) // Override rate if different from normal
-
-  // Audit fields
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  createdBy     String?
-  updatedBy     String?
-
-  // Relationships
-  employee      Employee @relation(fields: [employeeId], references: [id])
-
-  @@map("leave_requests")
   @@index([employeeId])
   @@index([leaveType])
   @@index([status])
   @@index([startDate])
   @@index([endDate])
+  @@map("leave_requests")
 }
 
-// HR/Payroll Module - Performance Reviews
 model PerformanceReview {
-  id              String   @id @default(cuid())
-  employeeId      String
-  reviewerId      String   // Manager conducting the review
-  reviewPeriod    String   // YYYY-MM format
-  reviewType      String   // MONTHLY, QUARTERLY, ANNUAL, PROBATION, ADHOC
+  id                 String    @id @default(cuid())
+  employeeId         String
+  reviewerId         String
+  reviewPeriod       String
+  reviewType         String
+  overallRating      Decimal   @db.Decimal(3, 1)
+  qualityRating      Decimal   @db.Decimal(3, 1)
+  productivityRating Decimal   @db.Decimal(3, 1)
+  teamworkRating     Decimal   @db.Decimal(3, 1)
+  initiativeRating   Decimal   @db.Decimal(3, 1)
+  attendanceRating   Decimal   @db.Decimal(3, 1)
+  strengths          String[]
+  weaknesses         String[]
+  goals              String[]
+  recommendations    String[]
+  actionItems        Json?
+  status             String    @default("DRAFT")
+  reviewDate         DateTime  @default(now())
+  nextReviewDate     DateTime?
+  employeeComments   String?
+  reviewerComments   String?
+  finalComments      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  completedAt        DateTime?
+  employee           Employee  @relation(fields: [employeeId], references: [id])
 
-  // Performance ratings (1-5 scale)
-  overallRating   Decimal  @db.Decimal(3, 1)
-  qualityRating   Decimal  @db.Decimal(3, 1)
-  productivityRating Decimal @db.Decimal(3, 1)
-  teamworkRating  Decimal  @db.Decimal(3, 1)
-  initiativeRating Decimal @db.Decimal(3, 1)
-  attendanceRating Decimal @db.Decimal(3, 1)
-
-  // Review content
-  strengths       String[]
-  weaknesses      String[]
-  goals           String[]
-  recommendations  String[]
-  actionItems     Json?    // Action items with deadlines
-
-  // Status and workflow
-  status          String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
-  reviewDate      DateTime @default(now())
-  nextReviewDate  DateTime?
-
-  // Comments
-  employeeComments String?
-  reviewerComments String?
-  finalComments   String?
-
-  // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  completedAt     DateTime?
-
-  // Relationships
-  employee        Employee @relation(fields: [employeeId], references: [id])
-
-  @@map("performance_reviews")
   @@index([employeeId])
   @@index([reviewerId])
   @@index([reviewPeriod])
   @@index([reviewType])
   @@index([overallRating])
   @@index([status])
+  @@map("performance_reviews")
 }
 
-// HR/Payroll Module - Timesheets
 model Timesheet {
-  id            String   @id @default(cuid())
+  id            String           @id @default(cuid())
   employeeId    String
-  weekStartDate DateTime // Start of the week (Monday)
-  status        String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
-
-  // Audit fields
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  weekStartDate DateTime
+  status        String           @default("DRAFT")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   submittedBy   String?
   submittedAt   DateTime?
   approvedBy    String?
   approvedAt    DateTime?
-
-  // Relationships
-  employee      Employee @relation(fields: [employeeId], references: [id])
   entries       TimesheetEntry[]
+  employee      Employee         @relation(fields: [employeeId], references: [id])
 
-  @@map("timesheets")
+  @@unique([employeeId, weekStartDate])
   @@index([employeeId])
   @@index([weekStartDate])
   @@index([status])
-  @@unique([employeeId, weekStartDate]) // One timesheet per employee per week
+  @@map("timesheets")
 }
 
-// HR/Payroll Module - Timesheet Entries
 model TimesheetEntry {
-  id            String   @id @default(cuid())
-  timesheetId   String
-  date          DateTime
-  projectCode   String?
-  taskType      String   // REGULAR, OVERTIME, HOLIDAY, SICK, VACATION
-  hoursWorked   Decimal  @db.Decimal(4, 2)
-  description   String?
+  id          String    @id @default(cuid())
+  timesheetId String
+  date        DateTime
+  projectCode String?
+  taskType    String
+  hoursWorked Decimal   @db.Decimal(4, 2)
+  description String?
+  createdAt   DateTime  @default(now())
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id])
 
-  createdAt     DateTime @default(now())
-
-  // Relationships
-  timesheet     Timesheet @relation(fields: [timesheetId], references: [id])
-
-  @@map("timesheet_entries")
   @@index([timesheetId])
   @@index([date])
   @@index([taskType])
+  @@map("timesheet_entries")
 }
 
-// Resource Lock Management - For concurrency control
 model ResourceLock {
-  id          String   @id @default(cuid())
-  resourceType String  // e.g., 'order', 'product', 'invoice'
-  resourceId  String
-  lockType    String   // e.g., 'PESSIMISTIC', 'OPTIMISTIC'
-  userId      String?
-  expiresAt   DateTime
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  resourceType String
+  resourceId   String
+  lockType     String
+  userId       String?
+  expiresAt    DateTime
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User?    @relation(fields: [userId], references: [id])
 
-  // Relationships
-  user        User?    @relation(fields: [userId], references: [id])
-
-  @@map("resource_locks")
   @@unique([resourceType, resourceId, isActive])
   @@index([resourceType, resourceId])
   @@index([expiresAt])
   @@index([isActive])
+  @@map("resource_locks")
 }
