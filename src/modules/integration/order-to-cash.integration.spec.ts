@@ -8,7 +8,7 @@ import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
-import { Customer, Product, Order, Invoice, Payment, ChartOfAccounts } from '@prisma/client';
+import { Customer, Product, ProductCategory, Order, Invoice, Payment, ChartOfAccounts } from '@prisma/client';
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -47,6 +47,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
 
   // Test data helpers
   let testCustomer: Customer;
+  let testCategory: ProductCategory;
   let testProduct: Product;
   let testOrder: Order;
   let testInvoice: Invoice;
@@ -58,6 +59,13 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
   before(async () => {
     // Setup integration test environment
     await setupIntegrationTest();
+
+    // Import required modules
+    const { AuthenticationModule } = await import('../authentication/authentication.module');
+    const { UsersModule } = await import('../users/users.module');
+    const { SalesModule } = await import('../sales/sales.module');
+    const { InventoryModule } = await import('../inventory/inventory.module');
+    const { AccountingModule } = await import('../accounting/accounting.module');
 
     const moduleFixture = await Test.createTestingModule({
       imports: [
@@ -85,10 +93,19 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
           secret: 'test-jwt-secret-key-for-integration-tests',
           signOptions: { expiresIn: '1h' },
         }),
+        AuthenticationModule,
+        UsersModule,
+        SalesModule,
+        InventoryModule,
+        AccountingModule,
       ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+
+    // Set global prefix for integration tests (empty to match test expectations)
+    app.setGlobalPrefix('');
+
     await app.init();
 
     // Create a direct PrismaService instance for test cleanup
@@ -777,15 +794,24 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
         },
       });
 
+      // Create test category
+      testCategory = await prismaService.productCategory.create({
+        data: {
+          name: `O2C Test Category ${Date.now()}`,
+          description: 'Test category for order-to-cash integration tests',
+          isActive: true,
+        },
+      });
+
       // Create test product
       testProduct = await prismaService.product.create({
         data: {
           name: `O2C Test Product ${Date.now()}`,
           sku: `O2C-PROD-${Date.now()}`,
           price: 150.00,
-          cost: 75.00,
           stockQuantity: 1000,
           lowStockThreshold: 50,
+          categoryId: testCategory.id,
           isActive: true,
         },
       });
@@ -848,6 +874,13 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
       await prismaService.product.deleteMany({
         where: {
           sku: { startsWith: 'O2C-PROD-' },
+        },
+      });
+
+      // Clean up categories
+      await prismaService.productCategory.deleteMany({
+        where: {
+          name: { startsWith: 'O2C Test Category' },
         },
       });
 

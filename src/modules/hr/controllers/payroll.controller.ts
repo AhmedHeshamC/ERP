@@ -89,7 +89,7 @@ export class PayrollController {
       this.logger.log(`Calculating payroll for employee!: ${createPayrollDto.employeeId}, period: ${createPayrollDto.payPeriod}`);
 
       // Allow mock user context for integration tests
-      const userId = req.user?.sub || (process.env.NODE_ENV === 'test' ? 'test-user-id' : null);
+      const userId = req.user?.id || (process.env.NODE_ENV === 'test' ? 'test-user-id' : null);
       if (!userId) {
         throw new ForbiddenException('User context is required');
       }
@@ -192,17 +192,17 @@ export class PayrollController {
     try {
       this.logger.log(`Approving payroll record!: ${id}`);
 
-      const payroll = await this.payrollService.approvePayroll(id, req.user.sub);
+      const payroll = await this.payrollService.approvePayroll(id, req.user.id);
 
       // Log security event for sensitive action
       await this.securityService.logSecurityEvent(
         'USER_UPDATED',
-        req.user.sub,
+        req.user.id,
         undefined,
         undefined,
         {
           payrollId: id,
-          approvedBy: req.user.sub,
+          approvedBy: req.user.id,
           action: 'APPROVE',
           timestamp: new Date().toISOString(),
         },
@@ -229,17 +229,17 @@ export class PayrollController {
     try {
       this.logger.log(`Processing payroll payment!: ${id}`);
 
-      const payroll = await this.payrollService.processPayment(id, req.user.sub);
+      const payroll = await this.payrollService.processPayment(id, req.user.id);
 
       // Log security event for financial transaction
       await this.securityService.logSecurityEvent(
         'USER_UPDATED',
-        req.user.sub,
+        req.user.id,
         undefined,
         undefined,
         {
           payrollId: id,
-          processedBy: req.user.sub,
+          processedBy: req.user.id,
           action: 'PROCESS_PAYMENT',
           timestamp: new Date().toISOString(),
         },

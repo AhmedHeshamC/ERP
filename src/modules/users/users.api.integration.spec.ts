@@ -6,9 +6,11 @@ import { expect } from 'chai';
 import * as request from 'supertest';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
+import { CommonModule } from '../../shared/common/common.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
 import { User } from '@prisma/client';
+import { UsersModule } from './users.module';
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -66,6 +68,8 @@ describe('Users Module API Integration Tests', () => {
         }),
         PrismaModule,
         SecurityModule,
+        CommonModule,
+        UsersModule,
         JwtModule.register({
           secret: 'test-jwt-secret-key-for-integration-tests',
           signOptions: { expiresIn: '1h' },
@@ -78,9 +82,9 @@ describe('Users Module API Integration Tests', () => {
 
     // Create a direct PrismaService instance for test cleanup
     const { PrismaService } = await import('../../shared/database/prisma.service');
-    const { ConfigService } = await import('@nestjs/config');
+    const { ConfigService: ConfigServiceClass } = await import('@nestjs/config');
 
-    const configService = new ConfigService({
+    const prismaConfigService = new ConfigServiceClass({
       app: {
         database: {
           url: 'postgresql://erp_test_user:test_password_change_me@localhost:5433/erp_test_db',
@@ -88,7 +92,7 @@ describe('Users Module API Integration Tests', () => {
       },
     });
 
-    prismaService = new PrismaService(configService);
+    prismaService = new PrismaService(prismaConfigService);
     await prismaService.$connect();
 
     // Create authentication tokens for different roles
@@ -122,54 +126,71 @@ describe('Users Module API Integration Tests', () => {
         password: 'SecurePassword123!',
         firstName: 'New',
         lastName: 'User',
-        phone: '+1234567890',
         role: UserRole.USER,
-        isActive: true,
       };
 
       const response = await request(app.getHttpServer())
         .post('/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send(userData)
-        .expect(201);
+        .send(userData);
 
-      expect(response.body).to.have.property('id');
-      expect(response.body.email).to.equal(userData.email);
-      expect(response.body.username).to.equal(userData.username);
-      expect(response.body.firstName).to.equal(userData.firstName);
-      expect(response.body.lastName).to.equal(userData.lastName);
-      expect(response.body.role).to.equal(userData.role);
-      expect(response.body.isActive).to.equal(userData.isActive);
-      expect(response.body).to.not.have.property('password');
-      expect(response.body.createdAt).to.be.a('string');
+      
+      // Should get 201 Created
+      expect(response.status).to.equal(201);
 
-      testUser = response.body;
+      // Response should have wrapper structure
+      expect(response.body).to.have.property('success', true);
+      expect(response.body).to.have.property('message');
+      expect(response.body).to.have.property('data');
+
+      const user = response.body.data;
+      expect(user).to.have.property('id');
+      expect(user.email).to.equal(userData.email);
+      expect(user.username).to.equal(userData.username);
+      expect(user.firstName).to.equal(userData.firstName);
+      expect(user.lastName).to.equal(userData.lastName);
+      expect(user.role).to.equal(userData.role);
+      expect(user).to.not.have.property('password');
+      expect(user.createdAt).to.be.a('string');
+
+      testUser = user;
     });
 
     it('should get all users with pagination', async () => {
       const response = await request(app.getHttpServer())
         .get('/users?page=1&limit=10')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
+        .set('Authorization', `Bearer ${adminToken}`);
 
+      expect(response.status).to.equal(200);
+
+      // Response should have wrapper structure
+      expect(response.body).to.have.property('success', true);
+      expect(response.body).to.have.property('message');
       expect(response.body).to.have.property('data');
-      expect(response.body).to.have.property('pagination');
-      expect(response.body.data).to.be.an('array');
-      expect(response.body.pagination.page).to.equal(1);
-      expect(response.body.pagination.limit).to.equal(10);
-      expect(response.body.pagination.total).to.be.a('number');
+
+      // Data should contain users and pagination
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data).to.have.property('pagination');
+      expect(response.body.data.users).to.be.an('array');
+      expect(response.body.data.pagination.page).to.equal(1);
+      expect(response.body.data.pagination.limit).to.equal(10);
+      expect(response.body.data.pagination.total).to.be.a('number');
     });
 
     it('should search users by name, email, or username', async () => {
       const response = await request(app.getHttpServer())
-        .get('/users?search=Test User')
+        .get('/users?search=New')
         .set('Authorization', `Bearer ${managerToken}`)
         .expect(200);
 
+      // Response should have wrapper structure
+      expect(response.body).to.have.property('success', true);
       expect(response.body).to.have.property('data');
-      expect(response.body.data).to.be.an('array');
-      if (response.body.data.length > 0) {
-        expect(response.body.data[0].firstName).to.include('Test');
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data.users).to.be.an('array');
+
+      if (response.body.data.users.length > 0) {
+        expect(response.body.data.users[0].firstName).to.include('New');
       }
     });
 

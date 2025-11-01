@@ -6,9 +6,11 @@ import { expect } from 'chai';
 import * as request from 'supertest';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
+import { CommonModule } from '../../shared/common/common.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
 import { Product, ProductCategory } from '@prisma/client';
+import { InventoryModule } from './inventory.module';
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -68,6 +70,8 @@ describe('Inventory Module API Integration Tests', () => {
         }),
         PrismaModule,
         SecurityModule,
+        CommonModule,
+        InventoryModule,
         JwtModule.register({
           secret: 'test-jwt-secret-key-for-integration-tests',
           signOptions: { expiresIn: '1h' },
@@ -556,7 +560,6 @@ describe('Inventory Module API Integration Tests', () => {
           sku: `TEST-${Date.now()}`,
           description: 'Test product for integration tests',
           price: 100.00,
-          cost: 50.00,
           stockQuantity: 100,
           lowStockThreshold: 10,
           categoryId: testCategory.id,

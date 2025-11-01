@@ -59,7 +59,7 @@ export class EmployeeController {
       this.logger.log(`Creating new employee!: ${createEmployeeDto.email}`);
 
       // Allow mock user context for integration tests
-      const userId = req.user?.sub || (process.env.NODE_ENV === 'test' ? 'test-user-id' : null);
+      const userId = req.user?.id || (process.env.NODE_ENV === 'test' ? 'test-user-id' : null);
       if (!userId) {
         throw new ForbiddenException('User context is required');
       }
@@ -165,19 +165,19 @@ export class EmployeeController {
       const employee = await this.employeeService.update(
         id,
         updateEmployeeDto,
-        req.user.sub,
+        req.user.id,
       );
 
       // Log security event for updates
       await this.securityService.logSecurityEvent(
         'USER_UPDATED',
-        req.user.sub,
+        req.user.id,
         undefined,
         undefined,
         {
           employeeId: id,
           updatedFields: Object.keys(updateEmployeeDto),
-          requestedBy: req.user.sub,
+          requestedBy: req.user.id,
           timestamp: new Date().toISOString(),
         },
       );
@@ -203,17 +203,17 @@ export class EmployeeController {
     try {
       this.logger.log(`Soft deleting employee!: ${id}`);
 
-      const employee = await this.employeeService.softDelete(id, req.user.sub);
+      const employee = await this.employeeService.softDelete(id, req.user.id);
 
       // Log security event for employee termination
       await this.securityService.logSecurityEvent(
         'USER_DEACTIVATED',
-        req.user.sub,
+        req.user.id,
         undefined,
         undefined,
         {
           employeeId: id,
-          requestedBy: req.user.sub,
+          requestedBy: req.user.id,
           timestamp: new Date().toISOString(),
         },
       );
@@ -239,16 +239,16 @@ export class EmployeeController {
     try {
       this.logger.log(`Activating employee!: ${id}`);
 
-      const employee = await this.employeeService.activate(id, req.user.sub);
+      const employee = await this.employeeService.activate(id, req.user.id);
 
       await this.securityService.logSecurityEvent(
         'USER_UPDATED',
-        req.user.sub,
+        req.user.id,
         undefined,
         undefined,
         {
           employeeId: id,
-          requestedBy: req.user.sub,
+          requestedBy: req.user.id,
           timestamp: new Date().toISOString(),
         },
       );
@@ -274,16 +274,16 @@ export class EmployeeController {
     try {
       this.logger.log(`Deactivating employee!: ${id}`);
 
-      const employee = await this.employeeService.deactivate(id, req.user.sub);
+      const employee = await this.employeeService.deactivate(id, req.user.id);
 
       await this.securityService.logSecurityEvent(
         'USER_DEACTIVATED',
-        req.user.sub,
+        req.user.id,
         undefined,
         undefined,
         {
           employeeId: id,
-          requestedBy: req.user.sub,
+          requestedBy: req.user.id,
           timestamp: new Date().toISOString(),
         },
       );

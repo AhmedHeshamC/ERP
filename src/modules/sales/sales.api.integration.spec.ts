@@ -6,9 +6,11 @@ import { expect } from 'chai';
 import * as request from 'supertest';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
+import { CommonModule } from '../../shared/common/common.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
-import { Customer, Order, Product } from '@prisma/client';
+import { Customer, Order, Product, ProductCategory } from '@prisma/client';
+import { SalesModule } from './sales.module';
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -40,6 +42,7 @@ describe('Sales Module API Integration Tests', () => {
 
   // Test data helpers
   let testCustomer: Customer;
+  let testCategory: ProductCategory;
   let testProduct: Product;
   let testOrder: Order;
 
@@ -70,6 +73,8 @@ describe('Sales Module API Integration Tests', () => {
         }),
         PrismaModule,
         SecurityModule,
+        CommonModule,
+        SalesModule,
         JwtModule.register({
           secret: 'test-jwt-secret-key-for-integration-tests',
           signOptions: { expiresIn: '1h' },
@@ -665,6 +670,15 @@ describe('Sales Module API Integration Tests', () => {
         },
       });
 
+      // Create test category
+      testCategory = await prismaService.productCategory.create({
+        data: {
+          name: `Sales Test Category ${Date.now()}`,
+          description: 'Test category for sales API integration tests',
+          isActive: true,
+        },
+      });
+
       // Create test product (assuming products exist or creating minimal product)
       testProduct = await prismaService.product.create({
         data: {
@@ -672,6 +686,7 @@ describe('Sales Module API Integration Tests', () => {
           sku: `PROD-${Date.now()}`,
           price: 100.00,
           stockQuantity: 1000,
+          categoryId: testCategory.id,
           isActive: true,
         },
       });
@@ -724,6 +739,13 @@ describe('Sales Module API Integration Tests', () => {
       await prismaService.product.deleteMany({
         where: {
           sku: { startsWith: 'PROD-' },
+        },
+      });
+
+      // Clean up categories
+      await prismaService.productCategory.deleteMany({
+        where: {
+          name: { startsWith: 'Sales Test Category' },
         },
       });
 

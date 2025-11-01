@@ -1,100 +1,80 @@
-import { IsString, IsOptional, IsEmail, IsDecimal, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsNumber, IsBoolean, Min, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCustomerDto {
-  @ApiProperty({
-    description: 'Customer code for internal reference',
-    example: 'CUST001',
-    maxLength: 20,
-  })
+  @ApiProperty({ description: 'Unique customer code', example: 'CUST001' })
   @IsString()
-  @MaxLength(20)
+  @MinLength(3, { message: 'Customer code must be at least 3 characters' })
+  @MaxLength(20, { message: 'Customer code must not exceed 20 characters' })
   code!: string;
 
-  @ApiProperty({
-    description: 'Customer name',
-    example: 'John Doe',
-    maxLength: 100,
-  })
+  @ApiProperty({ description: 'Customer name', example: 'Acme Corporation' })
   @IsString()
-  @MaxLength(100)
+  @MinLength(1, { message: 'Customer name is required' })
+  @MaxLength(200, { message: 'Customer name must not exceed 200 characters' })
   name!: string;
 
-  @ApiProperty({
-    description: 'Customer email address',
-    example: 'john.doe@example.com',
-  })
-  @IsEmail()
+  @ApiProperty({ description: 'Customer email', example: 'contact@acme.com' })
+  @IsEmail({}, { message: 'Invalid email format' })
   email!: string;
 
-  @ApiPropertyOptional({
-    description: 'Customer phone number',
-    example: '+1234567890',
-  })
+  @ApiProperty({ description: 'Customer phone number', example: '+1234567890' })
+  @IsString()
+  @MinLength(5, { message: 'Phone number must be at least 5 characters' })
+  phone!: string;
+
+  @ApiProperty({ description: 'Customer address', example: '123 Main St' })
+  @IsString()
+  @MinLength(1, { message: 'Address is required' })
+  address!: string;
+
+  @ApiProperty({ description: 'Customer city', example: 'New York' })
+  @IsString()
+  @MinLength(1, { message: 'City is required' })
+  city!: string;
+
+  @ApiPropertyOptional({ description: 'Customer state', example: 'NY' })
   @IsOptional()
   @IsString()
-  @MaxLength(20)
-  phone?: string;
+  state:? string;
 
-  @ApiPropertyOptional({
-    description: 'Customer physical address',
-    example: '123 Main St, City, State',
-  })
+  @ApiPropertyOptional({ description: 'Customer postal code', example: '10001' })
   @IsOptional()
   @IsString()
-  @MaxLength(200)
-  address?: string;
+  postalCode:? string;
 
-  @ApiPropertyOptional({
-    description: 'Customer city',
-    example: 'New York',
-  })
+  @ApiProperty({ description: 'Customer country', example: 'USA' })
+  @IsString()
+  @MinLength(1, { message: 'Country is required' })
+  country!: string;
+
+  @ApiPropertyOptional({ description: 'Customer website', example: 'https://acme.com' })
   @IsOptional()
   @IsString()
-  @MaxLength(50)
-  city?: string;
+  website:? string;
 
-  @ApiPropertyOptional({
-    description: 'Customer state/province',
-    example: 'NY',
-  })
+  @ApiPropertyOptional({ description: 'Customer tax ID', example: 'TAX123456' })
   @IsOptional()
   @IsString()
-  @MaxLength(50)
-  state?: string;
+  taxId:? string;
 
-  @ApiPropertyOptional({
-    description: 'Customer postal code',
-    example: '10001',
-  })
+  @ApiProperty({ description: 'Customer credit limit', example: 10000.00 })
+  @IsNumber({}, { message: 'Credit limit must be a number' })
+  @Min(0, { message: 'Credit limit must be non-negative' })
+  creditLimit: number;
+
+  @ApiPropertyOptional({ description: 'Payment terms', example: 'NET30' })
   @IsOptional()
   @IsString()
-  @MaxLength(10)
-  postalCode?: string;
+  paymentTerms:? string;
 
-  @ApiPropertyOptional({
-    description: 'Customer country',
-    example: 'USA',
-  })
+  @ApiPropertyOptional({ description: 'Customer notes', example: 'Important customer' })
   @IsOptional()
   @IsString()
-  @MaxLength(50)
-  country?: string;
+  notes:? string;
 
-  @ApiPropertyOptional({
-    description: 'Customer tax ID for invoicing',
-    example: 'TXN123456789',
-  })
+  @ApiPropertyOptional({ description: 'Is customer active', example: true })
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  taxId?: string;
-
-  @ApiPropertyOptional({
-    description: 'Customer credit limit',
-    example: 10000.00,
-  })
-  @IsOptional()
-  @IsDecimal({ decimal_digits: '2' })
-  creditLimit?: number;
+  @IsBoolean()
+  isActive?: boolean;
 }

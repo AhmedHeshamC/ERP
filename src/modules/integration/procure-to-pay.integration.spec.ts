@@ -8,7 +8,7 @@ import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
-import { Supplier, Product, PurchaseOrder, Invoice, Payment, ChartOfAccounts } from '@prisma/client'; // PurchaseReceipt removed - unused
+import { Supplier, Product, ProductCategory, PurchaseOrder, Invoice, Payment, ChartOfAccounts } from '@prisma/client'; // PurchaseReceipt removed - unused
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -49,6 +49,7 @@ describe('Procure-to-Pay Cross-Module Workflow Integration Tests', () => {
 
   // Test data helpers
   let testSupplier: Supplier;
+  let testCategory: ProductCategory;
   let testProduct: Product;
   let testPurchaseOrder: PurchaseOrder;
   // let testGoodsReceipt: PurchaseReceipt; // Unused - removed to fix TS6133
@@ -903,15 +904,24 @@ describe('Procure-to-Pay Cross-Module Workflow Integration Tests', () => {
         },
       });
 
+      // Create test category
+      testCategory = await prismaService.productCategory.create({
+        data: {
+          name: `P2P Test Category ${Date.now()}`,
+          description: 'Test category for procure-to-pay integration tests',
+          isActive: true,
+        },
+      });
+
       // Create test product
       testProduct = await prismaService.product.create({
         data: {
           name: `P2P Test Product ${Date.now()}`,
           sku: `P2P-PROD-${Date.now()}`,
           price: 150.00,
-          cost: 75.00,
           stockQuantity: 100,
           lowStockThreshold: 20,
+          categoryId: testCategory.id,
           isActive: true,
         },
       });
@@ -983,6 +993,13 @@ describe('Procure-to-Pay Cross-Module Workflow Integration Tests', () => {
       await prismaService.product.deleteMany({
         where: {
           sku: { startsWith: 'P2P-PROD-' },
+        },
+      });
+
+      // Clean up categories
+      await prismaService.productCategory.deleteMany({
+        where: {
+          name: { startsWith: 'P2P Test Category' },
         },
       });
 

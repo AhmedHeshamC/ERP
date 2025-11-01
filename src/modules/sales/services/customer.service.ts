@@ -1,0 +1,291 @@
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { PrismaService } from '../../../shared/database/prisma.service';
+import { Customer } from '../entities/customer.entity';
+import { CreateCustomerDto } from '../dto/create-customer.dto';
+import { UpdateCustomerDto } from '../dto/update-customer.dto';
+import { CustomerQueryDto } from '../dto/customer-query.dto';
+import { CustomerStatus } from '../enums/sales.enum';
+import { SecurityService } from '../../../shared/security/security.service';
+
+@Injectable()
+export class CustomerService {
+  private readonly logger = new Logger(CustomerService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly securityService: SecurityService,
+  ) {}
+
+  /**
+   * Create a new customer with validation and sanitization
+   */
+  async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
+    this.logger.log(`Creating customer with code: ${createCustomerDto.code}`);
+
+    // Sanitize input data
+    const sanitizedData = this.securityService.sanitizeInput(createCustomerDto);
+
+    // Check if customer code already exists
+    const existingCustomer = await this.prisma.customer.findUnique({
+      where: { code: sanitizedData.code },
+    });
+
+    if (existingCustomer) {
+      throw new ConflictException(`Customer with code ${sanitizedData.code} already exists`);
+    }
+
+    // Check if email already exists
+    const existingEmail = await this.prisma.customer.findUnique({
+      where: { email: sanitizedData.email },
+    });
+
+    if (existingEmail) {
+      throw new ConflictException(`Customer with email ${sanitizedData.email} already exists`);
+    }
+
+    try {
+      // Create customer entity for validation
+      const customerEntity = new Customer({
+        ...sanitizedData,
+        status: sanitizedData.isActive ? CustomerStatus.ACTIVE : CustomerStatus.INACTIVE,
+      });
+
+      // Validate customer data
+      const validation = customerEntity.validate();
+      if (!validation.isValid) {
+        throw new BadRequestException(validation.errors);
+      }
+
+      // Create customer in database
+      const customer = await this.prisma.customer.create({
+        data: {
+          code: sanitizedData.code,
+          name: sanitizedData.name,
+          email: sanitizedData.email,
+          phone: sanitizedData.phone,
+          address: sanitizedData.address,
+          city: sanitizedData.city,
+          state: sanitizedData.state,
+          postalCode: sanitizedData.postalCode,
+          country: sanitizedData.country,
+          website: sanitizedData.website,
+          taxId: sanitizedData.taxId,
+          creditLimit: sanitizedData.creditLimit,
+          isActive: sanitizedData.isActive ?? true,
+        },
+      });
+
+      this.logger.log(`Customer created successfully with ID: ${customer.id}`);
+      return customer;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
+      const errorStack = error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined;
+      this.logger.error(`Error creating customer: ${errorMessage}`, errorStack);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all customers with pagination and filtering
+   */
+  async findAll(query: CustomerQueryDto): Promise<{ data: Customer[]; total: number; pagination: any }> {
+    this.logger.log(`Finding customers with query: ${JSON.stringify(query)}`);
+
+    const { page = 1, limit = 10, search, isActive, sortBy = 'name', sortOrder = 'asc' } = query;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { code: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (isActive !== undefined) {
+      where.isActive = isActive;
+    }
+
+    const [customers, total] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+      }),
+      this.prisma.customer.count({ where }),
+    ]);
+
+    const pagination = {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+      hasNext: page < Math.ceil(total / limit),
+      hasPrev: page > 1,
+    };
+
+    this.logger.log(`Found ${customers.length} customers out of ${total} total`);
+    return { data: customers, total, pagination };
+  }
+
+  /**
+   * Get customer by ID
+   */
+  async findOne(id: string): Promise<Customer> {
+    this.logger.log(`Finding customer with ID: ${id}`);
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${id} not found`);
+    }
+
+    return customer;
+  }
+
+  /**
+   * Update customer
+   */
+  async update(id: string, updateCustomerDto: UpdateCustomerDto): Promise<Customer> {
+    this.logger.log(`Updating customer with ID: ${id}`);
+
+    const existingCustomer = await this.findOne(id);
+
+    // Sanitize input data
+    const sanitizedData = this.securityService.sanitizeInput(updateCustomerDto);
+
+    // Check if email is being changed and if it conflicts with another customer
+    if (sanitizedData.email && sanitizedData.email !== existingCustomer.email) {
+      const existingEmail = await this.prisma.customer.findUnique({
+        where: { email: sanitizedData.email },
+      });
+
+      if (existingEmail) {
+        throw new ConflictException(`Customer with email ${sanitizedData.email} already exists`);
+      }
+    }
+
+    // Check if code is being changed and if it conflicts with another customer
+    if (sanitizedData.code && sanitizedData.code !== existingCustomer.code) {
+      const existingCode = await this.prisma.customer.findUnique({
+        where: { code: sanitizedData.code },
+      });
+
+      if (existingCode) {
+        throw new ConflictException(`Customer with code ${sanitizedData.code} already exists`);
+      }
+    }
+
+    try {
+      const updatedCustomer = await this.prisma.customer.update({
+        where: { id },
+        data: {
+          ...sanitizedData,
+          updatedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`Customer updated successfully with ID: ${id}`);
+      return updatedCustomer;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
+      const errorStack = error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined;
+      this.logger.error(`Error updating customer: ${errorMessage}`, errorStack);
+      throw error;
+    }
+  }
+
+  /**
+   * Update customer status (active/inactive)
+   */
+  async updateStatus(id: string, isActive: boolean): Promise<Customer> {
+    this.logger.log(`Updating customer status for ID: ${id} to ${isActive}`);
+
+    // Verify customer exists
+    await this.findOne(id);
+
+    const updatedCustomer = await this.prisma.customer.update({
+      where: { id },
+      data: {
+        isActive,
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`Customer status updated successfully for ID: ${id}`);
+    return updatedCustomer;
+  }
+
+  /**
+   * Delete customer (soft delete by setting isActive to false)
+   */
+  async remove(id: string): Promise<Customer> {
+    this.logger.log(`Deactivating customer with ID: ${id}`);
+
+    const customer = await this.findOne(id);
+
+    // Check if customer has active orders
+    const activeOrders = await this.prisma.order.count({
+      where: {
+        customerId: id,
+        isActive: true,
+        status: { not: 'DELIVERED' },
+      },
+    });
+
+    if (activeOrders > 0) {
+      throw new BadRequestException('Cannot deactivate customer with active orders');
+    }
+
+    const deactivatedCustomer = await this.prisma.customer.update({
+      where: { id },
+      data: {
+        isActive: false,
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`Customer deactivated successfully with ID: ${id}`);
+    return deactivatedCustomer;
+  }
+
+  /**
+   * Check if customer has sufficient credit limit
+   */
+  async checkCreditLimit(id: string, amount: number): Promise<boolean> {
+    this.logger.log(`Checking credit limit for customer ID: ${id}, amount: ${amount}`);
+
+    const customer = await this.findOne(id);
+    return parseFloat(customer.creditLimit.toString()) >= amount;
+  }
+
+  /**
+   * Update customer credit limit
+   */
+  async updateCreditLimit(id: string, newLimit: number): Promise<Customer> {
+    this.logger.log(`Updating credit limit for customer ID: ${id} to ${newLimit}`);
+
+    if (newLimit < 0) {
+      throw new BadRequestException('Credit limit must be non-negative');
+    }
+
+    // Verify customer exists
+    await this.findOne(id);
+
+    const updatedCustomer = await this.prisma.customer.update({
+      where: { id },
+      data: {
+        creditLimit: newLimit,
+        updatedAt: new Date(),
+      },
+    });
+
+    this.logger.log(`Credit limit updated successfully for customer ID: ${id}`);
+    return updatedCustomer;
+  }
+}

@@ -80,13 +80,13 @@ export class LeaveRequestController {
         throw new ForbiddenException('User context is required');
       }
 
-      // Check for sub claim specifically (JWT standard)
-      if (req.user && req.user.sub === undefined) {
-        this.logger.warn('User sub claim is required but missing');
-        throw new ForbiddenException('User sub claim is required');
+      // Check for id claim (user identifier)
+      if (req.user && req.user.id === undefined) {
+        this.logger.warn('User id claim is required but missing');
+        throw new ForbiddenException('User id claim is required');
       }
 
-      const userId = req.user?.id || req.user?.sub || mockUserId;
+      const userId = req.user?.id || mockUserId;
       if (!userId || typeof userId !== 'string' || userId.trim() === '') {
         this.logger.warn(`Invalid user ID format!: ${userId}`);
         throw new ForbiddenException('Invalid user ID');
@@ -97,7 +97,7 @@ export class LeaveRequestController {
 
       const result = await this.leaveRequestService.createLeaveRequest(createLeaveRequestDto);
 
-      this.logger.log(`Successfully created leave request!: ${result.id} by user: ${req.user.sub}`);
+      this.logger.log(`Successfully created leave request!: ${result.id} by user: ${req.user.id}`);
       return result;
 
     } catch (error) {

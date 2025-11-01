@@ -6,9 +6,11 @@ import { expect } from 'chai';
 import * as request from 'supertest';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
+import { CommonModule } from '../../shared/common/common.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
-import { Product, Customer, Order, Supplier, PurchaseOrder } from '@prisma/client';
+import { Product, ProductCategory, Customer, Order, Supplier, PurchaseOrder } from '@prisma/client';
+import { ReportsModule } from './reports.module';
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -74,6 +76,8 @@ describe('Reports Module API Integration Tests', () => {
         }),
         PrismaModule,
         SecurityModule,
+        CommonModule,
+        ReportsModule,
         JwtModule.register({
           secret: 'test-jwt-secret-key-for-integration-tests',
           signOptions: { expiresIn: '1h' },
@@ -687,6 +691,19 @@ describe('Reports Module API Integration Tests', () => {
 
   async function setupTestData(): Promise<void> {
     try {
+      // Create test categories first
+      const testCategories: ProductCategory[] = [];
+      for (let i = 0; i < 5; i++) {
+        const category = await prismaService.productCategory.create({
+          data: {
+            name: `Reports Test Category ${i + 1}`,
+            description: `Test category ${i + 1} for reports integration tests`,
+            isActive: true,
+          },
+        });
+        testCategories.push(category);
+      }
+
       // Create test products
       for (let i = 0; i < 5; i++) {
         const product = await prismaService.product.create({
@@ -694,9 +711,8 @@ describe('Reports Module API Integration Tests', () => {
             name: `Test Product ${i + 1}`,
             sku: `PROD-${Date.now()}-${i}`,
             price: 100.00 + (i * 10),
-            cost: 50.00 + (i * 5),
             stockQuantity: 100 + (i * 20),
-            categoryId: `cat-${i}`,
+            categoryId: testCategories[i].id,
             isActive: true,
           },
         });
@@ -811,6 +827,13 @@ describe('Reports Module API Integration Tests', () => {
       await prismaService.product.deleteMany({
         where: {
           sku: { startsWith: 'PROD-' },
+        },
+      });
+
+      // Clean up categories
+      await prismaService.productCategory.deleteMany({
+        where: {
+          name: { startsWith: 'Reports Test Category' },
         },
       });
     } catch (error) {
