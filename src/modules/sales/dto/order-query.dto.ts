@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsNumber, Min, IsEnum } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OrderStatus } from '../enums/sales.enum';
 
@@ -7,7 +7,7 @@ export class OrderQueryDto {
   @ApiPropertyOptional({ description: 'Filter by customer ID', example: 'cust_123' })
   @IsOptional()
   @IsString()
-  customerId?: w
+  customerId?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by order status',
@@ -35,7 +35,7 @@ export class OrderQueryDto {
   @ApiPropertyOptional({ description: 'Sort by field', example: 'orderDate' })
   @IsOptional()
   @IsString()
-  sortBy?: w
+  sortBy?: string;
 
   @ApiPropertyOptional({ description: 'Sort order', example: 'desc' })
   @IsOptional()

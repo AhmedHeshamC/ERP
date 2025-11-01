@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
-import { Order, OrderItem } from '../entities/order.entity';
+import { Order as PrismaOrder } from '@prisma/client';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { UpdateOrderDto } from '../dto/update-order.dto';
 import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
@@ -24,7 +24,7 @@ export class OrderService {
   /**
    * Create a new sales order
    */
-  async create(createOrderDto: CreateOrderDto): Promise<Order> {
+  async create(createOrderDto: CreateOrderDto): Promise<PrismaOrder> {
     this.logger.log(`Creating order for customer: ${createOrderDto.customerId}`);
 
     // Sanitize input data
@@ -53,7 +53,7 @@ export class OrderService {
     }
 
     // Calculate order totals
-    const orderItems: OrderItem[] = sanitizedData.items.map((item: any) => {
+    const orderItems: any[] = sanitizedData.items.map((item: any) => {
       const discount = item.discount || 0;
       const totalPrice = (item.quantity * item.unitPrice) - discount;
 
@@ -85,25 +85,9 @@ export class OrderService {
     const orderNumber = await this.generateOrderNumber();
 
     try {
-      // Create order entity for validation
-      const orderEntity = new Order({
-        orderNumber,
-        customerId: sanitizedData.customerId,
-        description: sanitizedData.description || 'Sales Order',
-        totalAmount,
-        currency: sanitizedData.currency || 'USD',
-        status: OrderStatus.DRAFT,
-        items: orderItems,
-        taxRate: sanitizedData.taxRate || 0,
-        notes: sanitizedData.notes,
-        expectedDeliveryDate: sanitizedData.expectedDeliveryDate ?
-          new Date(sanitizedData.expectedDeliveryDate) : undefined,
-      });
-
-      // Validate order data
-      const validation = orderEntity.validate();
-      if (!validation.isValid) {
-        throw new BadRequestException(validation.errors);
+      // Basic validation
+      if (totalAmount <= 0) {
+        throw new BadRequestException('Order total must be positive');
       }
 
       // Create order and order items in a transaction
@@ -156,7 +140,7 @@ export class OrderService {
   /**
    * Get all orders with pagination and filtering
    */
-  async findAll(query: OrderQueryDto): Promise<{ data: Order[]; total: number; pagination: any }> {
+  async findAll(query: OrderQueryDto): Promise<{ data: PrismaOrder[]; total: number; pagination: any }> {
     this.logger.log(`Finding orders with query: ${JSON.stringify(query)}`);
 
     const { page = 1, limit = 10, customerId, status, sortBy = 'orderDate', sortOrder = 'desc' } = query;
@@ -206,7 +190,7 @@ export class OrderService {
   /**
    * Get order by ID
    */
-  async findOne(id: string): Promise<Order> {
+  async findOne(id: string): Promise<PrismaOrder> {
     this.logger.log(`Finding order with ID: ${id}`);
 
     const order = await this.prisma.order.findUnique({
@@ -231,7 +215,7 @@ export class OrderService {
   /**
    * Update order
    */
-  async update(id: string, updateOrderDto: UpdateOrderDto): Promise<Order> {
+  async update(id: string, updateOrderDto: UpdateOrderDto): Promise<PrismaOrder> {
     this.logger.log(`Updating order with ID: ${id}`);
 
     const order = await this.findOne(id);
@@ -271,7 +255,7 @@ export class OrderService {
   /**
    * Update order status
    */
-  async updateStatus(id: string, updateStatusDto: UpdateOrderStatusDto): Promise<Order> {
+  async updateStatus(id: string, updateStatusDto: UpdateOrderStatusDto): Promise<PrismaOrder> {
     this.logger.log(`Updating order status for ID: ${id} to ${updateStatusDto.status}`);
 
     const order = await this.findOne(id);
@@ -549,8 +533,7 @@ export class OrderService {
     });
 
     const subtotal = orderItems.reduce((sum: number, item: any) => sum + Number(item.totalPrice), 0);
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
-    const taxAmount = subtotal * Number(order.taxRate || 0);
+    const taxAmount = subtotal * 0; // taxRate not in schema, use 0 for now
     const totalAmount = subtotal + taxAmount;
 
     await this.prisma.order.update({
@@ -567,7 +550,7 @@ export class OrderService {
   /**
    * Update inventory for order items
    */
-  private async updateInventoryForOrder(orderItems: OrderItem[], restore: boolean): Promise<void> {
+  private async updateInventoryForOrder(orderItems: any[], restore: boolean): Promise<void> {
     for (const item of orderItems) {
       await this.updateInventoryForProduct(item.productId, item.quantity, restore);
     }

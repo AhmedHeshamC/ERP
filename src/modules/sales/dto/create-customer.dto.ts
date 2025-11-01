@@ -36,12 +36,12 @@ export class CreateCustomerDto {
   @ApiPropertyOptional({ description: 'Customer state', example: 'NY' })
   @IsOptional()
   @IsString()
-  state:? string;
+  state?: string;
 
   @ApiPropertyOptional({ description: 'Customer postal code', example: '10001' })
   @IsOptional()
   @IsString()
-  postalCode:? string;
+  postalCode?: string;
 
   @ApiProperty({ description: 'Customer country', example: 'USA' })
   @IsString()
@@ -51,27 +51,27 @@ export class CreateCustomerDto {
   @ApiPropertyOptional({ description: 'Customer website', example: 'https://acme.com' })
   @IsOptional()
   @IsString()
-  website:? string;
+  website?: string;
 
   @ApiPropertyOptional({ description: 'Customer tax ID', example: 'TAX123456' })
   @IsOptional()
   @IsString()
-  taxId:? string;
+  taxId?: string;
 
   @ApiProperty({ description: 'Customer credit limit', example: 10000.00 })
   @IsNumber({}, { message: 'Credit limit must be a number' })
   @Min(0, { message: 'Credit limit must be non-negative' })
-  creditLimit: number;
+  creditLimit!: number;
 
   @ApiPropertyOptional({ description: 'Payment terms', example: 'NET30' })
   @IsOptional()
   @IsString()
-  paymentTerms:? string;
+  paymentTerms?: string;
 
   @ApiPropertyOptional({ description: 'Customer notes', example: 'Important customer' })
   @IsOptional()
   @IsString()
-  notes:? string;
+  notes?: string;
 
   @ApiPropertyOptional({ description: 'Is customer active', example: true })
   @IsOptional()

@@ -82,14 +82,14 @@ export class Customer {
     this.validateEmail(data.email);
     this.validateCreditLimit(data.creditLimit);
 
-    // Assign trimmed values
+    // Assign trimmed values with proper handling for optional fields
     this.code = data.code.trim();
     this.name = data.name.trim();
     this.email = data.email.trim().toLowerCase();
-    this.phone = data.phone.trim();
-    this.address = data.address.trim();
-    this.city = data.city.trim();
-    this.country = data.country.trim();
+    this.phone = data.phone ? data.phone.trim() : '';
+    this.address = data.address ? data.address.trim() : '';
+    this.city = data.city ? data.city.trim() : '';
+    this.country = data.country ? data.country.trim() : '';
     this.creditLimit = data.creditLimit;
     this.status = data.status || CustomerStatus.ACTIVE;
     this.isActive = this.status === CustomerStatus.ACTIVE;
@@ -169,8 +169,8 @@ export class Customer {
       errors.push('Phone is required');
     }
 
-    if (this.creditLimit <= 0) {
-      errors.push('Credit limit must be positive');
+    if (this.creditLimit < 0) {  // Changed to allow zero
+      errors.push('Credit limit must be non-negative');
     }
 
     return {

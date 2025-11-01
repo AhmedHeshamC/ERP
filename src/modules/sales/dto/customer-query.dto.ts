@@ -6,7 +6,7 @@ export class CustomerQueryDto {
   @ApiPropertyOptional({ description: 'Search term for name or email', example: 'Acme' })
   @IsOptional()
   @IsString()
-  search?: w
+  search?: string;
 
   @ApiPropertyOptional({ description: 'Page number', example: 1, default: 1 })
   @IsOptional()
@@ -31,7 +31,7 @@ export class CustomerQueryDto {
   @ApiPropertyOptional({ description: 'Sort by field', example: 'name' })
   @IsOptional()
   @IsString()
-  sortBy?: w
+  sortBy?: string;
 
   @ApiPropertyOptional({ description: 'Sort order', example: 'asc' })
   @IsOptional()

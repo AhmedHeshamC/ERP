@@ -6,7 +6,7 @@ export class CreatePaymentDto {
   @ApiProperty({ description: 'Payment amount', example: 1000.00 })
   @IsNumber({}, { message: 'Payment amount must be a number' })
   @Min(0, { message: 'Payment amount must be non-negative' })
-  amount: w
+  amount!: number;
 
   @ApiProperty({
     description: 'Payment method',
@@ -14,20 +14,20 @@ export class CreatePaymentDto {
     example: PaymentMethod.CREDIT_CARD
   })
   @IsEnum(PaymentMethod, { message: 'Invalid payment method' })
-  paymentMethod: PaymentMethod;
+  paymentMethod!: PaymentMethod;
 
   @ApiPropertyOptional({ description: 'Payment date', example: '2024-11-01' })
   @IsOptional()
   @IsDateString()
-  paymentDate?: w
+  paymentDate?: string;
 
   @ApiPropertyOptional({ description: 'Payment reference', example: 'PAY-12345' })
   @IsOptional()
   @IsString()
-  reference?: w
+  reference?: string;
 
   @ApiPropertyOptional({ description: 'Payment notes', example: 'Payment via credit card' })
   @IsOptional()
   @IsString()
-  notes?: w
+  notes?: string;
 }

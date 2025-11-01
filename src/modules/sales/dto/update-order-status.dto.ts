@@ -9,20 +9,20 @@ export class UpdateOrderStatusDto {
     example: OrderStatus.CONFIRMED
   })
   @IsEnum(OrderStatus, { message: 'Invalid order status' })
-  status: OrderStatus;
+  status!: OrderStatus;
 
   @ApiPropertyOptional({ description: 'Cancellation reason (required for CANCELLED status)', example: 'Customer requested cancellation' })
   @IsOptional()
   @IsString()
-  cancellationReason?: w
+  cancellationReason?: string;
 
   @ApiPropertyOptional({ description: 'Tracking number (for SHIPPED status)', example: 'TRACK123456' })
   @IsOptional()
   @IsString()
-  trackingNumber?: w
+  trackingNumber?: string;
 
   @ApiPropertyOptional({ description: 'Additional notes for status change', example: 'Shipped via UPS' })
   @IsOptional()
   @IsString()
-  notes?: w
+  notes?: string;
 }

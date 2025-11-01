@@ -46,8 +46,18 @@ export class CustomerService {
     try {
       // Create customer entity for validation
       const customerEntity = new Customer({
-        ...sanitizedData,
+        code: sanitizedData.code,
+        name: sanitizedData.name,
+        email: sanitizedData.email,
+        phone: sanitizedData.phone,
+        address: sanitizedData.address,
+        city: sanitizedData.city,
+        country: sanitizedData.country,
+        creditLimit: sanitizedData.creditLimit,
         status: sanitizedData.isActive ? CustomerStatus.ACTIVE : CustomerStatus.INACTIVE,
+        state: sanitizedData.state,
+        postalCode: sanitizedData.postalCode,
+        taxId: sanitizedData.taxId,
       });
 
       // Validate customer data
@@ -56,7 +66,7 @@ export class CustomerService {
         throw new BadRequestException(validation.errors);
       }
 
-      // Create customer in database
+      // Create customer in database - only include fields that exist in schema
       const customer = await this.prisma.customer.create({
         data: {
           code: sanitizedData.code,
@@ -68,7 +78,6 @@ export class CustomerService {
           state: sanitizedData.state,
           postalCode: sanitizedData.postalCode,
           country: sanitizedData.country,
-          website: sanitizedData.website,
           taxId: sanitizedData.taxId,
           creditLimit: sanitizedData.creditLimit,
           isActive: sanitizedData.isActive ?? true,
@@ -76,10 +85,10 @@ export class CustomerService {
       });
 
       this.logger.log(`Customer created successfully with ID: ${customer.id}`);
-      return customer;
+      return this.mapToCustomerEntity(customer);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
-      const errorStack = error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(`Error creating customer: ${errorMessage}`, errorStack);
       throw error;
     }
@@ -128,7 +137,11 @@ export class CustomerService {
     };
 
     this.logger.log(`Found ${customers.length} customers out of ${total} total`);
-    return { data: customers, total, pagination };
+    return {
+      data: customers.map(customer => this.mapToCustomerEntity(customer)),
+      total,
+      pagination
+    };
   }
 
   /**
@@ -145,7 +158,7 @@ export class CustomerService {
       throw new NotFoundException(`Customer with ID ${id} not found`);
     }
 
-    return customer;
+    return this.mapToCustomerEntity(customer);
   }
 
   /**
@@ -182,19 +195,32 @@ export class CustomerService {
     }
 
     try {
+      // Only include fields that exist in the database schema
+      const updateData: any = {};
+      if (sanitizedData.name) updateData.name = sanitizedData.name;
+      if (sanitizedData.email) updateData.email = sanitizedData.email;
+      if (sanitizedData.phone) updateData.phone = sanitizedData.phone;
+      if (sanitizedData.address) updateData.address = sanitizedData.address;
+      if (sanitizedData.city) updateData.city = sanitizedData.city;
+      if (sanitizedData.state !== undefined) updateData.state = sanitizedData.state;
+      if (sanitizedData.postalCode !== undefined) updateData.postalCode = sanitizedData.postalCode;
+      if (sanitizedData.country) updateData.country = sanitizedData.country;
+      if (sanitizedData.taxId !== undefined) updateData.taxId = sanitizedData.taxId;
+      if (sanitizedData.creditLimit !== undefined) updateData.creditLimit = sanitizedData.creditLimit;
+      if (sanitizedData.isActive !== undefined) updateData.isActive = sanitizedData.isActive;
+
+      updateData.updatedAt = new Date();
+
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
-        data: {
-          ...sanitizedData,
-          updatedAt: new Date(),
-        },
+        data: updateData,
       });
 
       this.logger.log(`Customer updated successfully with ID: ${id}`);
-      return updatedCustomer;
+      return this.mapToCustomerEntity(updatedCustomer);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
-      const errorStack = error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(`Error updating customer: ${errorMessage}`, errorStack);
       throw error;
     }
@@ -218,7 +244,7 @@ export class CustomerService {
     });
 
     this.logger.log(`Customer status updated successfully for ID: ${id}`);
-    return updatedCustomer;
+    return this.mapToCustomerEntity(updatedCustomer);
   }
 
   /**
@@ -227,14 +253,14 @@ export class CustomerService {
   async remove(id: string): Promise<Customer> {
     this.logger.log(`Deactivating customer with ID: ${id}`);
 
-    const customer = await this.findOne(id);
+    // Verify customer exists
+    await this.findOne(id);
 
-    // Check if customer has active orders
+    // Check if customer has active orders (fix schema - no isActive field in Order)
     const activeOrders = await this.prisma.order.count({
       where: {
         customerId: id,
-        isActive: true,
-        status: { not: 'DELIVERED' },
+        status: { notIn: ['DELIVERED', 'CANCELLED'] },
       },
     });
 
@@ -251,7 +277,7 @@ export class CustomerService {
     });
 
     this.logger.log(`Customer deactivated successfully with ID: ${id}`);
-    return deactivatedCustomer;
+    return this.mapToCustomerEntity(deactivatedCustomer);
   }
 
   /**
@@ -286,6 +312,27 @@ export class CustomerService {
     });
 
     this.logger.log(`Credit limit updated successfully for customer ID: ${id}`);
-    return updatedCustomer;
+    return this.mapToCustomerEntity(updatedCustomer);
+  }
+
+  /**
+   * Map Prisma Customer model to Customer entity
+   * This ensures proper type safety and entity behavior
+   */
+  private mapToCustomerEntity(prismaCustomer: any): Customer {
+    return new Customer({
+      code: prismaCustomer.code,
+      name: prismaCustomer.name,
+      email: prismaCustomer.email,
+      phone: prismaCustomer.phone || '',
+      address: prismaCustomer.address || '',
+      city: prismaCustomer.city || '',
+      country: prismaCustomer.country || '',
+      creditLimit: Number(prismaCustomer.creditLimit),
+      status: prismaCustomer.isActive ? CustomerStatus.ACTIVE : CustomerStatus.INACTIVE,
+      state: prismaCustomer.state,
+      postalCode: prismaCustomer.postalCode,
+      taxId: prismaCustomer.taxId,
+    });
   }
 }
