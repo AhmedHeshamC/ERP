@@ -34,7 +34,7 @@ declare let _afterEach: any;
 describe('Sales Module API Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let _adminToken: string;
+  // let adminToken: string; // Unused - removed to fix TS6133
   let managerToken: string;
   let userToken: string;
 
@@ -96,7 +96,7 @@ describe('Sales Module API Integration Tests', () => {
     await prismaService.$connect();
 
     // Create authentication tokens for different roles
-    _adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    // adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN); // Unused - removed to fix TS6133
     managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
     userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
   });
@@ -433,7 +433,7 @@ describe('Sales Module API Integration Tests', () => {
       };
 
       const response = await request(app.getHttpServer())
-        .patch(`/sales/orders/${testOrder.id}/items/${testOrder.items[0].id}`)
+        .patch(`/sales/orders/${testOrder.id}/items/${(testOrder as any).orderItems?.[0]?.id || 'unknown'}`)
         .set('Authorization', `Bearer ${managerToken}`)
         .send(updateData)
         .expect(200);
@@ -444,7 +444,7 @@ describe('Sales Module API Integration Tests', () => {
 
     it('should remove order item', async () => {
       await request(app.getHttpServer())
-        .delete(`/sales/orders/${testOrder.id}/items/${testOrder.items[0].id}`)
+        .delete(`/sales/orders/${testOrder.id}/items/${(testOrder as any).orderItems?.[0]?.id || 'unknown'}`)
         .set('Authorization', `Bearer ${managerToken}`)
         .expect(204);
 
@@ -454,7 +454,7 @@ describe('Sales Module API Integration Tests', () => {
         .set('Authorization', `Bearer ${userToken}`)
         .expect(200);
 
-      const removedItem = response.body.items.find((item: any) => item.id === testOrder.items[0].id);
+      const removedItem = response.body.orderItems?.find((item: any) => item.id === (testOrder as any).orderItems?.[0]?.id);
       expect(removedItem).to.be.undefined;
     });
   });

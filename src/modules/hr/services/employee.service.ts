@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
 // import { Employee, Department, User } from '@prisma/client';
@@ -73,6 +74,10 @@ export class EmployeeService {
         sickLeaveBalance: 10,
         personalLeaveBalance: 5,
         createdBy,
+        // Handle JSON fields properly
+        workSchedule: sanitizedData.workSchedule as Prisma.InputJsonValue | undefined,
+        emergencyContact: sanitizedData.emergencyContact as Prisma.InputJsonValue | undefined,
+        bankAccount: sanitizedData.bankAccount as Prisma.InputJsonValue | undefined,
       },
       include: {
         department: true,
@@ -260,6 +265,16 @@ export class EmployeeService {
         ...sanitizedData,
         updatedBy,
         updatedAt: new Date(),
+        // Handle JSON fields properly
+        workSchedule: sanitizedData.workSchedule !== undefined
+          ? sanitizedData.workSchedule as Prisma.InputJsonValue | undefined
+          : undefined,
+        emergencyContact: sanitizedData.emergencyContact !== undefined
+          ? sanitizedData.emergencyContact as Prisma.InputJsonValue | undefined
+          : undefined,
+        bankAccount: sanitizedData.bankAccount !== undefined
+          ? sanitizedData.bankAccount as Prisma.InputJsonValue | undefined
+          : undefined,
         // Handle termination
         ...(sanitizedData.status === 'TERMINATED' && {
           terminatedAt: new Date(),

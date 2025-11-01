@@ -434,7 +434,7 @@ describe('Users Module API Integration Tests', () => {
       // This would typically be handled by the authentication module
       // but we can test that user profiles update last login
 
-      const _initialProfile = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .get('/users/profile')
         .set('Authorization', `Bearer ${userToken}`)
         .expect(200);
@@ -449,7 +449,7 @@ describe('Users Module API Integration Tests', () => {
         .expect(200);
 
       // Check if last login was updated (implementation dependent)
-      const _updatedProfile = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .get('/users/profile')
         .set('Authorization', `Bearer ${userToken}`)
         .expect(200);

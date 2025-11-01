@@ -7,6 +7,8 @@ import { PayrollService } from './services/payroll.service';
 import { SecurityService } from '../../shared/security/security.service';
 import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { CreatePayrollDto, PaymentMethod } from './dto/create-payroll.dto';
+import { UserRole } from '../../modules/users/dto/user.dto';
+import { AuthenticatedUser } from '../../shared/security/interfaces/jwt.interface';
 
 describe('Payroll Controller - Unit Tests', () => {
   let payrollController: PayrollController;
@@ -23,6 +25,22 @@ describe('Payroll Controller - Unit Tests', () => {
     hourlyRate: 46.88,
     overtimeRate: 70.31,
     paymentMethod: PaymentMethod.DIRECT_DEPOSIT,
+  };
+
+  // Mock authenticated user
+  const mockAuthenticatedUser: AuthenticatedUser = {
+    id: 'user-123',
+    sub: 'hr-456',
+    email: 'hr@example.com',
+    username: 'hruser',
+    role: UserRole.MANAGER,
+    firstName: 'John',
+    lastName: 'Doe',
+    isActive: true,
+    isEmailVerified: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+    lastLoginAt: new Date('2024-01-15'),
   };
 
   beforeEach(async () => {
@@ -65,7 +83,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: { sub: 'hr-456' } });
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
@@ -79,7 +97,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: { sub: 'hr-456' } });
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
@@ -93,7 +111,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: { sub: 'hr-456' } });
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown ConflictException');
       } catch (error) {
         expect(error).to.be.instanceOf(ConflictException);
@@ -157,7 +175,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.approvePayroll('non-existent', { user: { sub: 'manager-123' } });
+        await payrollController.approvePayroll('non-existent', { user: mockAuthenticatedUser });
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
@@ -171,7 +189,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.approvePayroll('payroll-123', { user: { sub: 'manager-123' } });
+        await payrollController.approvePayroll('payroll-123', { user: mockAuthenticatedUser });
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
@@ -187,7 +205,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.processPayment('non-existent', { user: { sub: 'hr-456' } });
+        await payrollController.processPayment('non-existent', { user: mockAuthenticatedUser });
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
@@ -201,7 +219,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.processPayment('payroll-123', { user: { sub: 'hr-456' } });
+        await payrollController.processPayment('payroll-123', { user: mockAuthenticatedUser });
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
@@ -263,7 +281,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        await payrollController.calculatePayroll(invalidDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown validation error');
       } catch (error) {
         expect(error).to.exist;
@@ -276,7 +294,7 @@ describe('Payroll Controller - Unit Tests', () => {
     it('should fail when user context is missing', async () => {
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(mockCreatePayrollDto, null);
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown error');
       } catch (error) {
         expect(error).to.exist;
@@ -286,7 +304,7 @@ describe('Payroll Controller - Unit Tests', () => {
     it('should fail when user ID is missing in context', async () => {
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(mockCreatePayrollDto, {});
+        await payrollController.calculatePayroll(mockCreatePayrollDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown error');
       } catch (error) {
         expect(error).to.exist;
@@ -319,7 +337,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        await payrollController.calculatePayroll(invalidDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown validation error');
       } catch (error) {
         expect(error).to.exist;
@@ -336,7 +354,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        await payrollController.calculatePayroll(invalidDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown validation error');
       } catch (error) {
         expect(error).to.exist;
@@ -353,7 +371,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
       // Act & Assert
       try {
-        await payrollController.calculatePayroll(invalidDto, { user: { sub: 'hr-456' } });
+        await payrollController.calculatePayroll(invalidDto, { user: mockAuthenticatedUser });
         expect.fail('Should have thrown validation error');
       } catch (error) {
         expect(error).to.exist;

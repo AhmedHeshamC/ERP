@@ -40,7 +40,7 @@ describe('OWASP Top 10 Security Integration Tests', () => {
   let adminToken: string;
   let managerToken: string;
   let userToken: string;
-  let _maliciousToken: string;
+  // let _maliciousToken: string; // Unused - removed to fix TS6133
 
   // Setup test environment before all tests
   before(async () => {
@@ -100,7 +100,7 @@ describe('OWASP Top 10 Security Integration Tests', () => {
     userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
 
     // Create malicious token for testing
-    _maliciousToken = 'malicious.jwt.token.with.invalid.signature';
+    // _maliciousToken = 'malicious.jwt.token.with.invalid.signature'; // Unused - removed to fix TS6133
   });
 
   // Cleanup after all tests
@@ -252,7 +252,7 @@ describe('OWASP Top 10 Security Integration Tests', () => {
         .expect(401);
 
       // Try with expired token (simulated)
-      const expiredToken = AuthHelpers.createExpiredTestToken();
+      const expiredToken = await AuthHelpers.createExpiringTestToken(app, UserRole.USER, '0s');
       await request(app.getHttpServer())
         .get('/auth/profile')
         .set('Authorization', `Bearer ${expiredToken}`)
@@ -469,7 +469,7 @@ describe('OWASP Top 10 Security Integration Tests', () => {
     });
 
     it('should use secure headers', async () => {
-      const _response = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .get('/health')
         .expect(200);
 
@@ -638,7 +638,7 @@ describe('OWASP Top 10 Security Integration Tests', () => {
   describe('A08: Data Integrity Failures', () => {
     it('should validate data integrity across operations', async () => {
       // Create order with specific total
-      const _orderResponse = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post('/sales/orders')
         .set('Authorization', `Bearer ${managerToken}`)
         .send({

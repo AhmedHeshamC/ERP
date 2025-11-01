@@ -417,7 +417,7 @@ export class AuthHelpers {
    */
   static async cleanupTestUsers(
     _app: INestApplication,
-    emails?: string[]
+    _emails?: string[]
   ): Promise<void> {
     // This would require direct database access or a cleanup endpoint
     // For now, this is a placeholder for the cleanup concept

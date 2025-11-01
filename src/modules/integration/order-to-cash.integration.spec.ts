@@ -39,7 +39,7 @@ declare let _afterEach: any;
 describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let _adminToken: string;
+  // let adminToken: string; // Unused - removed to fix TS6133
   let managerToken: string;
   let salesToken: string;
   let warehouseToken: string;
@@ -107,7 +107,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
     await prismaService.$connect();
 
     // Create authentication tokens for different roles
-    _adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    // adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN); // Unused - removed to fix TS6133
     managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
     salesToken = AuthHelpers.createTestTokenDirect(UserRole.USER); // Sales user
     warehouseToken = AuthHelpers.createTestTokenDirect(UserRole.INVENTORY_MANAGER);
@@ -230,7 +230,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
       expect(shippingResponse.body.status).to.equal('SHIPPED');
 
       // Record actual stock movement
-      const _stockOutResponse = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post(`/inventory/products/${testProduct.id}/stock-movements`)
         .set('Authorization', `Bearer ${warehouseToken}`)
         .send({
@@ -261,7 +261,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
         .expect(201);
 
       testInvoice = invoiceResponse.body;
-      expect(testInvoice.amount).to.equal(testOrder.totalAmount);
+      expect(testInvoice.totalAmount).to.equal(testOrder.totalAmount);
       expect(testInvoice.status).to.equal('DRAFT');
 
       // Step 9: Post invoice
@@ -275,7 +275,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
 
       // Step 10: Record payment
       const paymentData = {
-        amount: testInvoice.amount,
+        amount: testInvoice.totalAmount,
         paymentMethod: 'BANK_TRANSFER',
         paymentDate: new Date().toISOString(),
         reference: 'O2C-PAY-123456',
@@ -289,7 +289,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
         .expect(201);
 
       testPayment = paymentResponse.body;
-      expect(testPayment.amount).to.equal(testInvoice.amount);
+      expect(testPayment.amount).to.equal(testInvoice.totalAmount);
       expect(testPayment.status).to.equal('COMPLETED');
 
       // Step 11: Verify accounting entries were created
@@ -375,7 +375,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
       expect(cancelResponse.body.status).to.equal('CANCELLED');
 
       // Restore inventory (cancel reservation)
-      const _restoreResponse = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post(`/inventory/products/${testProduct.id}/stock-movements`)
         .set('Authorization', `Bearer ${warehouseToken}`)
         .send({
@@ -483,7 +483,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
       expect(invoiceStatusResponse.body.outstandingAmount).to.equal(invoice.amount / 2);
 
       // Make final payment
-      const _finalPaymentResponse = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post(`/sales/invoices/${invoice.id}/payments`)
         .set('Authorization', `Bearer ${accountantToken}`)
         .send({
@@ -628,7 +628,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
 
   describe('Security and Compliance', () => {
     it('should enforce proper authorization across workflow steps', async () => {
-      const orderResponse = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post('/sales/orders')
         .set('Authorization', `Bearer ${salesToken}`)
         .send({
@@ -641,7 +641,7 @@ describe('Order-to-Cash Cross-Module Workflow Integration Tests', () => {
         })
         .expect(201);
 
-      const _order = orderResponse.body;
+      // Order created successfully
 
       // Regular user should not be able to approve accounting entries
       await request(app.getHttpServer())

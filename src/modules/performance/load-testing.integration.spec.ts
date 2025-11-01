@@ -34,7 +34,7 @@ declare let _afterEach: any;
 describe('Performance and Load Testing Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let _adminToken: string;
+  // let adminToken: string; // Unused - removed to fix TS6133
   let managerToken: string;
   let userToken: string;
 
@@ -99,7 +99,7 @@ describe('Performance and Load Testing Integration Tests', () => {
     await prismaService.$connect();
 
     // Create authentication tokens for different roles
-    _adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    // adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN); // Unused - removed to fix TS6133
     managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
     userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
 
@@ -357,7 +357,7 @@ describe('Performance and Load Testing Integration Tests', () => {
 
       const createResults = await Promise.allSettled(createPromises);
       const createdCustomerIds = createResults
-        .filter(r => r.status === 'fulfilled' && r.value.status === 201)
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value.status === 201)
         .map(r => r.value.body.id);
 
       // Measure memory after creation
@@ -406,7 +406,7 @@ describe('Performance and Load Testing Integration Tests', () => {
           const response = await makeAuthenticatedRequest(
             endpoint.path,
             endpoint.method === 'get' ? userToken : managerToken,
-            endpoint.method
+            endpoint.method as 'get' | 'post' | 'delete' | 'patch'
           );
 
           const endTime = Date.now();
@@ -427,7 +427,16 @@ describe('Performance and Load Testing Integration Tests', () => {
     });
 
     it('should handle large payload requests efficiently', async () => {
-      const largePayload = {
+      const largePayload: {
+        customerId: string;
+        description: string;
+        items: Array<{
+          productId: string;
+          quantity: number;
+          unitPrice: number;
+        }>;
+        currency: string;
+      } = {
         customerId: 'test-customer',
         description: 'Large order with many items for performance testing',
         items: [],
@@ -580,7 +589,7 @@ describe('Performance and Load Testing Integration Tests', () => {
 
     it('should recover from temporary connection issues', async () => {
       // This test simulates recovery from temporary database issues
-      const _requests = [];
+      // const _requests = []; // Unused - removed to fix TS6133
       const recoveryAttempts = 3;
 
       for (let attempt = 0; attempt < recoveryAttempts; attempt++) {
@@ -665,7 +674,7 @@ describe('Performance and Load Testing Integration Tests', () => {
   async function cleanupTestData(): Promise<void> {
     try {
       // Clean up any test data created during performance tests
-      const _timestampPattern = Date.now().toString().substring(0, 9);
+      // Use timestamp for uniqueness
 
       // Clean up customers created during tests
       await prismaService.customer.deleteMany({

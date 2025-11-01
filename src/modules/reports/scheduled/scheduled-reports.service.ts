@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
 import {
@@ -87,7 +88,8 @@ export class ScheduledReportsService {
         data: {
           ...sanitizedData,
           nextRunAt,
-                    emailRecipients: sanitizedData.emailRecipients || [],
+          emailRecipients: sanitizedData.emailRecipients || [],
+          parameters: sanitizedData.parameters as Prisma.InputJsonValue | undefined,
         },
         include: {
           reportDefinition: {

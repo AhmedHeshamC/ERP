@@ -19,7 +19,7 @@ import {
  * Tests business logic, security validation, and workflow transitions
  * Uses SOLID principles with proper dependency injection mocking
  */
-describe('PurchaseOrderService', () => {
+describe('PurchaseOrderService - Unit Tests', () => {
   let service: PurchaseOrderService;
   let prismaService: PrismaService;
   let securityService: SecurityService;

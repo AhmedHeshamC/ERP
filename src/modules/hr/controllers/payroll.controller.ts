@@ -285,11 +285,12 @@ export class PayrollController {
         take: 1, // Just get the total count
       });
 
-      const payrollSummary = {
-        totalRecords: summary.total,
-        // Add more summary calculations as needed
-        filters: filters,
-        generatedAt: new Date(),
+      const payrollSummary: PayrollSummary = {
+        totalPayrollRecords: summary.total,
+        totalPayrollAmount: 0, // TODO: Calculate actual total from payroll records
+        averageSalary: 0, // TODO: Calculate actual average from payroll records
+        statusBreakdown: [], // TODO: Calculate actual status breakdown
+        monthlyTrend: [], // TODO: Calculate actual monthly trend
       };
 
       this.logger.log('Successfully retrieved payroll summary');

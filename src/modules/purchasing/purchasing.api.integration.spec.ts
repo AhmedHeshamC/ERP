@@ -34,7 +34,7 @@ declare let _afterEach: any;
 describe('Purchasing Module API Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let _adminToken: string;
+  // let adminToken: string; // Unused - removed to fix TS6133
   let managerToken: string;
   let userToken: string;
 
@@ -96,7 +96,7 @@ describe('Purchasing Module API Integration Tests', () => {
     await prismaService.$connect();
 
     // Create authentication tokens for different roles
-    _adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    // adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN); // Unused - removed to fix TS6133
     managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
     userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
   });
@@ -420,7 +420,7 @@ describe('Purchasing Module API Integration Tests', () => {
       };
 
       const response = await request(app.getHttpServer())
-        .patch(`/purchasing/purchase-orders/${testPurchaseOrder.id}/items/${testPurchaseOrder.items[0].id}`)
+        .patch(`/purchasing/purchase-orders/${testPurchaseOrder.id}/items/${(testPurchaseOrder as any).orderItems?.[0]?.id}`)
         .set('Authorization', `Bearer ${managerToken}`)
         .send(updateData)
         .expect(200);
@@ -431,7 +431,7 @@ describe('Purchasing Module API Integration Tests', () => {
 
     it('should remove purchase order item', async () => {
       await request(app.getHttpServer())
-        .delete(`/purchasing/purchase-orders/${testPurchaseOrder.id}/items/${testPurchaseOrder.items[0].id}`)
+        .delete(`/purchasing/purchase-orders/${testPurchaseOrder.id}/items/${(testPurchaseOrder as any).orderItems?.[0]?.id}`)
         .set('Authorization', `Bearer ${managerToken}`)
         .expect(204);
 
@@ -441,7 +441,7 @@ describe('Purchasing Module API Integration Tests', () => {
         .set('Authorization', `Bearer ${userToken}`)
         .expect(200);
 
-      const removedItem = response.body.items.find((item: any) => item.id === testPurchaseOrder.items[0].id);
+      const removedItem = response.body.orderItems?.find((item: any) => item.id === (testPurchaseOrder as any).orderItems?.[0]?.id);
       expect(removedItem).to.be.undefined;
     });
   });
@@ -467,8 +467,8 @@ describe('Purchasing Module API Integration Tests', () => {
         notes: 'Goods received in good condition',
         items: [
           {
-            orderItemId: testPurchaseOrder.items[0].id,
-            quantityReceived: testPurchaseOrder.items[0].quantity,
+            orderItemId: (testPurchaseOrder as any).orderItems?.[0]?.id,
+            quantityReceived: (testPurchaseOrder as any).orderItems?.[0]?.quantity,
             condition: 'GOOD',
             batchNumber: 'BATCH001',
             expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
@@ -495,8 +495,8 @@ describe('Purchasing Module API Integration Tests', () => {
         notes: 'Partial delivery - remaining items to follow',
         items: [
           {
-            orderItemId: testPurchaseOrder.items[0].id,
-            quantityReceived: Math.floor(testPurchaseOrder.items[0].quantity / 2), // Half the quantity
+            orderItemId: (testPurchaseOrder as any).orderItems?.[0]?.id,
+            quantityReceived: Math.floor((testPurchaseOrder as any).orderItems?.[0]?.quantity / 2), // Half the quantity
             condition: 'GOOD',
             notes: 'Partial delivery',
           },
@@ -509,7 +509,7 @@ describe('Purchasing Module API Integration Tests', () => {
         .send(partialReceiptData)
         .expect(201);
 
-      expect(response.body.items[0].quantityReceived).to.be.lessThan(testPurchaseOrder.items[0].quantity);
+      expect(response.body.items?.[0]?.quantityReceived).to.be.lessThan((testPurchaseOrder as any).orderItems?.[0]?.quantity);
     });
   });
 
@@ -543,7 +543,7 @@ describe('Purchasing Module API Integration Tests', () => {
         invoiceNumber: `INVALID-${Date.now()}`,
         invoiceDate: new Date().toISOString(),
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        amount: testPurchaseOrder.totalAmount + 1000.00, // Much higher than PO total
+        amount: Number(testPurchaseOrder.totalAmount) + 1000.00, // Much higher than PO total
         taxAmount: 100.00,
         notes: 'Invalid invoice amount',
       };
@@ -747,7 +747,7 @@ describe('Purchasing Module API Integration Tests', () => {
             in: await prismaService.purchaseOrder.findMany({
               where: { supplierId: { startsWith: 'SUP-' } },
               select: { id: true },
-            }).then(orders => orders.map(o => o.id))
+            }).then((orders: { id: string }[]) => orders.map((o: { id: string }) => o.id))
           },
         },
       });

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
 import {
@@ -31,30 +32,6 @@ interface ExecutiveAlert {
   createdAt: Date;
 }
 
-// Interface for report data by type
-interface _ReportDataByType {
-  FINANCIAL: {
-    totalRevenue: number;
-    totalExpenses: number;
-    netProfit: number;
-    profitMargin: number;
-  };
-  SALES: {
-    totalSales: number;
-    totalOrders: number;
-    averageOrderValue: number;
-  };
-  INVENTORY: {
-    totalProducts: number;
-    totalValue: number;
-    lowStockItems: number;
-  };
-  PURCHASING: {
-    totalSpend: number;
-    totalOrders: number;
-    averageOrderValue: number;
-  };
-}
 
 /**
  * Enterprise Reports Service
@@ -94,7 +71,10 @@ export class ReportsService {
       const sanitizedData = this.securityService.sanitizeInput(createReportDto) as CreateReportDefinitionDto;
 
       const reportDefinition = await this.prismaService.reportDefinition.create({
-        data: sanitizedData,
+        data: {
+          ...sanitizedData,
+          parameters: sanitizedData.parameters as Prisma.InputJsonValue | undefined,
+        },
       });
 
       const response: ReportDefinitionResponse = {

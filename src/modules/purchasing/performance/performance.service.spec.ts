@@ -17,7 +17,7 @@ import {
 } from './dto/performance.dto';
 import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 
-describe('SupplierPerformanceService', () => {
+describe('SupplierPerformanceService - Unit Tests', () => {
   let service: SupplierPerformanceService;
   let prismaService: PrismaService;
   let securityService: SecurityService;

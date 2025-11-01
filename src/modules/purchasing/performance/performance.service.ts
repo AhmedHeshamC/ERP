@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
 import {
@@ -705,7 +706,10 @@ export class SupplierPerformanceService {
 
       // Create scorecard detail
       const detail = await this.prismaService.supplierScorecardDetail.create({
-        data: sanitizedData,
+        data: {
+          ...sanitizedData,
+          supportingData: sanitizedData.supportingData as Prisma.InputJsonValue | undefined,
+        },
       });
 
       this.logger.log(`Successfully created scorecard detail!: ${detail.id}`);
