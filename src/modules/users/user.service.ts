@@ -91,7 +91,7 @@ export class UserService {
         });
 
         // Remove sensitive data from response
-        const { password, ...userResponse } = user;
+        const { password: _password, ...userResponse } = user;
         return userResponse as UserResponse;
       });
 

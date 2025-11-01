@@ -21,7 +21,7 @@ declare let before: any;
 declare let after: any;
 declare let beforeEach: any;
 declare let afterEach: any;
-declare let afterAll: any;
+declare let _afterAll: any;
 
 /**
  * Authentication Integration Tests
@@ -259,6 +259,7 @@ describe('Authentication Integration Tests', () => {
 
       // Debug: Log response if it fails
       if (response.status !== 201) {
+        console.log({
           status: response.status,
           body: response.body,
           email: testUserEmail,
@@ -343,6 +344,7 @@ describe('Authentication Integration Tests', () => {
         .send(registerDto);
 
       if (registerResponse.status !== 201) {
+        console.log({
           status: registerResponse.status,
           body: registerResponse.body,
           email: registerDto.email,
@@ -362,6 +364,7 @@ describe('Authentication Integration Tests', () => {
         .send(loginDto);
 
       if (loginResponse.status !== 200) {
+        console.log({
           status: loginResponse.status,
           body: loginResponse.body,
           email: registerDto.email,

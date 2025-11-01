@@ -187,10 +187,12 @@ export class AuthController {
         firstName: user.firstName,
         lastName: user.lastName,
         username: user.username,
+        role: user.role,
         isActive: user.isActive,
         isEmailVerified: user.isEmailVerified,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        lastLoginAt: user.lastLoginAt,
       };
 
     } catch (error) {
@@ -332,15 +334,22 @@ export class AuthController {
   @ApiOperation({ summary: 'Validate JWT token' })
   @ApiResponse({ status: 200, description: 'Token is valid' })
   @ApiResponse({ status: 401, description: 'Invalid token' })
-  async validateToken(@CurrentUser() user: AuthenticatedUser): Promise<{ valid: boolean; user: UserProfileResponse }> {
+  async validateToken(@CurrentUser() user: AuthenticatedUser): Promise<{ valid: boolean; user: UserProfileResponse | undefined }> {
     try {
       return {
         valid: true,
         user: {
           id: user.id,
           email: user.email,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
           isActive: user.isActive,
           isEmailVerified: user.isEmailVerified,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          lastLoginAt: user.lastLoginAt,
         },
       };
 
@@ -348,7 +357,7 @@ export class AuthController {
       this.logger.error(`Token validation failed: ${error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : "Unknown error"}`, error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined);
       return {
         valid: false,
-        user: null,
+        user: undefined,
       };
     }
   }
@@ -372,7 +381,7 @@ export class AuthController {
       this.logger.error(`Public token validation failed: ${error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : "Unknown error"}`, error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined);
       return {
         valid: false,
-        user: null,
+        user: undefined,
       };
     }
   }

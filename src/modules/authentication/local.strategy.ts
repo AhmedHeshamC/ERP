@@ -4,6 +4,7 @@ import { Strategy } from 'passport-local';
 import { AuthService } from './auth.service';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { AuthenticatedUser } from '../../shared/security/interfaces/jwt.interface';
+import { UserRole } from '../../modules/users/dto/user.dto';
 
 /**
  * Local authentication strategy for login
@@ -43,13 +44,18 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
       await this.authService.updateLastLogin(user.id);
 
       return {
+        sub: user.id,
         id: user.id,
         email: user.email,
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role: user.role as UserRole,
         isActive: user.isActive,
+        isEmailVerified: user.isEmailVerified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        lastLoginAt: user.lastLoginAt,
       };
 
     } catch (error) {

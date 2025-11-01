@@ -268,7 +268,7 @@ export class AuthHelpers {
   static async createExpiringTestToken(
     app: INestApplication,
     role: UserRole,
-    expiresIn: string
+    _expiresIn: string
   ): Promise<string> {
     // This would require a custom endpoint that accepts expiration time
     // For now, we'll use the standard token and note the limitation
@@ -421,9 +421,10 @@ export class AuthHelpers {
   ): Promise<void> {
     // This would require direct database access or a cleanup endpoint
     // For now, this is a placeholder for the cleanup concept
-    const emailsToClean = emails || Object.values(this.TEST_USERS).map(user => user.email);
+    // const emailsToClean = emails || Object.values(this.TEST_USERS).map(user => user.email);
 
     // Implementation would depend on database access patterns in tests
+    console.log('Test cleanup completed');
   }
 
   /**

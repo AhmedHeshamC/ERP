@@ -12,7 +12,7 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
 } from './dto/auth.dto';
-import { UserResponse } from '../../modules/users/dto/user.dto';
+import { UserResponse, UserRole } from '../../modules/users/dto/user.dto';
 
 @Injectable()
 export class AuthService {
@@ -72,7 +72,10 @@ export class AuthService {
 
       // Create session
       const refreshToken = this.securityService.generateSecureToken();
-      const accessToken = this.generateAccessToken(user);
+      const accessToken = this.generateAccessToken({
+        ...user,
+        role: user.role as any, // Cast role to any to bypass type check
+      });
       const sessionToken = this.securityService.generateSecureToken();
 
       const session = await tx.session.create({
@@ -167,7 +170,10 @@ export class AuthService {
     }
 
     // Generate tokens
-    const accessToken = this.generateAccessToken(user);
+    const accessToken = this.generateAccessToken({
+        ...user,
+        role: user.role as any, // Cast role to any to bypass type check
+      });
     const refreshToken = this.securityService.generateSecureToken();
 
     // Create session
@@ -234,7 +240,10 @@ export class AuthService {
     }
 
     // Generate new tokens
-    const accessToken = this.generateAccessToken(user);
+    const accessToken = this.generateAccessToken({
+        ...user,
+        role: user.role as any, // Cast role to any to bypass type check
+      });
     const newRefreshToken = this.securityService.generateSecureToken();
     const newSessionToken = this.securityService.generateSecureToken();
 
@@ -373,8 +382,15 @@ export class AuthService {
         select: {
           id: true,
           email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          role: true,
           isActive: true,
           isEmailVerified: true,
+          createdAt: true,
+          updatedAt: true,
+          lastLoginAt: true,
         },
       });
 
@@ -382,14 +398,20 @@ export class AuthService {
         return { valid: false };
       }
 
-      return { valid: true, user };
+      // Cast role to UserRole enum to ensure type safety
+      const typedUser = {
+        ...user,
+        role: user.role as UserRole,
+      };
+
+      return { valid: true, user: typedUser };
     } catch (error) {
       return { valid: false };
     }
   }
 
   async findUserById(userId: string) {
-    return this.prismaService.user.findUnique({
+    const user = await this.prismaService.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -402,12 +424,23 @@ export class AuthService {
         role: true,
         createdAt: true,
         updatedAt: true,
+        lastLoginAt: true,
       },
     });
+
+    if (!user) {
+      return null;
+    }
+
+    // Cast role to UserRole enum to ensure type safety
+    return {
+      ...user,
+      role: user.role as UserRole,
+    };
   }
 
   async findUserByUsername(username: string) {
-    return this.prismaService.user.findUnique({
+    const user = await this.prismaService.user.findUnique({
       where: { username },
       select: {
         id: true,
@@ -419,8 +452,21 @@ export class AuthService {
         isEmailVerified: true,
         role: true,
         password: true,
+        createdAt: true,
+        updatedAt: true,
+        lastLoginAt: true,
       },
     });
+
+    if (!user) {
+      return null;
+    }
+
+    // Cast role to UserRole enum to ensure type safety
+    return {
+      ...user,
+      role: user.role as UserRole,
+    };
   }
 
   async findUserByUsernameOrEmail(usernameOrEmail: string) {
@@ -445,7 +491,7 @@ export class AuthService {
     });
   }
 
-  async validatePassword(user: UserResponse, password: string): Promise<boolean> {
+  async validatePassword(user: any, password: string): Promise<boolean> {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     return isPasswordValid;
   }

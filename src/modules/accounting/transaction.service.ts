@@ -136,8 +136,8 @@ export class TransactionService {
 
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) {where.createdAt.gte = startDate;}
-      if (endDate) {where.createdAt.lte = endDate;}
+      if (startDate) {where.createdAt.gte = new Date(startDate);}
+      if (endDate) {where.createdAt.lte = new Date(endDate);}
     }
 
     if (search) {

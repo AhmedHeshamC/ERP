@@ -28,7 +28,7 @@ declare let before: any;
 declare let after: any;
 declare let beforeEach: any;
 declare let afterEach: any;
-declare let afterAll: any;
+declare let _afterAll: any;
 
 /**
  * Users Module Integration Tests

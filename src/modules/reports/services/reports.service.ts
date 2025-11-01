@@ -32,7 +32,7 @@ interface ExecutiveAlert {
 }
 
 // Interface for report data by type
-interface ReportDataByType {
+interface _ReportDataByType {
   FINANCIAL: {
     totalRevenue: number;
     totalExpenses: number;
