@@ -9,6 +9,10 @@ import { ReportsController } from './reports.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
+import { JwtStrategy } from '../authentication/jwt.strategy';
+import { LocalStrategy } from '../authentication/local.strategy';
+import { AuthService } from '../authentication/auth.service';
+import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
 import {
   CreateReportDefinitionDto,
   ReportType,
@@ -68,7 +72,7 @@ describe('Reports Module Integration Tests', () => {
         }),
       ],
       controllers: [ReportsController],
-      providers: [ReportsService],
+      providers: [ReportsService, AuthService, JwtStrategy, LocalStrategy],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -93,8 +97,8 @@ describe('Reports Module Integration Tests', () => {
     // Create test data for reporting
     await createTestDataForReports();
 
-    // Create a test user and get auth token
-    authToken = await getTestAuthToken();
+    // Create a test user and get auth token using direct generation
+    authToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
   });
 
   // Cleanup after all tests
@@ -735,35 +739,8 @@ describe('Reports Module Integration Tests', () => {
    * Helper Functions
    */
 
-  async function getTestAuthToken(): Promise<string> {
-    // Create a test user with admin role
-    const testUser = {
-      email: 'reports-admin@test.com',
-      password: 'AdminPassword123!',
-      firstName: 'Reports',
-      lastName: 'Admin',
-      username: `reports-admin${Date.now()}`,
-    };
-
-    try {
-      // Register user
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send(testUser);
-    } catch (error) {
-      // User might already exist, continue with login
-    }
-
-    // Login to get token
-    const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({
-        email: testUser.email,
-        password: testUser.password,
-      });
-
-    return loginResponse.body.accessToken;
-  }
+  // NOTE: getTestAuthToken function replaced with AuthHelpers.createTestToken()
+// AuthHelpers provides standardized token creation with proper role management
 
   async function createTestReportDefinition(type: ReportType): Promise<any> {
     const timestamp = Date.now();

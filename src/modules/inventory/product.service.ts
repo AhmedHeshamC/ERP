@@ -1,6 +1,9 @@
 import { Injectable, Logger, NotFoundException, ConflictException, HttpException, HttpStatus, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SecurityService } from '../../shared/security/security.service';
+import { TransactionReferenceService, TransactionType } from '../../shared/common/services/transaction-reference.service';
+import { ErrorHandlingService } from '../../shared/common/services/error-handling.service';
+import { ConcurrencyControlService, LockType } from '../../shared/common/services/concurrency-control.service';
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -10,7 +13,7 @@ import {
   StockMovementDto,
   StockMovementType,
 } from './dto/product.dto';
-import { AuditEvents } from '../../shared/common/constants';
+import { AuditEvents, ConcurrencyEvents } from '../../shared/common/constants';
 
 /**
  * Enterprise Product Service
@@ -25,51 +28,87 @@ export class ProductService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly securityService: SecurityService,
+    private readonly transactionReferenceService: TransactionReferenceService,
+    private readonly errorHandlingService: ErrorHandlingService,
+    private readonly concurrencyControlService: ConcurrencyControlService,
   ) {}
 
   /**
-   * Create a new product with validation and security logging
+   * Create a new product with enhanced validation and concurrency control
    * OWASP A01: RBAC - Role-based access enforcement
    * OWASP A03: Injection prevention via parameterized queries
    * OWASP A08: Data integrity with comprehensive validation
+   * OWASP A10: Secure input validation and sanitization
    */
-  async createProduct(createProductDto: CreateProductDto): Promise<ProductResponse> {
+  async createProduct(createProductDto: CreateProductDto, userId?: string): Promise<ProductResponse> {
     try {
       this.logger.log(`Creating new product: ${createProductDto.name} (SKU: ${createProductDto.sku})`);
 
-      // Validate business rules
-      await this.validateProductBusinessRules(createProductDto);
+      // Enhanced validation with concurrency control
+      return await this.concurrencyControlService.withRetry(async () => {
+        // Validate business rules with duplicate prevention
+        await this.validateProductBusinessRulesEnhanced(createProductDto);
 
-      // Create product with audit trail
-      const product = await this.prismaService.product.create({
-        data: {
-          ...createProductDto,
-          stockQuantity: createProductDto.initialStock || 0,
-        },
-      });
+        // Generate transaction reference for stock movement if initial stock
+        let stockReference = null;
+        if (createProductDto.initialStock && createProductDto.initialStock > 0) {
+          stockReference = await this.transactionReferenceService.generateTransactionReference(
+            TransactionType.STOCK_MOVEMENT
+          );
+        }
 
-      // Log security event
-      await this.securityService.logSecurityEvent(
-        'USER_CREATED', // Using existing event type as placeholder
-        product.id,
-        'system',
-        'product-service',
-        {
+        // Create product with audit trail in transaction
+        const product = await this.prismaService.$transaction(async (tx) => {
+          const newProduct = await tx.product.create({
+            data: {
+              ...createProductDto,
+              stockQuantity: createProductDto.initialStock || 0,
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+
+          // Create initial stock movement if provided
+          if (createProductDto.initialStock && createProductDto.initialStock > 0) {
+            await tx.stockMovement.create({
+              data: {
+                productId: newProduct.id,
+                type: StockMovementType.IN,
+                quantity: createProductDto.initialStock,
+                reason: 'Initial stock setup',
+                reference: stockReference,
+                createdById: userId,
+              },
+            });
+          }
+
+          return newProduct;
+        });
+
+        // Log business event
+        this.logger.log(`Product created: ${product.id} by user: ${userId || 'system'}`, {
+          eventId: AuditEvents.PRODUCT_CREATED,
+          productId: product.id,
+          userId: userId || 'system',
+          service: 'product-service',
           productName: product.name,
           sku: product.sku,
           price: createProductDto.price,
           categoryId: createProductDto.categoryId,
+          initialStock: createProductDto.initialStock,
+          stockReference,
           endpoint: 'POST /products',
-        },
-      );
+        });
 
-      this.logger.log(`Product created successfully: ${product.id}`);
-      return {
-        ...product,
-        price: Number(product.price),
-        stockQuantity: Number(product.stockQuantity),
-        status: product.status as ProductStatus,
-      };
+        this.logger.log(`Product created successfully: ${product.id}`);
+        return {
+          ...product,
+          price: Number(product.price),
+          stockQuantity: Number(product.stockQuantity),
+          status: product.status as ProductStatus,
+        };
+      });
     } catch (error) {
       this.logger.error(`Failed to create product: ${error.message}`, error.stack);
       await this.handleProductError(error, 'createProduct', createProductDto);
@@ -513,32 +552,193 @@ export class ProductService {
   }
 
   /**
-   * Validate product business rules before creation
-   * OWASP A08: Data integrity validation
+   * Enhanced product business rules validation with comprehensive duplicate prevention
+   * OWASP A08: Data integrity validation with comprehensive checks
+   * OWASP A10: Input validation and sanitization
    */
-  private async validateProductBusinessRules(createProductDto: CreateProductDto): Promise<void> {
-    // Check if SKU already exists
-    const existingProduct = await this.prismaService.product.findFirst({
-      where: { sku: createProductDto.sku },
+  private async validateProductBusinessRulesEnhanced(createProductDto: CreateProductDto): Promise<void> {
+    // Input sanitization
+    const sanitizedDto = {
+      ...createProductDto,
+      name: createProductDto.name.trim(),
+      sku: createProductDto.sku.trim().toUpperCase(),
+      description: createProductDto.description?.trim(),
+    };
+
+    // Check for duplicate SKU (case-insensitive)
+    const existingSkuProduct = await this.prismaService.product.findFirst({
+      where: {
+        sku: {
+          equals: sanitizedDto.sku,
+          mode: 'insensitive'
+        }
+      },
     });
 
-    if (existingProduct) {
-      throw new ConflictException(`Product with SKU ${createProductDto.sku} already exists`);
+    if (existingSkuProduct) {
+      throw this.errorHandlingService.createBusinessRuleError(
+        `Product with SKU '${sanitizedDto.sku}' already exists`,
+        'DUPLICATE_SKU',
+        'sku',
+        sanitizedDto.sku
+      );
+    }
+
+    // Check for similar product names to prevent near-duplicates
+    const similarProduct = await this.prismaService.product.findFirst({
+      where: {
+        name: {
+          contains: sanitizedDto.name,
+          mode: 'insensitive'
+        },
+        categoryId: sanitizedDto.categoryId,
+        isActive: true,
+      },
+    });
+
+    if (similarProduct) {
+      // Warn but don't block if it's not an exact match
+      this.logger.warn(`Similar product name detected: '${sanitizedDto.name}' vs '${similarProduct.name}'`);
+
+      // If it's very similar (Levenshtein distance < 3), block it
+      if (this.areNamesSimilar(sanitizedDto.name, similarProduct.name)) {
+        throw this.errorHandlingService.createBusinessRuleError(
+          `Product name is too similar to existing product: '${similarProduct.name}'`,
+          'SIMILAR_PRODUCT_NAME',
+          'name',
+          sanitizedDto.name
+        );
+      }
     }
 
     // Validate price
-    if (createProductDto.price <= 0) {
-      throw new Error('Product price must be greater than 0');
+    if (sanitizedDto.price <= 0) {
+      throw this.errorHandlingService.createBusinessRuleError(
+        'Product price must be greater than 0',
+        'INVALID_PRICE',
+        'price',
+        sanitizedDto.price
+      );
+    }
+
+    // Validate initial stock
+    if (sanitizedDto.initialStock !== undefined && sanitizedDto.initialStock < 0) {
+      throw this.errorHandlingService.createBusinessRuleError(
+        'Initial stock cannot be negative',
+        'INVALID_STOCK',
+        'initialStock',
+        sanitizedDto.initialStock
+      );
+    }
+
+    // Validate low stock threshold
+    if (sanitizedDto.lowStockThreshold !== undefined && sanitizedDto.lowStockThreshold < 0) {
+      throw this.errorHandlingService.createBusinessRuleError(
+        'Low stock threshold cannot be negative',
+        'INVALID_THRESHOLD',
+        'lowStockThreshold',
+        sanitizedDto.lowStockThreshold
+      );
     }
 
     // Validate category exists and is active
     const category = await this.prismaService.productCategory.findFirst({
-      where: { id: createProductDto.categoryId, isActive: true },
+      where: { id: sanitizedDto.categoryId, isActive: true },
     });
 
     if (!category) {
-      throw new Error(`Invalid category ID: ${createProductDto.categoryId}`);
+      throw this.errorHandlingService.createBusinessRuleError(
+        `Invalid category ID: ${sanitizedDto.categoryId}`,
+        'INVALID_CATEGORY',
+        'categoryId',
+        sanitizedDto.categoryId
+      );
     }
+
+    // Validate product name length and format
+    if (sanitizedDto.name.length < 2 || sanitizedDto.name.length > 200) {
+      throw this.errorHandlingService.createBusinessRuleError(
+        'Product name must be between 2 and 200 characters',
+        'INVALID_NAME_LENGTH',
+        'name',
+        sanitizedDto.name
+      );
+    }
+
+    // Validate SKU format
+    const skuPattern = /^[A-Z0-9-_]+$/;
+    if (!skuPattern.test(sanitizedDto.sku)) {
+      throw this.errorHandlingService.createBusinessRuleError(
+        'SKU can only contain letters, numbers, hyphens, and underscores',
+        'INVALID_SKU_FORMAT',
+        'sku',
+        sanitizedDto.sku
+      );
+    }
+
+    // Validate description if provided
+    if (sanitizedDto.description && sanitizedDto.description.length > 2000) {
+      throw this.errorHandlingService.createBusinessRuleError(
+        'Product description cannot exceed 2000 characters',
+        'INVALID_DESCRIPTION_LENGTH',
+        'description',
+        sanitizedDto.description?.length
+      );
+    }
+  }
+
+  /**
+   * Original validation method for backward compatibility
+   */
+  private async validateProductBusinessRules(createProductDto: CreateProductDto): Promise<void> {
+    await this.validateProductBusinessRulesEnhanced(createProductDto);
+  }
+
+  /**
+   * Calculate Levenshtein distance to check for similar names
+   */
+  private areNamesSimilar(name1: string, name2: string): boolean {
+    // Simple similarity check - can be enhanced with proper Levenshtein algorithm
+    const similarity = this.calculateSimilarity(name1.toLowerCase(), name2.toLowerCase());
+    return similarity > 0.8; // 80% similarity threshold
+  }
+
+  /**
+   * Calculate string similarity (simplified)
+   */
+  private calculateSimilarity(str1: string, str2: string): number {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+
+    if (longer.length === 0) return 1.0;
+
+    const editDistance = this.levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+  }
+
+  /**
+   * Calculate Levenshtein distance
+   */
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = Array(str2.length + 1).fill(null).map(() =>
+      Array(str1.length + 1).fill(null)
+    );
+
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1, // deletion
+          matrix[j - 1][i] + 1, // insertion
+          matrix[j - 1][i - 1] + indicator, // substitution
+        );
+      }
+    }
+
+    return matrix[str2.length][str1.length];
   }
 
   /**

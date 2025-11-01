@@ -11,6 +11,10 @@ import { PurchaseOrderController } from './purchase-order.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
+import { JwtStrategy } from '../authentication/jwt.strategy';
+import { LocalStrategy } from '../authentication/local.strategy';
+import { AuthService } from '../authentication/auth.service';
+import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
 import { CreateSupplierDto, SupplierStatus, PaymentTerms } from './dto/supplier.dto';
 import { CreatePurchaseOrderDto, PurchaseOrderStatus } from './dto/purchase-order.dto';
 import 'chai/register-should';
@@ -62,7 +66,7 @@ describe('Purchasing Module Integration Tests', () => {
         }),
       ],
       controllers: [SupplierController, PurchaseOrderController],
-      providers: [SupplierService, PurchaseOrderService],
+      providers: [SupplierService, PurchaseOrderService, AuthService, JwtStrategy, LocalStrategy],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -85,8 +89,8 @@ describe('Purchasing Module Integration Tests', () => {
     supplierService = moduleFixture.get<SupplierService>(SupplierService);
     purchaseOrderService = moduleFixture.get<PurchaseOrderService>(PurchaseOrderService);
 
-    // Create a test user and get auth token
-    authToken = await getTestAuthToken();
+    // Create a test user and get auth token using direct generation
+    authToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
   });
 
   // Cleanup after all tests
@@ -806,35 +810,8 @@ describe('Purchasing Module Integration Tests', () => {
    * Helper Functions
    */
 
-  async function getTestAuthToken(): Promise<string> {
-    // Create a test user with admin role
-    const testUser = {
-      email: 'purchasing-admin@test.com',
-      password: 'AdminPassword123!',
-      firstName: 'Purchasing',
-      lastName: 'Admin',
-      username: `purchasing-admin${Date.now()}`,
-    };
-
-    try {
-      // Register user
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send(testUser);
-    } catch (error) {
-      // User might already exist, continue with login
-    }
-
-    // Login to get token
-    const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({
-        email: testUser.email,
-        password: testUser.password,
-      });
-
-    return loginResponse.body.accessToken;
-  }
+  // NOTE: getTestAuthToken function replaced with AuthHelpers.createTestToken()
+// AuthHelpers provides standardized token creation with proper role management
 
   async function createTestSupplier(overrides?: Partial<CreateSupplierDto>): Promise<any> {
     const timestamp = Date.now();

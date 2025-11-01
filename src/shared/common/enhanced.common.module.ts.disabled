@@ -1,0 +1,39 @@
+import { Module } from '@nestjs/common';
+import { TransactionReferenceService } from './services/transaction-reference.service';
+import { ErrorHandlingService } from './services/error-handling.service';
+import { ConcurrencyControlService } from './services/concurrency-control.service';
+import { PrismaModule } from '../database/prisma.module';
+import { SecurityModule } from '../security/security.module';
+
+/**
+ * Enhanced Common Module
+ *
+ * Provides shared services for:
+ * - Transaction reference management
+ * - Error handling and standardization
+ * - Concurrency control and locking
+ * - API response standardization
+ *
+ * Follows SOLID principles:
+ * - Single Responsibility: Each service has one focused purpose
+ * - Open/Closed: Extensible through dependency injection
+ * - Interface Segregation: Focused service interfaces
+ * - Dependency Inversion: Depends on abstractions
+ */
+@Module({
+  imports: [
+    PrismaModule,
+    SecurityModule,
+  ],
+  providers: [
+    TransactionReferenceService,
+    ErrorHandlingService,
+    ConcurrencyControlService,
+  ],
+  exports: [
+    TransactionReferenceService,
+    ErrorHandlingService,
+    ConcurrencyControlService,
+  ],
+})
+export class EnhancedCommonModule {}

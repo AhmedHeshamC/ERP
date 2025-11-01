@@ -34,6 +34,7 @@ model User {
   conductedReviews SupplierPerformanceReview[] @relation("PerformanceReviewBy")
   scheduledReportDistributions ScheduledReportDistributionList[]
   userSubscriptions ReportSubscription[] @relation("UserSubscriptions")
+  resourceLocks ResourceLock[]
 
   @@map("users")
   @@index([email])
@@ -1149,4 +1150,26 @@ model TimesheetEntry {
   @@index([timesheetId])
   @@index([date])
   @@index([taskType])
+}
+
+// Resource Lock Management - For concurrency control
+model ResourceLock {
+  id          String   @id @default(cuid())
+  resourceType String  // e.g., 'order', 'product', 'invoice'
+  resourceId  String
+  lockType    String   // e.g., 'PESSIMISTIC', 'OPTIMISTIC'
+  userId      String?
+  expiresAt   DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@map("resource_locks")
+  @@unique([resourceType, resourceId, isActive])
+  @@index([resourceType, resourceId])
+  @@index([expiresAt])
+  @@index([isActive])
 }

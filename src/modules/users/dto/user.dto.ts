@@ -1,5 +1,6 @@
 import { IsEmail, IsString, IsOptional, IsEnum, MinLength, MaxLength, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 /**
  * Enterprise User DTOs with comprehensive validation
@@ -164,6 +165,11 @@ export class UserQueryDto {
     example: true,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   isActive?: boolean;
 
   @ApiPropertyOptional({
@@ -177,7 +183,26 @@ export class UserQueryDto {
   search?: string;
 
   @ApiPropertyOptional({
-    description: 'Number of items to skip',
+    description: 'Page number (1-based)',
+    example: 1,
+    minimum: 1,
+  })
+  @IsOptional()
+  @IsString({ message: 'Page must be a number string' })
+  page?: string;
+
+  @ApiPropertyOptional({
+    description: 'Number of items per page',
+    example: 10,
+    minimum: 1,
+    maximum: 100,
+  })
+  @IsOptional()
+  @IsString({ message: 'Limit must be a number string' })
+  limit?: string;
+
+  @ApiPropertyOptional({
+    description: 'Number of items to skip (alternative to page)',
     example: 0,
     minimum: 0,
   })
@@ -186,7 +211,7 @@ export class UserQueryDto {
   skip?: string;
 
   @ApiPropertyOptional({
-    description: 'Number of items to take',
+    description: 'Number of items to take (alternative to limit)',
     example: 10,
     minimum: 1,
     maximum: 100,
@@ -194,6 +219,22 @@ export class UserQueryDto {
   @IsOptional()
   @IsString({ message: 'Take must be a number string' })
   take?: string;
+
+  @ApiPropertyOptional({
+    description: 'Sort field',
+    example: 'email',
+  })
+  @IsOptional()
+  @IsString({ message: 'Sort field must be a string' })
+  sortBy?: string;
+
+  @ApiPropertyOptional({
+    description: 'Sort order',
+    example: 'asc',
+  })
+  @IsOptional()
+  @IsString({ message: 'Sort order must be a string' })
+  sortOrder?: string;
 }
 
 export class UserPasswordChangeDto {

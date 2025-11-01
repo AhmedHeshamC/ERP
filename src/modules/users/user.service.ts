@@ -117,6 +117,25 @@ export class UserService {
         throw error;
       }
 
+      // Handle Prisma unique constraint violations
+      if (error.code === 'P2002') {
+        const target = error.meta?.target as string[] || [];
+        const conflictField = target.includes('email') ? 'email' : 'username';
+
+        await this.securityService.logSecurityEvent(
+          'USER_CREATION_FAILED',
+          undefined,
+          'system',
+          'user-service',
+          {
+            reason: `User with ${conflictField} already exists`,
+            email: createUserDto.email,
+            conflictField
+          },
+        );
+        throw new ConflictException(`User with ${conflictField} already exists`);
+      }
+
       this.logger.error(`Failed to create user: ${error.message}`, error.stack);
       await this.securityService.logSecurityEvent(
         'USER_CREATION_ERROR',
@@ -136,7 +155,7 @@ export class UserService {
   async findById(id: string): Promise<UserResponse> {
     try {
       const user = await this.prismaService.user.findUnique({
-        where: { id },
+        where: { id, isActive: true },
         select: {
           id: true,
           email: true,
@@ -341,7 +360,7 @@ export class UserService {
    */
   async getUsers(query: UserQueryDto = {}): Promise<{ users: UserResponse[]; total: number }> {
     try {
-      const { role, isActive, search, skip = '0', take = '10' } = query;
+      const { role, isActive, search, skip = '0', take = '10', sortBy, sortOrder } = query;
 
       const where: any = {};
 
@@ -362,6 +381,16 @@ export class UserService {
         ];
       }
 
+      // Build sort order
+      let orderBy: any = { createdAt: 'desc' };
+      if (sortBy) {
+        const allowedSortFields = ['email', 'username', 'firstName', 'lastName', 'createdAt', 'updatedAt'];
+        if (allowedSortFields.includes(sortBy)) {
+          const direction = sortOrder === 'desc' ? 'desc' : 'asc';
+          orderBy = { [sortBy]: direction };
+        }
+      }
+
       const [users, total] = await Promise.all([
         this.prismaService.user.findMany({
           where,
@@ -380,7 +409,7 @@ export class UserService {
           },
           skip: parseInt(skip),
           take: Math.min(parseInt(take), 100), // Limit maximum results
-          orderBy: { createdAt: 'desc' },
+          orderBy,
         }),
         this.prismaService.user.count({ where }),
       ]);

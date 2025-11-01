@@ -96,6 +96,6 @@ export class CreateCustomerDto {
     example: 10000.00,
   })
   @IsOptional()
-  @IsDecimal({ decimal_places: '2' })
+  @IsDecimal({ decimal_digits: '2' })
   creditLimit?: number;
 }

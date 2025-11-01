@@ -9,6 +9,10 @@ import { ProductController } from './product.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
+import { JwtStrategy } from '../authentication/jwt.strategy';
+import { LocalStrategy } from '../authentication/local.strategy';
+import { AuthService } from '../authentication/auth.service';
+import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
 import { CreateProductDto, ProductStatus } from './dto/product.dto';
 import 'chai/register-should';
 import 'chai/register-expect';
@@ -58,7 +62,7 @@ describe('Inventory Module Integration Tests', () => {
         }),
       ],
       controllers: [ProductController],
-      providers: [ProductService],
+      providers: [ProductService, AuthService, JwtStrategy, LocalStrategy],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -80,8 +84,8 @@ describe('Inventory Module Integration Tests', () => {
     await prismaService.$connect();
     productService = moduleFixture.get<ProductService>(ProductService);
 
-    // Create a test user and get auth token
-    authToken = await getTestAuthToken();
+    // Create a test user and get auth token using direct generation
+    authToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
   });
 
   // Cleanup after all tests
@@ -466,8 +470,8 @@ describe('Inventory Module Integration Tests', () => {
     });
 
     it('should enforce RBAC for admin-only operations', async () => {
-      // Arrange - Create user token with limited permissions
-      const userToken = await getUserToken('USER');
+      // Arrange - Create user token with limited permissions using direct generation
+      const userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
 
       // Act & Assert - User should not be able to create products
       await request(app.getHttpServer())
@@ -631,63 +635,8 @@ describe('Inventory Module Integration Tests', () => {
    * Helper Functions
    */
 
-  async function getTestAuthToken(): Promise<string> {
-    // Create a test user with admin role
-    const testUser = {
-      email: 'admin@test.com',
-      password: 'AdminPassword123!',
-      firstName: 'Admin',
-      lastName: 'User',
-      username: `admin${Date.now()}`,
-    };
-
-    try {
-      // Register user
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send(testUser);
-    } catch (error) {
-      // User might already exist, continue with login
-    }
-
-    // Login to get token
-    const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({
-        email: testUser.email,
-        password: testUser.password,
-      });
-
-    return loginResponse.body.accessToken;
-  }
-
-  async function getUserToken(role: string): Promise<string> {
-    // Create a test user with specific role
-    const testUser = {
-      email: `${role.toLowerCase()}@test.com`,
-      password: 'UserPassword123!',
-      firstName: 'Test',
-      lastName: 'User',
-      username: `${role.toLowerCase()}${Date.now()}`,
-    };
-
-    try {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send(testUser);
-    } catch (error) {
-      // User might already exist
-    }
-
-    const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({
-        email: testUser.email,
-        password: testUser.password,
-      });
-
-    return loginResponse.body.accessToken;
-  }
+  // NOTE: getTestAuthToken() and getUserToken() functions replaced with AuthHelpers.createTestToken()
+// AuthHelpers provides standardized token creation for all roles
 
   async function createTestProduct(overrides?: Partial<CreateProductDto>): Promise<any> {
     const timestamp = Date.now();

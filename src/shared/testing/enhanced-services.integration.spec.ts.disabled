@@ -1,0 +1,406 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { expect, assert } from 'chai';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaService } from '../../shared/database/prisma.service';
+import { SecurityService } from '../../shared/security/security.service';
+import { TransactionReferenceService, TransactionType } from '../../shared/common/services/transaction-reference.service';
+import { ConcurrencyControlService, LockType } from '../../shared/common/services/concurrency-control.service';
+import { ErrorHandlingService } from '../../shared/common/services/error-handling.service';
+import { ApiResponseBuilder } from '../../shared/common/interfaces/api-response.interface';
+
+/**
+ * Enhanced Services Integration Tests
+ *
+ * Tests the enhanced ERP services with PostgreSQL database
+ * Validates transaction reference generation, concurrency control, and error handling
+ * OWASP Top 10 compliance testing for all enhanced services
+ */
+describe('Enhanced Services Integration Tests', () => {
+  let module: TestingModule;
+  let prismaService: PrismaService;
+  let securityService: SecurityService;
+  let transactionReferenceService: TransactionReferenceService;
+  let concurrencyControlService: ConcurrencyControlService;
+  let errorHandlingService: ErrorHandlingService;
+
+  before(async () => {
+    module = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          load: [
+            () => ({
+              DATABASE_URL: 'postgresql://erp_test_user:test_password_change_me@localhost:5433/erp_test_db',
+              JWT_SECRET: 'test-jwt-secret-key',
+              JWT_REFRESH_SECRET: 'test-jwt-refresh-secret-key',
+              JWT_EXPIRES_IN: '1h',
+              JWT_REFRESH_EXPIRES_IN: '7d',
+              LOG_LEVEL: 'error',
+              NODE_ENV: 'test',
+            })
+          ],
+        }),
+      ],
+      providers: [
+        PrismaService,
+        SecurityService,
+        TransactionReferenceService,
+        ConcurrencyControlService,
+        ErrorHandlingService,
+      ],
+    }).compile();
+
+    prismaService = module.get<PrismaService>(PrismaService);
+    securityService = module.get<SecurityService>(SecurityService);
+    transactionReferenceService = module.get<TransactionReferenceService>(TransactionReferenceService);
+    concurrencyControlService = module.get<ConcurrencyControlService>(ConcurrencyControlService);
+    errorHandlingService = module.get<ErrorHandlingService>(ErrorHandlingService);
+  });
+
+  after(async () => {
+    await module.close();
+    await prismaService.$disconnect();
+  });
+
+  beforeEach(async () => {
+    // Clean up test data
+    await prismaService.resourceLock.deleteMany();
+    await prismaService.stockMovement.deleteMany();
+    await prismaService.transaction.deleteMany();
+  });
+
+  describe('Transaction Reference Service', () => {
+    it('should generate unique transaction references', async () => {
+      // Test reference generation for different transaction types
+      const salesOrderRef = await transactionReferenceService.generateTransactionReference(TransactionType.SALES_ORDER);
+      const invoiceRef = await transactionReferenceService.generateTransactionReference(TransactionType.INVOICE);
+      const purchaseOrderRef = await transactionReferenceService.generateTransactionReference(TransactionType.PURCHASE_ORDER);
+
+      expect(salesOrderRef).to.match(/^SO/);
+      expect(invoiceRef).to.match(/^INV/);
+      expect(purchaseOrderRef).to.match(/^PO/);
+
+      // Verify uniqueness
+      expect(salesOrderRef).to.not.equal(invoiceRef);
+      expect(invoiceRef).to.not.equal(purchaseOrderRef);
+      expect(salesOrderRef).to.not.equal(purchaseOrderRef);
+    });
+
+    it('should validate transaction references correctly', async () => {
+      const validRef = await transactionReferenceService.generateTransactionReference(TransactionType.SALES_ORDER);
+      const validationResult = await transactionReferenceService.validateTransactionReference(validRef, TransactionType.SALES_ORDER);
+
+      expect(validationResult.isValid).to.be.true;
+      expect(validationResult.reference).to.equal(validRef);
+      expect(validationResult.type).to.equal('SALES_ORDER');
+      expect(validationResult.errors).to.be.undefined;
+    });
+
+    it('should detect invalid transaction references', async () => {
+      const invalidRef = 'INVALID_REF_123';
+      const validationResult = await transactionReferenceService.validateTransactionReference(invalidRef, TransactionType.SALES_ORDER);
+
+      expect(validationResult.isValid).to.be.false;
+      expect(validationResult.errors).to.exist;
+      expect(validationResult.errors!.length).to.be.greaterThan(0);
+    });
+
+    it('should prevent duplicate transaction references', async () => {
+      const ref = await transactionReferenceService.generateTransactionReference(TransactionType.SALES_ORDER);
+
+      // Check if reference is unique
+      const isUnique = await transactionReferenceService.isReferenceUnique(ref);
+      expect(isUnique).to.be.true;
+    });
+
+    it('should provide transaction reference statistics', async () => {
+      const stats = await transactionReferenceService.getReferenceStatistics();
+
+      expect(stats).to.exist;
+      expect(stats.totalReferences).to.exist;
+      expect(typeof stats.totalReferences).to.equal('number');
+      expect(stats.cacheSize).to.exist;
+      expect(typeof stats.cacheSize).to.equal('number');
+    });
+  });
+
+  describe('Concurrency Control Service', () => {
+    it('should acquire and release locks correctly', async () => {
+      const resourceType = 'Product';
+      const resourceId = 'test-product-1';
+      const ownerId = 'test-user-1';
+
+      const lock = await concurrencyControlService.acquireLock(resourceType, resourceId, ownerId);
+
+      expect(lock).to.exist;
+      expect(lock.resourceType).to.equal(resourceType);
+      expect(lock.resourceId).to.equal(resourceId);
+      expect(lock.ownerId).to.equal(ownerId);
+      expect(lock.lockType).to.equal(LockType.EXCLUSIVE);
+
+      // Check if resource is locked
+      const isLocked = await concurrencyControlService.isLocked(resourceType, resourceId);
+      expect(isLocked).to.be.true;
+
+      // Release lock
+      await concurrencyControlService.releaseLock(lock.id);
+
+      // Check if resource is unlocked
+      const isLockedAfterRelease = await concurrencyControlService.isLocked(resourceType, resourceId);
+      expect(isLockedAfterRelease).to.be.false;
+    });
+
+    it('should prevent concurrent access to locked resources', async () => {
+      const resourceType = 'Product';
+      const resourceId = 'test-product-2';
+      const owner1 = 'test-user-1';
+      const owner2 = 'test-user-2';
+
+      // First user acquires lock
+      const lock1 = await concurrencyControlService.acquireLock(resourceType, resourceId, owner1);
+      expect(lock1).to.exist;
+
+      // Second user should not be able to acquire lock
+      try {
+        await concurrencyControlService.acquireLock(resourceType, resourceId, owner2);
+        assert.fail('Expected an error to be thrown');
+      } catch (error) {
+        expect(error.message).to.include('Resource is locked by another user');
+      }
+
+      // Release first lock
+      await concurrencyControlService.releaseLock(lock1.id);
+
+      // Second user should now be able to acquire lock
+      const lock2 = await concurrencyControlService.acquireLock(resourceType, resourceId, owner2);
+      expect(lock2).to.exist;
+      expect(lock2.ownerId).to.equal(owner2);
+
+      // Cleanup
+      await concurrencyControlService.releaseLock(lock2.id);
+    });
+
+    it('should handle lock expiration gracefully', async () => {
+      const resourceType = 'Product';
+      const resourceId = 'test-product-3';
+      const ownerId = 'test-user-1';
+      const timeout = 100; // 100ms timeout
+
+      const lock = await concurrencyControlService.acquireLock(resourceType, resourceId, ownerId, { timeout });
+      expect(lock).to.exist;
+
+      // Wait for lock to expire
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Should be able to acquire lock again after expiration
+      const newLock = await concurrencyControlService.acquireLock(resourceType, resourceId, 'new-user');
+      expect(newLock).to.exist;
+
+      // Cleanup
+      await concurrencyControlService.releaseLock(newLock.id);
+    });
+
+    it('should execute operations with automatic locking', async () => {
+      const resourceType = 'Product';
+      const resourceId = 'test-product-4';
+      const ownerId = 'test-user-1';
+
+      let operationExecuted = false;
+
+      const result = await concurrencyControlService.withLock(
+        resourceType,
+        resourceId,
+        ownerId,
+        async () => {
+          operationExecuted = true;
+          return 'operation-result';
+        }
+      );
+
+      expect(result).to.equal('operation-result');
+      expect(operationExecuted).to.be.true;
+
+      // Lock should be automatically released
+      const isLocked = await concurrencyControlService.isLocked(resourceType, resourceId);
+      expect(isLocked).to.be.false;
+    });
+
+    it('should provide lock statistics', async () => {
+      const stats = await concurrencyControlService.getLockStatistics();
+
+      expect(stats).to.exist;
+      expect(stats.activeLocks).to.exist;
+      expect(typeof stats.activeLocks).to.equal('number');
+      expect(stats.locksByType).to.exist;
+      expect(typeof stats.locksByType).to.equal('object');
+    });
+  });
+
+  describe('Error Handling Service', () => {
+    it('should process errors into standardized responses', async () => {
+      const error = new Error('Test error');
+      const context = {
+        userId: 'test-user',
+        requestId: 'test-request',
+        endpoint: '/api/v1/test',
+        method: 'POST',
+        ip: '127.0.0.1',
+      };
+
+      const result = errorHandlingService.processError(error, context);
+
+      expect(result).to.exist;
+      expect(result.response).to.exist;
+      expect(result.statusCode).to.exist;
+      expect(result.shouldLog).to.exist;
+      expect(result.response.success).to.be.false;
+      expect(result.response.message).to.exist;
+    });
+
+    it('should create business rule errors', () => {
+      const businessError = errorHandlingService.createBusinessRuleError(
+        'Test business rule violation',
+        'BUSINESS_RULE_VIOLATION',
+        'testField',
+        'testValue'
+      );
+
+      expect(businessError).to.exist;
+      expect(businessError.code).to.equal('BUSINESS_RULE_VIOLATION');
+      expect(businessError.field).to.equal('testField');
+      expect(businessError.value).to.equal('testValue');
+    });
+
+    it('should create concurrency errors', () => {
+      const concurrencyError = errorHandlingService.createConcurrencyError(
+        'Product',
+        'test-product-1',
+        1,
+        2
+      );
+
+      expect(concurrencyError).to.exist;
+      expect(concurrencyError.entityType).to.equal('Product');
+      expect(concurrencyError.entityId).to.equal('test-product-1');
+      expect(concurrencyError.currentVersion).to.equal(1);
+      expect(concurrencyError.attemptedVersion).to.equal(2);
+    });
+  });
+
+  describe('Enhanced Services Integration', () => {
+    it('should work together in a complete workflow', async () => {
+      // Start a transaction workflow
+      const transactionRef = await transactionReferenceService.generateTransactionReference(
+        TransactionType.STOCK_MOVEMENT
+      );
+      expect(transactionRef).to.match(/^STM/);
+
+      // Lock a product for stock adjustment
+      const productId = 'test-product-workflow';
+      const userId = 'test-user-workflow';
+
+      const lock = await concurrencyControlService.acquireLock('Product', productId, userId);
+      expect(lock.resourceId).to.equal(productId);
+
+      try {
+        // Simulate stock movement operation
+        const movementResult = { reference: transactionRef, quantity: 10, type: 'IN' };
+        expect(movementResult.reference).to.equal(transactionRef);
+
+        // Validate the transaction reference
+        const validation = await transactionReferenceService.validateTransactionReference(
+          transactionRef,
+          TransactionType.STOCK_MOVEMENT
+        );
+        expect(validation.isValid).to.be.true;
+
+      } finally {
+        // Always release the lock
+        await concurrencyControlService.releaseLock(lock.id);
+      }
+
+      // Verify lock is released
+      const isLocked = await concurrencyControlService.isLocked('Product', productId);
+      expect(isLocked).to.be.false;
+    });
+
+    it('should handle errors gracefully in workflow', async () => {
+      const resourceType = 'Product';
+      const resourceId = 'test-product-error';
+      const userId = 'test-user-error';
+
+      // Create a scenario that will cause an error
+      await concurrencyControlService.acquireLock(resourceType, resourceId, userId);
+
+      try {
+        // Try to acquire lock again - should fail
+        try {
+          await concurrencyControlService.acquireLock(resourceType, resourceId, 'another-user');
+          assert.fail('Expected an error to be thrown');
+        } catch (error) {
+          expect(error).to.exist;
+        }
+
+        // Process the error through error handling service
+        const error = new Error('Resource is locked by another user');
+        const errorResult = errorHandlingService.processError(error, {
+          userId: 'another-user',
+          endpoint: '/api/v1/products/lock',
+          method: 'POST',
+        });
+
+        expect(errorResult.response.success).to.be.false;
+        expect(errorResult.shouldLog).to.be.true;
+
+      } finally {
+        // Release the lock
+        const activeLock = await concurrencyControlService.getActiveLock(resourceType, resourceId);
+        if (activeLock) {
+          await concurrencyControlService.releaseLock(activeLock.id);
+        }
+      }
+    });
+  });
+
+  describe('Database Operations with Enhanced Services', () => {
+    it('should persist and retrieve resource locks correctly', async () => {
+      const resourceType = 'Product';
+      const resourceId = 'test-product-db';
+      const userId = 'test-user-db';
+
+      // Acquire lock
+      const lock = await concurrencyControlService.acquireLock(resourceType, resourceId, userId);
+
+      // Verify lock exists in database
+      const dbLock = await prismaService.resourceLock.findUnique({
+        where: { id: lock.id }
+      });
+
+      expect(dbLock).to.exist;
+      expect(dbLock!.resourceType).to.equal(resourceType);
+      expect(dbLock!.resourceId).to.equal(resourceId);
+      expect(dbLock!.userId).to.equal(userId);
+
+      // Release lock
+      await concurrencyControlService.releaseLock(lock.id);
+
+      // Verify lock is removed from database
+      const deletedLock = await prismaService.resourceLock.findUnique({
+        where: { id: lock.id }
+      });
+
+      expect(deletedLock).to.be.null;
+    });
+
+    it('should handle database transaction conflicts gracefully', async () => {
+      // Create a test transaction
+      const transactionRef = await transactionReferenceService.generateTransactionReference(
+        TransactionType.JOURNAL_ENTRY
+      );
+
+      // Verify the reference is unique in database
+      const isUnique = await transactionReferenceService.isReferenceUnique(transactionRef);
+      expect(isUnique).to.be.true;
+    });
+  });
+});

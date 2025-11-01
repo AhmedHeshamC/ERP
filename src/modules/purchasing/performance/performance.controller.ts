@@ -46,7 +46,7 @@ export class SupplierPerformanceController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create supplier performance record' })
-  @ApiResponse({ status: 201, description: 'Performance record created successfully', type: SupplierPerformanceResponse })
+  @ApiResponse({ status: 201, description: 'Performance record created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 404, description: 'Supplier not found' })
   @ApiResponse({ status: 409, description: 'Performance record already exists' })
@@ -68,7 +68,7 @@ export class SupplierPerformanceController {
    */
   @Get()
   @ApiOperation({ summary: 'Get supplier performance records' })
-  @ApiResponse({ status: 200, description: 'Performance records retrieved successfully', type: SupplierPerformanceQueryResponse })
+  @ApiResponse({ status: 200, description: 'Performance records retrieved successfully' })
   @ApiQuery({ name: 'supplierId', required: false, description: 'Filter by supplier ID' })
   @ApiQuery({ name: 'period', required: false, description: 'Filter by period (YYYY-MM)' })
   @ApiQuery({ name: 'tier', required: false, description: 'Filter by supplier tier', enum: ['PREFERRED', 'APPROVED', 'STANDARD', 'CONDITIONAL', 'UNDER_REVIEW'] })
@@ -90,7 +90,7 @@ export class SupplierPerformanceController {
    */
   @Get(':id')
   @ApiOperation({ summary: 'Get supplier performance by ID' })
-  @ApiResponse({ status: 200, description: 'Performance record found', type: SupplierPerformanceResponse })
+  @ApiResponse({ status: 200, description: 'Performance record found' })
   @ApiResponse({ status: 404, description: 'Performance record not found' })
   @ApiParam({ name: 'id', description: 'Performance record ID' })
   async getPerformanceById(@Param('id') id: string): Promise<SupplierPerformanceResponse> {
@@ -109,7 +109,7 @@ export class SupplierPerformanceController {
    */
   @Put(':id')
   @ApiOperation({ summary: 'Update supplier performance record' })
-  @ApiResponse({ status: 200, description: 'Performance record updated successfully', type: SupplierPerformanceResponse })
+  @ApiResponse({ status: 200, description: 'Performance record updated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 404, description: 'Performance record not found' })
   @ApiParam({ name: 'id', description: 'Performance record ID' })
@@ -132,7 +132,7 @@ export class SupplierPerformanceController {
    */
   @Get('analytics/dashboard')
   @ApiOperation({ summary: 'Get performance analytics dashboard' })
-  @ApiResponse({ status: 200, description: 'Performance analytics retrieved successfully', type: PerformanceAnalyticsResponse })
+  @ApiResponse({ status: 200, description: 'Performance analytics retrieved successfully' })
   async getAnalytics(): Promise<PerformanceAnalyticsResponse> {
     return this.supplierPerformanceService.calculatePerformanceAnalytics();
   }

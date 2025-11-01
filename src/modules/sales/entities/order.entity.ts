@@ -56,7 +56,7 @@ export class Order {
   public totalAmount: number;
   public readonly currency: string;
   public status: OrderStatus;
-  public readonly isActive: boolean;
+  public isActive: boolean;
   public readonly items: OrderItem[];
   public readonly taxRate: number;
   public readonly shippingAddress?: Address;

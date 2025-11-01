@@ -9,6 +9,11 @@ import { UserController } from './user.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
+import { JwtStrategy } from '../authentication/jwt.strategy';
+import { LocalStrategy } from '../authentication/local.strategy';
+import { AuthService } from '../authentication/auth.service';
+import { AuthController } from '../authentication/auth.controller';
+import { AuthHelpers } from '../../shared/testing/auth-helpers';
 import {
   CreateUserDto,
   UpdateUserDto,
@@ -17,6 +22,13 @@ import {
 } from './dto/user.dto';
 import 'chai/register-should';
 import 'chai/register-expect';
+
+// Declare Mocha globals for TypeScript
+declare var before: any;
+declare var after: any;
+declare var beforeEach: any;
+declare var afterEach: any;
+declare var afterAll: any;
 
 /**
  * Users Module Integration Tests
@@ -65,8 +77,8 @@ describe('Users Module Integration Tests', () => {
           signOptions: { expiresIn: '1h' },
         }),
       ],
-      controllers: [UserController],
-      providers: [UserService],
+      controllers: [UserController, AuthController],
+      providers: [UserService, AuthService, JwtStrategy, LocalStrategy],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -88,10 +100,10 @@ describe('Users Module Integration Tests', () => {
     await prismaService.$connect();
     userService = moduleFixture.get<UserService>(UserService);
 
-    // Create test users with different roles
-    adminToken = await getTestAuthToken(UserRole.ADMIN);
-    managerToken = await getTestAuthToken(UserRole.MANAGER);
-    userToken = await getTestAuthToken(UserRole.USER);
+    // Create test users with different roles using direct generation
+    adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
+    userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
   });
 
   // Cleanup after all tests
@@ -107,6 +119,11 @@ describe('Users Module Integration Tests', () => {
 
   // Clean up test data before each test
   beforeEach(async () => {
+    await cleanupTestData();
+  });
+
+  // Additional comprehensive cleanup before any test runs
+  before(async () => {
     await cleanupTestData();
   });
 
@@ -403,12 +420,13 @@ describe('Users Module Integration Tests', () => {
       // Assert
       expect(response.body).to.have.property('success', true);
       expect(response.body).to.have.property('data');
-      expect(response.body).to.have.property('pagination');
-      expect(response.body.data).to.be.an('array');
-      expect(response.body.pagination.page).to.equal(1);
-      expect(response.body.pagination.limit).to.equal(5);
-      expect(response.body.pagination.total).to.be.greaterThan(0);
-      expect(response.body.data.length).to.be.lessThanOrEqual(5);
+      expect(response.body.data).to.have.property('pagination');
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data.users).to.be.an('array');
+      expect(response.body.data.pagination.page).to.equal(1);
+      expect(response.body.data.pagination.limit).to.equal(5);
+      expect(response.body.data.pagination.total).to.be.greaterThan(0);
+      expect(response.body.data.users.length).to.be.lessThanOrEqual(5);
     });
 
     it('should filter users by role', async () => {
@@ -419,9 +437,10 @@ describe('Users Module Integration Tests', () => {
         .expect(200);
 
       // Assert
-      expect(response.body.data).to.be.an('array');
-      if (response.body.data.length > 0) {
-        response.body.data.forEach((user: any) => {
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data.users).to.be.an('array');
+      if (response.body.data.users.length > 0) {
+        response.body.data.users.forEach((user: any) => {
           expect(user.role).to.equal('USER');
         });
       }
@@ -435,9 +454,10 @@ describe('Users Module Integration Tests', () => {
         .expect(200);
 
       // Assert
-      expect(response.body.data).to.be.an('array');
-      if (response.body.data.length > 0) {
-        response.body.data.forEach((user: any) => {
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data.users).to.be.an('array');
+      if (response.body.data.users.length > 0) {
+        response.body.data.users.forEach((user: any) => {
           expect(user.isActive).to.be.true;
         });
       }
@@ -451,9 +471,10 @@ describe('Users Module Integration Tests', () => {
         .expect(200);
 
       // Assert
-      expect(response.body.data).to.be.an('array');
-      if (response.body.data.length > 0) {
-        response.body.data.forEach((user: any) => {
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data.users).to.be.an('array');
+      if (response.body.data.users.length > 0) {
+        response.body.data.users.forEach((user: any) => {
           const fullName = `${user.firstName} ${user.lastName}`.toLowerCase();
           expect(fullName).to.include('john');
         });
@@ -468,9 +489,10 @@ describe('Users Module Integration Tests', () => {
         .expect(200);
 
       // Assert
-      expect(response.body.data).to.be.an('array');
-      if (response.body.data.length > 0) {
-        response.body.data.forEach((user: any) => {
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data.users).to.be.an('array');
+      if (response.body.data.users.length > 0) {
+        response.body.data.users.forEach((user: any) => {
           expect(user.email).to.include('@test.com');
         });
       }
@@ -484,10 +506,10 @@ describe('Users Module Integration Tests', () => {
         .expect(200);
 
       // Assert
-      expect(response.body.data).to.be.an('array');
-      if (response.body.data.length > 1) {
-        for (let i = 1; i < response.body.data.length; i++) {
-          expect(response.body.data[i-1].email).to.be.lessThanOrEqual(response.body.data[i].email);
+      expect(response.body.data.users).to.be.an('array');
+      if (response.body.data.users.length > 1) {
+        for (let i = 1; i < response.body.data.users.length; i++) {
+          expect(response.body.data.users[i-1].email <= response.body.data.users[i].email).to.be.true;
         }
       }
     });
@@ -510,10 +532,10 @@ describe('Users Module Integration Tests', () => {
 
       // Act
       const response = await request(app.getHttpServer())
-        .put(`/users/${testUser.id}/password`)
+        .post(`/users/${testUser.id}/change-password`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send(passwordChangeData)
-        .expect(200);
+        .expect(201);
 
       // Assert
       expect(response.body).to.have.property('success', true);
@@ -785,16 +807,16 @@ describe('Users Module Integration Tests', () => {
         role: UserRole.USER,
       };
 
-      // Act
+      // Act - XSS should be blocked by validation
       const response = await request(app.getHttpServer())
         .post('/users')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send(maliciousUserData)
-        .expect(201);
+        .send(maliciousUserData);
 
-      // Assert - XSS should be sanitized
-      expect(response.body.data.firstName).to.not.include('<script>');
-      expect(response.body.data.firstName).to.include('Malicious');
+      // Assert - XSS should be rejected by validation
+      expect(response.status).to.equal(400);
+      expect(response.body).to.have.property('message');
+      // The request should be rejected due to validation rules against script tags
     });
 
     it('should prevent SQL injection in search parameters', async () => {
@@ -808,7 +830,8 @@ describe('Users Module Integration Tests', () => {
         .expect(200);
 
       // Assert - Should return empty array or handle gracefully, not crash
-      expect(response.body.data).to.be.an('array');
+      expect(response.body.data).to.have.property('users');
+      expect(response.body.data.users).to.be.an('array');
 
       // Verify users table still exists
       const users = await request(app.getHttpServer())
@@ -887,12 +910,16 @@ describe('Users Module Integration Tests', () => {
 
       const results = await Promise.allSettled(creationPromises);
 
-      // Assert - One should succeed, one should fail
-      const successfulCreations = results.filter(r => r.status === 'fulfilled');
-      const failedCreations = results.filter(r => r.status === 'rejected');
+      // Assert - One should succeed (201), one should fail with conflict (409)
+      const successfulCreations = results.filter(r =>
+        r.status === 'fulfilled' && r.value.status === 201
+      );
+      const conflictResponses = results.filter(r =>
+        r.status === 'fulfilled' && r.value.status === 409
+      );
 
       expect(successfulCreations.length).to.equal(1);
-      expect(failedCreations.length).to.equal(1);
+      expect(conflictResponses.length).to.equal(1);
 
       // Verify only one user was created
       const users = await request(app.getHttpServer())
@@ -900,7 +927,7 @@ describe('Users Module Integration Tests', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      const usersWithEmail = users.body.data.filter((u: any) => u.email === commonEmail);
+      const usersWithEmail = users.body.data.users.filter((u: any) => u.email === commonEmail);
       expect(usersWithEmail.length).to.equal(1);
     });
 
@@ -909,8 +936,8 @@ describe('Users Module Integration Tests', () => {
       const user = await createTestUser();
 
       const updateDatas = [
-        { firstName: 'Concurrent Update 1', lastName: 'Test' },
-        { firstName: 'Concurrent Update 2', lastName: 'Test' },
+        { firstName: 'ConcurrentFirst', lastName: 'Test' },
+        { firstName: 'ConcurrentSecond', lastName: 'Test' },
       ];
 
       // Act - Update user concurrently
@@ -923,6 +950,7 @@ describe('Users Module Integration Tests', () => {
 
       const results = await Promise.allSettled(updatePromises);
 
+      
       // Assert - Both should complete (last update wins)
       const successfulUpdates = results.filter(r => r.status === 'fulfilled');
       expect(successfulUpdates.length).to.equal(2);
@@ -933,9 +961,10 @@ describe('Users Module Integration Tests', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
+      
       expect(finalUser.body.firstName).to.be.oneOf([
-        'Concurrent Update 1',
-        'Concurrent Update 2',
+        'ConcurrentFirst',
+        'ConcurrentSecond',
       ]);
     });
   });
@@ -944,47 +973,8 @@ describe('Users Module Integration Tests', () => {
    * Helper Functions
    */
 
-  async function getTestAuthToken(role: UserRole): Promise<string> {
-    const testUser = {
-      email: `${role.toLowerCase()}.test@test.com`,
-      password: 'TestPassword123!',
-      firstName: role.charAt(0) + role.slice(1).toLowerCase(),
-      lastName: 'Test User',
-      username: `${role.toLowerCase()}_test_${Date.now()}`,
-    };
-
-    try {
-      // Register user through auth endpoint
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send(testUser);
-    } catch (error) {
-      // User might already exist, continue with login
-    }
-
-    // Login to get token
-    const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({
-        email: testUser.email,
-        password: testUser.password,
-      });
-
-    // Update user role if needed (and user has sufficient permissions)
-    if (role !== UserRole.USER && adminToken) {
-      try {
-        await request(app.getHttpServer())
-          .put(`/users/${loginResponse.body.user.id}`)
-          .set('Authorization', `Bearer ${adminToken}`)
-          .send({ role });
-      } catch (error) {
-        // Role update might fail if permissions are insufficient
-        console.log('Could not update user role:', error.message);
-      }
-    }
-
-    return loginResponse.body.accessToken;
-  }
+  // NOTE: getTestAuthToken function replaced with AuthHelpers.createTestToken()
+// The AuthHelpers automatically handles role assignment during user creation
 
   async function createTestUser(overrides?: Partial<CreateUserDto>): Promise<any> {
     const timestamp = Date.now();
@@ -1044,10 +1034,13 @@ describe('Users Module Integration Tests', () => {
 
   async function cleanupTestData(): Promise<void> {
     try {
-      // Clean up test users created through the API
-      await prismaService.user.deleteMany({
+      console.log('Starting users module cleanup...');
+
+      // Get all test users first
+      const testUsers = await prismaService.user.findMany({
         where: {
           OR: [
+            // Users test patterns
             { email: { startsWith: 'testuser' } },
             { email: { startsWith: 'rbac.test' } },
             { email: { startsWith: 'xss.test' } },
@@ -1064,11 +1057,98 @@ describe('Users Module Integration Tests', () => {
             { username: { startsWith: 'johndoe' } },
             { username: { startsWith: 'janesmith' } },
             { username: { startsWith: 'bobwilson' } },
-          ],
+
+            // Auth test patterns (to clean up cross-module interference)
+            { email: { contains: '@example.com' } },
+            { email: { contains: 'logintest' } },
+            { email: { contains: 'jwttest' } },
+            { email: { contains: 'duplicate-' } },
+            { email: { contains: 'test-' } },
+            { username: { startsWith: 'login' } },
+            { username: { startsWith: 'jwt' } },
+            { username: { startsWith: 'john' } },
+            { username: { startsWith: 'jane' } },
+
+            // Generic test patterns
+            { email: { contains: 'test' } },
+            { username: { contains: 'test' } },
+          ]
         },
+        select: { id: true }
       });
+
+      if (testUsers.length > 0) {
+        const userIds = testUsers.map(user => user.id);
+
+        // Clean up in correct order respecting foreign key constraints
+        console.log(`Cleaning up ${testUsers.length} test users and related data...`);
+
+        // 1. Sessions first
+        await prismaService.session.deleteMany({
+          where: { userId: { in: userIds } }
+        });
+
+        // 2. Clean up any business data that might reference users
+        // Note: Product, Customer, Supplier models don't have userId fields
+        // They can be cleaned up by test patterns instead
+
+        // 3. Clean up accounting data if it exists
+        try {
+          // Clean up journal entries that reference transactions
+          await prismaService.journalEntry.deleteMany({
+            where: {
+              transaction: {
+                reference: { startsWith: 'TX-' }
+              }
+            }
+          });
+
+          // Clean up transactions
+          await prismaService.transaction.deleteMany({
+            where: { reference: { startsWith: 'TX-' } }
+          });
+
+          // Clean up chart of accounts
+          await prismaService.chartOfAccounts.deleteMany({
+            where: { id: { startsWith: 'test-account-' } }
+          });
+        } catch (accountingError) {
+          console.log('Accounting cleanup error (expected if no accounting tables):', accountingError.message);
+        }
+
+        // 4. Finally clean up the users
+        await prismaService.user.deleteMany({
+          where: { id: { in: userIds } }
+        });
+
+        console.log(`Users cleanup completed. Removed ${testUsers.length} test users.`);
+      }
     } catch (error) {
-      console.log('Cleanup error:', error.message);
+      console.log('Users cleanup error:', error.message);
     }
   }
+
+  // Add the missing cleanup hooks
+  after(async () => {
+    console.log('Running afterAll cleanup for users module...');
+    await cleanupTestData();
+
+    // Close database connection
+    if (prismaService) {
+      await prismaService.$disconnect();
+    }
+
+    // Close the app
+    if (app) {
+      await app.close();
+    }
+
+    await cleanupIntegrationTest();
+  });
+
+  afterEach(async () => {
+    // Optional: Run cleanup after each test for better isolation
+    // Comment this out for performance, uncomment for debugging
+    // await cleanupTestData();
+  });
 });

@@ -58,7 +58,6 @@ export class ScheduledReportsController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'Scheduled report created successfully',
-    type: ScheduledReportResponse,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -88,7 +87,6 @@ export class ScheduledReportsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Scheduled reports retrieved successfully',
-    type: ScheduledReportQueryResponse,
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
@@ -120,8 +118,7 @@ export class ScheduledReportsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Scheduled report retrieved successfully',
-    type: ScheduledReportResponse,
-  })
+      })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Scheduled report not found',
@@ -147,8 +144,7 @@ export class ScheduledReportsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Scheduled report updated successfully',
-    type: ScheduledReportResponse,
-  })
+      })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',
@@ -180,8 +176,7 @@ export class ScheduledReportsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Report execution triggered successfully',
-    type: ScheduledReportExecutionResponse,
-  })
+      })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Scheduled report not found',
@@ -212,8 +207,7 @@ export class ScheduledReportsController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Execution history retrieved successfully',
-    type: [ScheduledReportExecutionResponse],
-  })
+      })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Scheduled report not found',
@@ -239,8 +233,7 @@ export class ScheduledReportsController {
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: 'User added to distribution list successfully',
-    type: DistributionListResponse,
-  })
+      })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',

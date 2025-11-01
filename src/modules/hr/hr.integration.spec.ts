@@ -13,6 +13,10 @@ import { PayrollController } from './controllers/payroll.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
+import { JwtStrategy } from '../authentication/jwt.strategy';
+import { LocalStrategy } from '../authentication/local.strategy';
+import { AuthService } from '../authentication/auth.service';
+import { AuthHelpers, UserRole } from '../../shared/testing/auth-helpers';
 import {
   CreateEmployeeDto,
   EmploymentType,
@@ -78,7 +82,7 @@ describe('HR Module Integration Tests', () => {
         }),
       ],
       controllers: [EmployeeController, LeaveRequestController, PayrollController],
-      providers: [EmployeeService, LeaveRequestService, PayrollService],
+      providers: [EmployeeService, LeaveRequestService, PayrollService, AuthService, JwtStrategy, LocalStrategy],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -102,10 +106,10 @@ describe('HR Module Integration Tests', () => {
     leaveRequestService = moduleFixture.get<LeaveRequestService>(LeaveRequestService);
     payrollService = moduleFixture.get<PayrollService>(PayrollService);
 
-    // Create test users with different roles
-    adminToken = await getTestAuthToken('ADMIN');
-    managerToken = await getTestAuthToken('MANAGER');
-    employeeToken = await getTestAuthToken('USER');
+    // Create test users with different roles using direct token generation
+    adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
+    employeeToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
   });
 
   // Cleanup after all tests
@@ -1035,32 +1039,7 @@ describe('HR Module Integration Tests', () => {
    * Helper Functions
    */
 
-  async function getTestAuthToken(role: string): Promise<string> {
-    const testUser = {
-      email: `${role.toLowerCase()}-hr@test.com`,
-      password: 'HrPassword123!',
-      firstName: role.charAt(0) + role.slice(1).toLowerCase(),
-      lastName: 'HR Test User',
-      username: `${role.toLowerCase()}-hr${Date.now()}`,
-    };
-
-    try {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send(testUser);
-    } catch (error) {
-      // User might already exist
-    }
-
-    const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({
-        email: testUser.email,
-        password: testUser.password,
-      });
-
-    return loginResponse.body.accessToken;
-  }
+  // NOTE: getTestAuthToken function replaced with AuthHelpers.createTestToken()
 
   async function createTestUser(role: string): Promise<any> {
     const timestamp = Date.now();

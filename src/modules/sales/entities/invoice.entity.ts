@@ -53,37 +53,43 @@ export interface InvoiceData {
   billingAddress?: Address;
   notes?: string;
   expectedDeliveryDate?: Date;
+  confirmedAt?: Date;
+  paidAt?: Date;
+  deliveredAt?: Date;
+  cancelledAt?: Date;
+  cancellationReason?: string;
 }
 
 export class Invoice {
-  public readonly id?: string;
-  public readonly invoiceNumber: string;
-  public readonly orderId?: string;
-  public readonly customerId: string;
+  public id?: string;
+  public invoiceNumber: string;
+  public orderId?: string;
+  public customerId: string;
   public description: string;
-  public readonly dueDate: Date;
-  public readonly subtotal: number;
-  public readonly taxAmount: number;
+  public dueDate: Date;
+  public subtotal: number;
+  public taxAmount: number;
   public totalAmount: number;
-  public readonly currency: string;
+  public currency: string;
   public status: InvoiceStatus;
-  public readonly isActive: boolean;
-  public readonly items: InvoiceItem[];
-  public readonly taxRate: number;
-  public readonly shippingAddress?: Address;
-  public readonly billingAddress?: Address;
-  public readonly notes?: string;
-  public readonly expectedDeliveryDate?: Date;
-  public readonly createdAt: Date;
-  public readonly updatedAt: Date;
-  public readonly confirmedAt?: Date;
-  public readonly paidAt?: Date;
-  public readonly deliveredAt?: Date;
-  public readonly cancelledAt?: Date;
-  public readonly cancellationReason?: string;
-  public readonly paidAmount: number;
-  public readonly remainingBalance: number;
-  public readonly createdAtAging: number;
+  public isActive: boolean;
+  public items: InvoiceItem[];
+  public taxRate: number;
+  public shippingAddress?: Address;
+  public billingAddress?: Address;
+  public notes?: string;
+  public expectedDeliveryDate?: Date;
+  public createdAt: Date;
+  public updatedAt: Date;
+  public confirmedAt?: Date;
+  public paidAt?: Date;
+  public deliveredAt?: Date;
+  public shippedAt?: Date;
+  public cancelledAt?: Date;
+  public cancellationReason?: string;
+  public paidAmount: number;
+  public remainingBalance: number;
+  public createdAtAging: number;
   public overdueDays: number;
   public taxAmountWithTax: number;
 
@@ -132,61 +138,109 @@ export class Invoice {
     this.remainingBalance = this.totalAmount;
     this.createdAtAging = Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 24)); // days
     this.overdueDays = this.calculateOverdueDays();
-    this.taxAmountWithTax = this.totalAmount * (this.taxRate || 0);
-    this.overdueDays = this.calculateOverdueDays();
+    this.taxAmountWithTax = this.calculateTaxWithTax();
   }
 
-  /**
-   * Confirm invoice - KISS: Simple, direct action
-   */
+  // Validation methods
+  private validateInvoiceNumber(invoiceNumber: string): void {
+    if (!invoiceNumber || invoiceNumber.trim().length === 0) {
+      throw new Error('Invoice number is required');
+    }
+    if (invoiceNumber.trim().length > 50) {
+      throw new Error('Invoice number cannot exceed 50 characters');
+    }
+  }
+
+  private validateCustomer(customerId: string): void {
+    if (!customerId || customerId.trim().length === 0) {
+      throw new Error('Customer ID is required');
+    }
+  }
+
+  private validateDueDate(dueDate: Date): void {
+    if (!dueDate) {
+      throw new Error('Due date is required');
+    }
+    if (dueDate <= new Date()) {
+      throw new Error('Due date must be in the future');
+    }
+  }
+
+  private validateItems(items: InvoiceItem[]): void {
+    if (!items || items.length === 0) {
+      throw new Error('At least one item is required');
+    }
+    items.forEach(item => {
+      if (!item.description || item.description.trim().length === 0) {
+        throw new Error('Item description is required');
+      }
+      if (item.quantity <= 0) {
+        throw new Error('Item quantity must be greater than 0');
+      }
+      if (item.unitPrice < 0) {
+        throw new Error('Item unit price cannot be negative');
+      }
+    });
+  }
+
+  // Business logic methods
   public confirm(): void {
     if (this.status !== InvoiceStatus.DRAFT) {
-      throw new Error('Cannot confirm invoice not in DRAFT status');
+      throw new Error('Only draft invoices can be confirmed');
     }
     this.updateStatus(InvoiceStatus.CONFIRMED);
   }
 
-  /**
-   * Pay invoice - KISS: Simple, direct action
-   */
-  public pay(): void {
+  public pay(amount: number): void {
     if (this.status !== InvoiceStatus.CONFIRMED) {
-      throw new Error('Cannot pay invoice not in CONFIRMED status');
+      throw new Error('Only confirmed invoices can be paid');
     }
-    this.updateStatus(InvoiceStatus.PAID);
     this.paidAt = new Date();
-    this.remainingBalance -= this.paidAmount;
-    this.updateStatus(InvoiceStatus.PAID);
+    this.paidAmount += amount;
+    this.remainingBalance -= amount;
+    if (this.remainingBalance <= 0) {
+      this.updateStatus(InvoiceStatus.PAID);
+    }
   }
 
-  /**
-   * Void invoice - KISS: Simple, direct action
-   */
-  public void(reason: string): void {
-    if (this.status === InvoiceStatus.PAID) {
-      throw new Error('Invoice already paid');
-    }
+  public deliver(): void {
     if (this.status === InvoiceStatus.DELIVERED) {
-      throw new Error('Invoice already delivered');
+      throw new Error('Invoice is already delivered');
     }
     if (this.status === InvoiceStatus.VOID) {
-      this.updateStatus(InvoiceStatus.VOID);
+      throw new Error('Voided invoices cannot be delivered');
     }
-    this.updateStatus(InvoiceStatus.CANCELLED);
+    this.updateStatus(InvoiceStatus.DELIVERED);
+  }
+
+  public void(reason: string): void {
+    if (this.status === InvoiceStatus.VOID) {
+      throw new Error('Invoice is already voided');
+    }
     this.cancellationReason = reason.trim();
     this.cancelledAt = new Date();
     this.isActive = false;
     this.paidAmount = 0;
     this.remainingBalance = this.totalAmount;
+    this.updateStatus(InvoiceStatus.VOID);
   }
 
-  /**
-   * Update status with timestamp
-   */
+  public cancel(reason: string): void {
+    if (this.status === InvoiceStatus.CANCELLED) {
+      throw new Error('Invoice is already cancelled');
+    }
+    this.cancellationReason = reason.trim();
+    this.cancelledAt = new Date();
+    this.isActive = false;
+    this.paidAmount = 0;
+    this.remainingBalance = this.totalAmount;
+    this.updateStatus(InvoiceStatus.CANCELLED);
+  }
+
   private updateStatus(newStatus: InvoiceStatus): void {
+    this.status = newStatus;
     this.updatedAt = new Date();
 
-    // Set appropriate timestamps
     switch (newStatus) {
       case InvoiceStatus.CONFIRMED:
         this.confirmedAt = new Date();
@@ -198,9 +252,6 @@ export class Invoice {
         break;
       case InvoiceStatus.DELIVERED:
         this.deliveredAt = new Date();
-        this.deliveredAt = new Date();
-        break;
-      case InvoiceStatus.PAID:
         this.paidAt = new Date();
         this.paidAmount = this.totalAmount;
         this.remainingBalance = 0;
@@ -219,78 +270,49 @@ export class Invoice {
     }
   }
 
-  /**
-   * Calculate subtotal from items
-   * KISS: Simple, straightforward calculation
-   */
-  public calculateSubtotal(): number {
-    return this.items.reduce((sum, item) => sum + item.totalPrice, 0);
+  // Calculation methods
+  private calculateSubtotal(): number {
+    return this.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
   }
 
-  /**
-   * Calculate tax amount from total amount
-   * KISS: Simple, straightforward calculation
-   */
-  public calculateTax(): number {
-    return this.totalAmount * (this.taxRate || 0);
+  private calculateTaxWithTax(): number {
+    return this.subtotal * (this.taxRate || 0);
   }
 
-  /**
-   * Calculate total amount including tax
-   * KISS: Simple, straightforward calculation
-   */
   public calculateTotalWithTax(): number {
-    return this.totalAmount + this.calculateTax();
+    return this.subtotal + this.calculateTaxWithTax();
   }
 
-  /**
-   * Calculate discount amount - KISS: Simple, straightforward discount calculation
-   */
-  public calculateDiscountAmount(discountRate: number): number {
-    if (discountRate < 0 || discountRate > 1) {
-      throw new Error('Discount amount must be between 0 and 1');
-    }
-    return Math.round(this.totalAmount * discountRate * 100) / 100;
-  }
-
-  /**
-   * Calculate remaining balance
-   * KISS: Simple, straightforward calculation
-   */
-  public calculateRemainingBalance(totalAmount: number, paidAmount: number): number {
-    return Math.max(0, totalAmount - paidAmount);
-  }
-
-  /**
-   * Calculate overdue days
-   * KISS: Simple, straightforward calculation
-   */
   public calculateOverdueDays(): number {
+    if (this.status === InvoiceStatus.PAID || this.status === InvoiceStatus.CANCELLED || this.status === InvoiceStatus.VOID) {
+      return 0;
+    }
     const today = new Date();
-    const dueDate = this.dueDate;
-    return Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // Convert milliseconds to days
+    const dueDate = new Date(this.dueDate);
+    return Math.max(0, Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 24)));
   }
 
-  /**
-   * Calculate aging
-   * KISS: Simple, straightforward calculation
-   */
   public calculateAging(): number {
-    const today = new Date();
-    const createdAt = this.createdAt;
-    return Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 24)); // Convert milliseconds to days
+    return Math.floor((Date.now() - this.createdAt.getTime()) / (1000 * 60 * 24));
   }
 
-  /**
-   * Check if invoice is overdue
-   * KISS: Simple, straightforward validation
-   */
+  public getTotalAmount(): number {
+    return this.totalAmount;
+  }
+
+  public getPaidAmount(): number {
+    return this.paidAmount;
+  }
+
+  public getRemainingBalance(): number {
+    return this.remainingBalance;
+  }
+
   public isOverdue(): boolean {
     return this.calculateOverdueDays() > 0;
   }
 
   /**
-   * Serialize invoice to JSON
    * KISS: Simple, straightforward serialization
    */
   public toJSON(): any {
@@ -330,36 +352,5 @@ export class Invoice {
     if (this.cancellationReason) result.cancellationReason = this.cancellationReason;
 
     return result;
-  }
-
-  /**
-   * Helper function to calculate overdue days
-   * KISS: Simple, focused helper
-   */
-  private calculateOverdueDays(): number {
-    const today = new Date();
-    const dueDate = this.dueDate;
-    return Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // Convert milliseconds to days
-  }
-
-  /**
-   * Helper function to calculate aging
-   * KISS: Simple, focused helper
-   */
-  private calculateAging(): number {
-    const today = new Date();
-    const createdAt = this.createdAt;
-    return Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 24)); // Convert milliseconds to days
-  }
-
-  /**
-   * Helper function to calculate overdue days
-   * KISS: Simple, focused helper
-   */
-  private calculateOverdueDays(): number {
-    const today = new Date();
-    const dueDate = this.dueDate;
-    return Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // Convert milliseconds to days
-    return Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 24)); // Ensure non-negative
   }
 }

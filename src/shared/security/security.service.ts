@@ -181,7 +181,7 @@ export class SecurityService {
    * Log security events
    */
   logSecurityEvent(
-    event: 'LOGIN_SUCCESS' | 'LOGIN_FAILED' | 'PASSWORD_CHANGE' | 'SECURITY_VIOLATION' | 'SUSPICIOUS_ACTIVITY' | 'USER_CREATED' | 'USER_CREATION_FAILED' | 'USER_CREATION_ERROR' | 'USER_UPDATED' | 'USER_DEACTIVATED' | 'WEAK_PASSWORD_ATTEMPT' | 'INVALID_PASSWORD_CHANGE_ATTEMPT' | 'PASSWORD_CHANGED',
+    event: string, // Accept any audit event string
     userId?: string,
     ip?: string,
     userAgent?: string,
@@ -334,7 +334,7 @@ export class SecurityService {
   /**
    * Validate file upload for security
    */
-  validateFileUpload(file: Express.Multer.File): { isValid: boolean; error?: string } {
+  validateFileUpload(file: any): { isValid: boolean; error?: string } {
     const allowedMimeTypes = [
       'image/jpeg',
       'image/png',

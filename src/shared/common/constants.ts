@@ -145,4 +145,50 @@ export const SuccessMessages = {
   UPDATED: 'Resource updated successfully.',
   DELETED: 'Resource deleted successfully.',
   PROCESSED: 'Operation processed successfully.',
+  LOCK_ACQUIRED: 'Resource locked successfully.',
+  LOCK_RELEASED: 'Resource unlocked successfully.',
+  TRANSACTION_COMPLETED: 'Transaction completed successfully.',
+  VALIDATION_PASSED: 'Validation passed successfully.',
+};
+
+// Transaction Reference Types
+export const TransactionTypes = {
+  SALES_ORDER: 'SALES_ORDER',
+  INVOICE: 'INVOICE',
+  PURCHASE_ORDER: 'PURCHASE_ORDER',
+  PAYMENT: 'PAYMENT',
+  REFUND: 'REFUND',
+  ADJUSTMENT: 'ADJUSTMENT',
+  TRANSFER: 'TRANSFER',
+  STOCK_MOVEMENT: 'STOCK_MOVEMENT',
+  PAYROLL: 'PAYROLL',
+  EXPENSE: 'EXPENSE',
+  JOURNAL_ENTRY: 'JOURNAL_ENTRY',
+} as const;
+
+// Concurrency Control Events
+export const ConcurrencyEvents = {
+  RESOURCE_LOCKED: 'RESOURCE_LOCKED',
+  RESOURCE_UNLOCKED: 'RESOURCE_UNLOCKED',
+  LOCK_EXPIRED: 'LOCK_EXPIRED',
+  CONCURRENCY_CONFLICT: 'CONCURRENCY_CONFLICT',
+  DEADLOCK_DETECTED: 'DEADLOCK_DETECTED',
+  RETRY_ATTEMPT: 'RETRY_ATTEMPT',
+} as const;
+
+// Transaction Reference Events
+export const TransactionEvents = {
+  TRANSACTION_CREATED: 'TRANSACTION_CREATED',
+  TRANSACTION_VALIDATED: 'TRANSACTION_VALIDATED',
+  TRANSACTION_COMPLETED: 'TRANSACTION_COMPLETED',
+  TRANSACTION_FAILED: 'TRANSACTION_FAILED',
+  DUPLICATE_TRANSACTION: 'DUPLICATE_TRANSACTION',
+  INVALID_REFERENCE: 'INVALID_REFERENCE',
+} as const;
+
+// Enhanced Audit Events (merging with existing)
+export const EnhancedAuditEvents = {
+  ...AuditEvents,
+  ...ConcurrencyEvents,
+  ...TransactionEvents,
 };

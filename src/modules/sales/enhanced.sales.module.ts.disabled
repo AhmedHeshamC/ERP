@@ -1,0 +1,49 @@
+import { Module } from '@nestjs/common';
+import { SalesService } from './services/enhanced.sales.service';
+import { CustomerService } from './services/customer.service';
+import { InvoiceService } from './services/invoice.service';
+import { SalesController } from './controllers/enhanced.sales.controller';
+import { CustomerController } from './controllers/customer.controller';
+import { InvoiceController } from './controllers/invoice.controller';
+import { PrismaModule } from '../../shared/database/prisma.module';
+import { SecurityModule } from '../../shared/security/security.module';
+import { EnhancedCommonModule } from '../../shared/common/enhanced.common.module';
+
+/**
+ * Enhanced Sales Module
+ *
+ * Implements SOLID principles:
+ * - Single Responsibility: Each service handles one business domain
+ * - Open/Closed: Extensible through dependency injection
+ * - Interface Segregation: Focused interfaces for each service
+ * - Dependency Inversion: Depends on abstractions
+ *
+ * OWASP Compliance:
+ * - A01: Role-based access control
+ * - A03: Input validation and sanitization
+ * - A08: Data integrity and validation
+ * - A09: Comprehensive security logging
+ */
+@Module({
+  imports: [
+    PrismaModule,
+    SecurityModule,
+    EnhancedCommonModule,
+  ],
+  controllers: [
+    SalesController,
+    CustomerController,
+    InvoiceController,
+  ],
+  providers: [
+    SalesService,
+    CustomerService,
+    InvoiceService,
+  ],
+  exports: [
+    SalesService,
+    CustomerService,
+    InvoiceService,
+  ],
+})
+export class EnhancedSalesModule {}

@@ -112,7 +112,7 @@ describe('Database Transaction Integration Tests', () => {
       });
 
       const createTransactionDto: CreateTransactionDto = {
-        reference: `TX-${Date.now()}`,
+        reference: `TX-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         description: 'Test transaction',
         amount: 1000,
         type: TransactionType.SALE,
@@ -157,7 +157,7 @@ describe('Database Transaction Integration Tests', () => {
     it('should rollback all changes if any part fails', async () => {
       // Arrange - Invalid transaction that should fail
       const invalidTransactionDto: CreateTransactionDto = {
-        reference: `INVALID-TX-${Date.now()}`,
+        reference: `INVALID-TX-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         description: 'Invalid transaction',
         amount: 1000,
         type: TransactionType.SALE,
@@ -216,7 +216,7 @@ describe('Database Transaction Integration Tests', () => {
       });
 
       const createTransactionDto: CreateTransactionDto = {
-        reference: `CONSISTENCY-TX-${Date.now()}`,
+        reference: `CONSISTENCY-TX-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         description: 'Consistency test transaction',
         amount: 500,
         type: TransactionType.SALE,
@@ -286,8 +286,9 @@ describe('Database Transaction Integration Tests', () => {
       });
 
       // Create transaction DTOs with same reference (should cause concurrency issues)
+      const sharedReference = `CONCURRENT-TX-${timestamp}`;
       const transactionDto: CreateTransactionDto = {
-        reference: `CONCURRENT-TX-${timestamp}`,
+        reference: sharedReference,
         description: 'Concurrent transaction test',
         amount: 100,
         type: TransactionType.SALE,
@@ -453,7 +454,7 @@ describe('Database Transaction Integration Tests', () => {
 
       // Act - Create transactions that use the same account concurrently
       const transaction1Dto: CreateTransactionDto = {
-        reference: `LOCKING-TX-1-${timestamp}`,
+        reference: `LOCKING-TX-1-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
         description: 'First concurrent transaction',
         amount: 100,
         type: TransactionType.SALE,
@@ -474,7 +475,7 @@ describe('Database Transaction Integration Tests', () => {
       };
 
       const transaction2Dto: CreateTransactionDto = {
-        reference: `LOCKING-TX-2-${timestamp}`,
+        reference: `LOCKING-TX-2-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
         description: 'Second concurrent transaction',
         amount: 200,
         type: TransactionType.SALE,
@@ -644,10 +645,38 @@ describe('Database Transaction Integration Tests', () => {
    */
   async function cleanupTestData(): Promise<void> {
     try {
-      // Clean up in reverse order to respect foreign key constraints
-      await prismaService.journalEntry.deleteMany({});
-      await prismaService.transaction.deleteMany({});
-      await prismaService.chartOfAccounts.deleteMany({
+      // Clean up all test data in correct order to respect foreign key constraints
+
+      // First, find all test transactions
+      const testTransactions = await prismaService.transaction.findMany({
+        where: {
+          reference: {
+            startsWith: 'TX-'
+          }
+        },
+        select: { id: true }
+      });
+
+      if (testTransactions.length > 0) {
+        const transactionIds = testTransactions.map(t => t.id);
+
+        // Delete journal entries that reference test transactions
+        await prismaService.journalEntry.deleteMany({
+          where: {
+            transactionId: { in: transactionIds }
+          }
+        });
+
+        // Delete the transactions
+        await prismaService.transaction.deleteMany({
+          where: {
+            id: { in: transactionIds }
+          }
+        });
+      }
+
+      // Find test accounts
+      const testAccounts = await prismaService.chartOfAccounts.findMany({
         where: {
           OR: [
             { id: { startsWith: 'test-account-' } },
@@ -658,11 +687,33 @@ describe('Database Transaction Integration Tests', () => {
             { id: { startsWith: 'unique-account-' } },
             { id: { startsWith: 'deadlock-account-' } },
             { id: { startsWith: 'timeout-account-' } },
+            { id: { startsWith: 'cash-account-' } },
+            { id: { startsWith: 'revenue-account-' } },
+            { id: { startsWith: 'consistency-account-' } },
           ],
         },
+        select: { id: true }
       });
+
+      if (testAccounts.length > 0) {
+        const accountIds = testAccounts.map(a => a.id);
+
+        // Delete any remaining journal entries that reference test accounts
+        await prismaService.journalEntry.deleteMany({
+          where: {
+            accountId: { in: accountIds }
+          }
+        });
+
+        // Delete the accounts
+        await prismaService.chartOfAccounts.deleteMany({
+          where: {
+            id: { in: accountIds }
+          }
+        });
+      }
     } catch (error) {
-      // Ignore cleanup errors
+      // Ignore cleanup errors but log them
       console.log('Cleanup error:', error.message);
     }
   }
