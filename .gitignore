@@ -379,3 +379,6 @@ certs/
 *.sqlite3-shm
 *.sqlite3-wal
 *.sqlite3-journal
+
+
+.claude
