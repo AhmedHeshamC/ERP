@@ -31,9 +31,10 @@ import {
   ForgotPasswordResponseDto,
   ResetPasswordResponseDto,
 } from './dto/auth.dto';
-import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
-import { CurrentUser } from '../../shared/security/decorators/current-user.decorator';
-import { AuthenticatedUser, UserProfileResponse } from '../../shared/security/interfaces/jwt.interface';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { TokenInvalidationService } from '../../shared/security/token-invalidation.service';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { AuthenticatedUser, UserProfileResponse } from './interfaces/jwt.interface';
 
 /**
  * Enterprise Authentication Controller
@@ -49,6 +50,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly tokenInvalidationService: TokenInvalidationService,
   ) {}
 
   /**
@@ -297,30 +299,44 @@ export class AuthController {
   }
 
   /**
-   * User logout
+   * User logout with token invalidation
    * OWASP A02: Session management
+   * OWASP A07: Authentication failures
    */
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'User logout' })
+  @ApiOperation({ summary: 'User logout with token invalidation' })
   @ApiResponse({ status: 200, description: 'Logout successful', type: LogoutResponseDto })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async logout(@CurrentUser() user: AuthenticatedUser): Promise<LogoutResponseDto> {
+  async logout(@CurrentUser() user: AuthenticatedUser, @Body() body?: { token?: string }): Promise<LogoutResponseDto> {
     try {
-      this.logger.log(`Logout request for user!: ${user.sub}`);
+      const correlationId = (user as any).correlationId || this.generateCorrelationId();
+      this.logger.log(`Logout request for user ${user.sub} [${correlationId}]`);
 
-      // TODO: Implement token invalidation/blacklisting
-      // This would involve storing revoked tokens in Redis or database
+      // Invalidate the current token (if provided in request)
+      if (body?.token) {
+        await this.tokenInvalidationService.invalidateToken(
+          body.token,
+          user.sub,
+          'user_logout'
+        );
+      }
 
-      this.logger.log(`User logged out successfully!: ${user.sub}`);
+      // Invalidate all user tokens for security
+      await this.tokenInvalidationService.invalidateUserTokens(
+        user.sub,
+        'user_logout'
+      );
+
+      this.logger.log(`User ${user.sub} logged out successfully [${correlationId}]`);
       return {
         success: true,
         message: 'Logged out successfully',
       };
 
     } catch (error) {
-      this.logger.error(`Logout failed: ${error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : "Unknown error"}`, error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined);
+      this.logger.error(`Logout failed: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Logout failed');
     }
   }
@@ -375,7 +391,37 @@ export class AuthController {
 
       const result = await this.authService.validateToken(token.token);
 
-      return result;
+    // Convert Date objects to strings for type compatibility
+      if (result.valid && result.user) {
+        return {
+          valid: result.valid,
+          user: {
+            ...result.user,
+            createdAt: result.user.createdAt instanceof Date
+              ? result.user.createdAt.toISOString()
+              : result.user.createdAt,
+            updatedAt: result.user.updatedAt instanceof Date
+              ? result.user.updatedAt.toISOString()
+              : result.user.updatedAt,
+            lastLoginAt: result.user.lastLoginAt instanceof Date
+              ? result.user.lastLoginAt.toISOString()
+              : result.user.lastLoginAt || undefined,
+          }
+        };
+      }
+      // Type guard to ensure proper return type
+      if (result.valid && result.user && typeof result.user.createdAt === 'object' && typeof result.user.updatedAt === 'object') {
+        return {
+          valid: result.valid,
+          user: {
+            ...result.user,
+            createdAt: result.user.createdAt.toISOString(),
+            updatedAt: result.user.updatedAt.toISOString(),
+            lastLoginAt: result.user.lastLoginAt?.toISOString() || undefined,
+          }
+        };
+      }
+      return result as { valid: boolean; user?: UserProfileResponse | undefined };
 
     } catch (error) {
       this.logger.error(`Public token validation failed: ${error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : "Unknown error"}`, error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined);
@@ -412,5 +458,12 @@ export class AuthController {
     if (!emailDomain || emailDomain.length < 3) {
       throw new BadRequestException('Invalid email domain');
     }
+  }
+
+  /**
+   * Generate correlation ID for logging
+   */
+  private generateCorrelationId(): string {
+    return `auth_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 }

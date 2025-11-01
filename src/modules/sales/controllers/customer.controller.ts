@@ -19,16 +19,19 @@ import { CustomerQueryDto } from '../dto/customer-query.dto';
 import { JwtAuthGuard } from '../../authentication/guards/jwt-auth.guard';
 import { RolesGuard } from '../../authentication/guards/roles.guard';
 import { Roles } from '../../authentication/decorators/roles.decorator';
+import { ResourcePermission } from '../../../shared/security/decorators/permissions.decorator';
+import { ResourceBasedGuard } from '../../../shared/security/guards/resource-based.guard';
 import { UserRole } from '../../users/dto/user.dto';
 
 @ApiTags('customers')
 @Controller('sales/customers')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ResourceBasedGuard)
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ResourcePermission('customers', 'create')
   @ApiOperation({ summary: 'Create a new customer' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Customer created successfully' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
@@ -43,6 +46,7 @@ export class CustomerController {
   }
 
   @Get()
+  @ResourcePermission('customers', 'read')
   @ApiOperation({ summary: 'Get all customers with pagination and filtering' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Customers retrieved successfully' })
   async findAll(@Query() query: CustomerQueryDto) {
@@ -59,6 +63,7 @@ export class CustomerController {
   }
 
   @Get(':id')
+  @ResourcePermission('customers', 'read')
   @ApiOperation({ summary: 'Get customer by ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Customer retrieved successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Customer not found' })
@@ -73,6 +78,7 @@ export class CustomerController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ResourcePermission('customers', 'update')
   @ApiOperation({ summary: 'Update customer' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Customer updated successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Customer not found' })
@@ -88,6 +94,7 @@ export class CustomerController {
 
   @Patch(':id/status')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ResourcePermission('customers', 'update')
   @ApiOperation({ summary: 'Update customer active status' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Customer status updated successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Customer not found' })
@@ -104,6 +111,8 @@ export class CustomerController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ResourcePermission('customers', 'delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Deactivate customer (soft delete)' })
   @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Customer deactivated successfully' })

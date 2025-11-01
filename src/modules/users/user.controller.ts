@@ -10,10 +10,17 @@ import {
   UsePipes,
   ValidationPipe,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SecurityService } from '../../shared/security/security.service';
 import { CreateUserDto, UpdateUserDto, UserQueryDto, UserPasswordChangeDto } from './dto/user.dto';
+import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard';
+import { RolesGuard } from '../authentication/guards/roles.guard';
+import { ResourceBasedGuard } from '../../shared/security/guards/resource-based.guard';
+import { Roles } from '../authentication/decorators/roles.decorator';
+import { ResourcePermission } from '../../shared/security/decorators/permissions.decorator';
+import { UserRole } from './dto/user.dto';
 
 /**
  * Enterprise User Controller
@@ -21,6 +28,7 @@ import { CreateUserDto, UpdateUserDto, UserQueryDto, UserPasswordChangeDto } fro
  * Follows OWASP Top 10 security standards
  */
 @Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard, ResourceBasedGuard)
 @UsePipes(new ValidationPipe({
   whitelist: true,
   forbidNonWhitelisted: true,
@@ -40,6 +48,8 @@ export class UserController {
    * OWASP A03: Injection - Input validation and sanitization
    */
   @Post()
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ResourcePermission('users', 'create')
   async createUser(@Body() createUserDto: CreateUserDto) {
     try {
       this.logger.log(`Creating new user!: ${createUserDto.email}`);
@@ -90,6 +100,7 @@ export class UserController {
    * OWASP A01: Broken Access Control - Resource-based access
    */
   @Get(':id')
+  @ResourcePermission('users', 'read')
   async getUserById(@Param('id') id: string) {
     try {
       this.logger.log(`Retrieving user!: ${id}`);
@@ -124,6 +135,7 @@ export class UserController {
    * OWASP A01: Broken Access Control - Role-based and self-service access
    */
   @Put(':id')
+  @ResourcePermission('users', 'update')
   async updateUser(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -176,6 +188,8 @@ export class UserController {
    * OWASP A01: Broken Access Control - Role-based access
    */
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ResourcePermission('users', 'read')
   async getUsers(@Query() query: UserQueryDto) {
     try {
       this.logger.log('Retrieving users with filters', { query });
@@ -226,6 +240,8 @@ export class UserController {
    * OWASP A01: Broken Access Control - Admin only access
    */
   @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ResourcePermission('users', 'delete')
   async deleteUser(@Param('id') id: string) {
     try {
       this.logger.log(`Deactivating user!: ${id}`);
@@ -275,6 +291,7 @@ export class UserController {
    * OWASP A07: Authentication Failures - Password strength requirements
    */
   @Post(':id/change-password')
+  @ResourcePermission('users', 'update')
   async changePassword(
     @Param('id') id: string,
     @Body() changePasswordDto: UserPasswordChangeDto,
@@ -326,6 +343,8 @@ export class UserController {
    * Note: This route is placed at the end to avoid conflicts with parameterized routes
    */
   @Get('security-events')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ResourcePermission('system', 'monitor')
   async getSecurityEvents(@Query() query: Record<string, unknown>) {
     try {
       this.logger.log('Retrieving security events', { query });
