@@ -47,7 +47,7 @@ export class PurchaseOrderController {
    */
   @Post()
   async createPurchaseOrder(@Body() createPurchaseOrderDto: CreatePurchaseOrderDto): Promise<PurchaseOrderResponse> {
-    this.logger.log(`Creating purchase order for supplier: ${createPurchaseOrderDto.supplierId}`);
+    this.logger.log(`Creating purchase order for supplier!: ${createPurchaseOrderDto.supplierId}`);
     return this.purchaseOrderService.createPurchaseOrder(createPurchaseOrderDto);
   }
 
@@ -57,7 +57,7 @@ export class PurchaseOrderController {
    */
   @Get()
   async getPurchaseOrders(@Query() queryDto: PurchaseOrderQueryDto): Promise<PurchaseOrdersQueryResponse> {
-    this.logger.log(`Fetching purchase orders with query: ${JSON.stringify(queryDto)}`);
+    this.logger.log(`Fetching purchase orders with query!: ${JSON.stringify(queryDto)}`);
     return this.purchaseOrderService.getPurchaseOrders(queryDto);
   }
 
@@ -67,11 +67,11 @@ export class PurchaseOrderController {
    */
   @Get(':id')
   async getPurchaseOrderById(@Param('id', ParseUUIDPipe) id: string): Promise<PurchaseOrderResponse> {
-    this.logger.log(`Fetching purchase order by ID: ${id}`);
+    this.logger.log(`Fetching purchase order by ID!: ${id}`);
     const purchaseOrder = await this.purchaseOrderService.getPurchaseOrderById(id);
 
     if (!purchaseOrder) {
-      this.logger.warn(`Purchase order not found: ${id}`);
+      this.logger.warn(`Purchase order not found!: ${id}`);
       throw new NotFoundException(`Purchase order with ID ${id} not found`);
     }
 
@@ -87,7 +87,7 @@ export class PurchaseOrderController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updatePurchaseOrderDto: UpdatePurchaseOrderDto,
   ): Promise<PurchaseOrderResponse> {
-    this.logger.log(`Updating purchase order ${id} with data: ${JSON.stringify(updatePurchaseOrderDto)}`);
+    this.logger.log(`Updating purchase order ${id} with data!: ${JSON.stringify(updatePurchaseOrderDto)}`);
     return this.purchaseOrderService.updatePurchaseOrder(id, updatePurchaseOrderDto);
   }
 
@@ -97,7 +97,7 @@ export class PurchaseOrderController {
    */
   @Post(':id/submit-for-approval')
   async submitForApproval(@Param('id', ParseUUIDPipe) id: string): Promise<PurchaseOrderResponse> {
-    this.logger.log(`Submitting purchase order for approval: ${id}`);
+    this.logger.log(`Submitting purchase order for approval!: ${id}`);
     return this.purchaseOrderService.submitForApproval(id);
   }
 
@@ -110,7 +110,7 @@ export class PurchaseOrderController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() approvalDto: ApprovalActionDto,
   ): Promise<PurchaseOrderResponse> {
-    this.logger.log(`Processing approval for order ${id}: ${approvalDto.action}`);
+    this.logger.log(`Processing approval for order ${id}!: ${approvalDto.action}`);
     return this.purchaseOrderService.processApproval(id, approvalDto);
   }
 
@@ -120,7 +120,7 @@ export class PurchaseOrderController {
    */
   @Post(':id/cancel')
   async cancelPurchaseOrder(@Param('id', ParseUUIDPipe) id: string): Promise<PurchaseOrderResponse> {
-    this.logger.log(`Cancelling purchase order: ${id}`);
+    this.logger.log(`Cancelling purchase order!: ${id}`);
     return this.purchaseOrderService.cancelPurchaseOrder(id);
   }
 
@@ -141,7 +141,7 @@ export class PurchaseOrderController {
    */
   @Delete(':id')
   async deletePurchaseOrder(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    this.logger.log(`Deleting purchase order: ${id}`);
+    this.logger.log(`Deleting purchase order!: ${id}`);
     // TODO: Implement soft delete functionality
     throw new Error('Delete functionality not yet implemented');
   }

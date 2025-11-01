@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
-import { Employee, Department, User } from '@prisma/client';
+// import { Employee, Department, User } from '@prisma/client';
 import {
-  EmployeeResponse,
+  // EmployeeResponse,
   EmployeeFilters,
   EmployeeWithDepartment,
   CreateEmployeeData,
@@ -127,7 +127,7 @@ export class EmployeeService {
       const fromDate = new Date(filters.hireDateFrom);
       const toDate = new Date(filters.hireDateTo);
       if (fromDate > toDate) {
-        throw new BadRequestException('Invalid date range: Start date must be before end date');
+        throw new BadRequestException('Invalid date range!: Start date must be before end date');
       }
     }
 

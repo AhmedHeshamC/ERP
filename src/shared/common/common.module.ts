@@ -6,7 +6,6 @@ import { ErrorsFilter } from './filters/errors.filter';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { EnhancedErrorsFilter } from './filters/enhanced-errors.filter';
 import { ValidationPipe } from './pipes/validation.pipe';
-import { EnhancedValidationPipe } from './pipes/enhanced-validation.pipe';
 import { SecurityModule } from '../security/security.module';
 import { PrismaService } from '../database/prisma.service';
 import { TransactionReferenceService } from './services/transaction-reference.service';
@@ -40,6 +39,7 @@ import { ErrorHandlingService } from './services/error-handling.service';
     TransactionReferenceService,
     ConcurrencyControlService,
     ErrorHandlingService,
+    SecurityModule,
   ],
 })
 export class CommonModule {}

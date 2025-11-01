@@ -66,10 +66,10 @@ export class PayrollService {
     const benefits = this.calculateBenefits(employee);
 
     // Calculate deductions
-    const totalDeductions = Object.values(taxes).reduce((sum: number, tax: number) => sum + tax, 0) +
+    const totalDeductions = Object.values(taxes as Record<string, number>).reduce((sum: number, tax: number) => sum + tax, 0) +
                            (payrollData?.otherDeductions || 0);
 
-    const totalBenefits = Object.values(benefits).reduce((sum: number, benefit: number) => sum + benefit, 0);
+    const totalBenefits = Object.values(benefits as Record<string, number>).reduce((sum: number, benefit: number) => sum + benefit, 0);
 
     const netPay = grossPay - totalDeductions;
 
@@ -126,7 +126,7 @@ export class PayrollService {
     return approvedRecord;
   }
 
-  async processPayment(payrollId: string, processedBy: string): Promise<PayrollRecord> {
+  async processPayment(payrollId: string, _processedBy: string): Promise<PayrollRecord> {
     const payrollRecord = await this.prismaService.payrollRecord.findUnique({
       where: { id: payrollId },
     });
@@ -196,7 +196,7 @@ export class PayrollService {
       const fromDate = new Date(filters.paymentDateFrom);
       const toDate = new Date(filters.paymentDateTo);
       if (fromDate > toDate) {
-        throw new BadRequestException('Invalid date range: Start date must be before end date');
+        throw new BadRequestException('Invalid date range!: Start date must be before end date');
       }
     }
 
@@ -254,7 +254,7 @@ export class PayrollService {
       const fromDate = new Date(reportParams.startDate);
       const toDate = new Date(reportParams.endDate);
       if (fromDate > toDate) {
-        throw new BadRequestException('Invalid date range: Start date must be before end date');
+        throw new BadRequestException('Invalid date range!: Start date must be before end date');
       }
     }
 

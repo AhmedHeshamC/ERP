@@ -1,8 +1,7 @@
 import { expect } from 'chai';
-import { SinonStub, stub } from 'sinon';
+import { stub } from 'sinon';
 import { LeaveRequestController } from './leave-request.controller';
 import { LeaveRequestService } from '../services/leave-request.service';
-import { Response } from 'express';
 import {
   CreateLeaveRequestDto,
   UpdateLeaveRequestDto,
@@ -20,8 +19,7 @@ describe('LeaveRequestController', () => {
   let controller: LeaveRequestController;
   let leaveRequestService: LeaveRequestService;
   let leaveRequestServiceStub: any;
-  let mockResponse: any;
-
+  
   beforeEach(() => {
     leaveRequestService = {
       createLeaveRequest: stub(),
@@ -37,12 +35,7 @@ describe('LeaveRequestController', () => {
 
     controller = new LeaveRequestController(leaveRequestService);
 
-    // Mock Express Response object
-    mockResponse = {
-      status: stub().returnsThis(),
-      json: stub(),
-    } as any;
-
+    
     // Create references for easier access to stubs
     leaveRequestServiceStub = leaveRequestService;
   });
@@ -132,9 +125,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.createLeaveRequest(createDto, { user: currentUser });
         expect.fail('Should have thrown NotFoundException');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(NotFoundException);
-        expect(err.message).to.include('Employee not found');
+        expect((err as NotFoundException).message).to.include('Employee not found');
       }
     });
 
@@ -160,9 +153,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.createLeaveRequest(createDto, { user: currentUser });
         expect.fail('Should have thrown BadRequestException');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(BadRequestException);
-        expect(err.message).to.include('End date must be after start date');
+        expect((err as Error).message).to.include('End date must be after start date');
       }
     });
   });
@@ -239,8 +232,8 @@ describe('LeaveRequestController', () => {
       try {
         await controller.getLeaveRequests(queryDto);
         expect.fail('Should have thrown error');
-      } catch (err) {
-        expect(err.message).to.include('Database connection failed');
+      } catch (err: unknown) {
+        expect((err as Error).message).to.include('Database connection failed');
       }
     });
   });
@@ -275,7 +268,7 @@ describe('LeaveRequestController', () => {
       expect(result.id).to.equal(leaveRequestId);
       expect(result.employeeId).to.equal('employee-123');
       expect(result.leaveType).to.equal(LeaveType.ANNUAL);
-      expect(result.employee.firstName).to.equal('John');
+      expect(result.employee?.firstName).to.equal('John');
 
       // Verify service was called correctly
       expect(leaveRequestServiceStub.getLeaveRequestById.calledOnceWith(leaveRequestId)).to.be.true;
@@ -290,9 +283,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.getLeaveRequestById(nonExistentId);
         expect.fail('Should have thrown NotFoundException');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(NotFoundException);
-        expect(err.message).to.include('Leave request not found');
+        expect((err as Error).message).to.include('Leave request not found');
       }
     });
   });
@@ -346,9 +339,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.updateLeaveRequest(requestId, updateDto);
         expect.fail('Should have thrown NotFoundException');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(NotFoundException);
-        expect(err.message).to.include('Leave request not found');
+        expect((err as Error).message).to.include('Leave request not found');
       }
     });
   });
@@ -401,9 +394,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.approveLeaveRequest(requestId, approvalDto);
         expect.fail('Should have thrown BadRequestException');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(BadRequestException);
-        expect(err.message).to.include('Leave request is not in PENDING status');
+        expect((err as Error).message).to.include('Leave request is not in PENDING status');
       }
     });
   });
@@ -492,9 +485,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.cancelLeaveRequest(requestId, cancelDto);
         expect.fail('Should have thrown BadRequestException');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(BadRequestException);
-        expect(err.message).to.include('Cannot cancel approved leave request');
+        expect((err as Error).message).to.include('Cannot cancel approved leave request');
       }
     });
   });
@@ -537,9 +530,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.getLeaveBalance(employeeId);
         expect.fail('Should have thrown NotFoundException');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(NotFoundException);
-        expect(err.message).to.include('Employee not found');
+        expect((err as Error).message).to.include('Employee not found');
       }
     });
   });
@@ -609,8 +602,8 @@ describe('LeaveRequestController', () => {
       try {
         await controller.getLeaveAnalytics(queryDto);
         expect.fail('Should have thrown error');
-      } catch (err) {
-        expect(err.message).to.include('Analytics generation failed');
+      } catch (err: unknown) {
+        expect((err as Error).message).to.include('Analytics generation failed');
       }
     });
   });
@@ -634,7 +627,7 @@ describe('LeaveRequestController', () => {
       try {
         await controller.createLeaveRequest(invalidDto, { user: currentUser });
         expect.fail('Should have thrown validation error');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(BadRequestException);
       }
     });
@@ -652,7 +645,7 @@ describe('LeaveRequestController', () => {
       try {
         await controller.getLeaveRequests(invalidQuery);
         expect.fail('Should have thrown validation error');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(BadRequestException);
       }
     });
@@ -674,9 +667,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.createLeaveRequest(createDto, invalidUser);
         expect.fail('Should have thrown error for missing user context');
-      } catch (err) {
+      } catch (err: unknown) {
         // This should be a TypeError because invalidUser is null and we try to access req.user
-        expect(err.message).to.include('Cannot read properties of null');
+        expect((err as Error).message).to.include('Cannot read properties of null');
       }
     });
 
@@ -699,9 +692,9 @@ describe('LeaveRequestController', () => {
       try {
         await controller.createLeaveRequest(createDto, { user: invalidUser });
         expect.fail('Should have thrown error for invalid user ID');
-      } catch (err) {
+      } catch (err: unknown) {
         expect(err).to.be.instanceOf(ForbiddenException);
-        expect(err.message).to.include('User sub claim is required');
+        expect((err as Error).message).to.include('User sub claim is required');
       }
     });
   });

@@ -31,7 +31,7 @@ export class AuthService {
     // Check password strength
     const passwordCheck = this.securityService.isPasswordStrong(registerDto.password);
     if (!passwordCheck.isValid) {
-      throw new BadRequestException(`Password validation failed: ${passwordCheck.errors.join(', ')}`);
+      throw new BadRequestException(`Password validation failed!: ${passwordCheck.errors.join(', ')}`);
     }
 
     // Sanitize input
@@ -272,7 +272,7 @@ export class AuthService {
     // Check password strength
     const passwordCheck = this.securityService.isPasswordStrong(changePasswordDto.newPassword);
     if (!passwordCheck.isValid) {
-      throw new BadRequestException(`Password validation failed: ${passwordCheck.errors.join(', ')}`);
+      throw new BadRequestException(`Password validation failed!: ${passwordCheck.errors.join(', ')}`);
     }
 
     // Get user
@@ -323,10 +323,6 @@ export class AuthService {
       throw new NotFoundException('If the email exists, a password reset link has been sent');
     }
 
-    // Generate reset token
-    const resetToken = this.securityService.generateSecureToken();
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
     // Store reset token (this would typically be in a separate passwordResets table)
     // For now, we'll just log it (in production, you'd send an email)
     await this.prismaService.user.update({
@@ -360,7 +356,7 @@ export class AuthService {
     // Check password strength
     const passwordCheck = this.securityService.isPasswordStrong(resetPasswordDto.newPassword);
     if (!passwordCheck.isValid) {
-      throw new BadRequestException(`Password validation failed: ${passwordCheck.errors.join(', ')}`);
+      throw new BadRequestException(`Password validation failed!: ${passwordCheck.errors.join(', ')}`);
     }
 
     // This would typically validate the reset token against a passwordResets table

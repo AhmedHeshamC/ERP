@@ -34,7 +34,7 @@ export class TimeoutInterceptor implements NestInterceptor {
       timeout(timeoutValue),
       catchError((err) => {
         if (err instanceof TimeoutError) {
-          this.logger.warn(`Request timeout: ${method} ${url} after ${timeoutValue}ms`);
+          this.logger.warn(`Request timeout!: ${method} ${url} after ${timeoutValue}ms`);
           return throwError(() => new RequestTimeoutException(`Request timeout after ${timeoutValue}ms`));
         }
         return throwError(() => err);

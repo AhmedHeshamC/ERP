@@ -1,10 +1,9 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { expect } from 'chai';
 import * as request from 'supertest';
-import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
@@ -26,7 +25,6 @@ import 'chai/register-expect';
 describe('Inventory Module Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let productService: ProductService;
   let authToken: string;
 
   // Setup test environment before all tests
@@ -62,7 +60,7 @@ describe('Inventory Module Integration Tests', () => {
         }),
       ],
       controllers: [ProductController],
-      providers: [ProductService, AuthService, JwtStrategy, LocalStrategy],
+      providers: [AuthService, JwtStrategy, LocalStrategy],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -82,8 +80,7 @@ describe('Inventory Module Integration Tests', () => {
 
     prismaService = new PrismaService(configService);
     await prismaService.$connect();
-    productService = moduleFixture.get<ProductService>(ProductService);
-
+    
     // Create a test user and get auth token using direct generation
     authToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
   });
@@ -739,7 +736,7 @@ describe('Inventory Module Integration Tests', () => {
         },
       });
     } catch (error) {
-      console.log('Cleanup error:', error.message);
+      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

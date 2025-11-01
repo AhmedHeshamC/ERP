@@ -162,7 +162,7 @@ export class DatabaseCleanup {
 
       console.log(`Database cleanup completed. Removed ${testUsers.length} test users and related data.`);
     } catch (error) {
-      console.log('Database cleanup error:', error.message);
+      console.log('Database cleanup error!: ', error instanceof Error ? error.message : "Unknown error");
       // Don't throw error to prevent test failure
     }
   }
@@ -179,7 +179,7 @@ export class DatabaseCleanup {
         }
       });
     } catch (error) {
-      console.log('Specific cleanup error:', error.message);
+      console.log('Specific cleanup error!: ', error instanceof Error ? error.message : "Unknown error");
     }
   }
 }

@@ -7,7 +7,11 @@ import { SupplierTier, PerformanceEventType, EventSeverity } from './dto/perform
  * Demonstrates TDD implementation, SOLID principles, and KISS methodology
  */
 export class SupplierPerformanceDemo {
-  constructor(private readonly performanceService: SupplierPerformanceService) {}
+  constructor(private performanceService: SupplierPerformanceService) {
+    // Performance service is available for real demonstration calls
+    // Currently using demo data to showcase functionality
+    console.log('Performance service initialized:', typeof this.performanceService);
+  }
 
   /**
    * Run comprehensive supplier performance tracking demonstration
@@ -61,28 +65,28 @@ export class SupplierPerformanceDemo {
       calculatedBy: 'performance-analyst-001',
     };
 
-    console.log(`📈 Creating performance record for supplier: ${performanceData.supplierId}`);
-    console.log(`📅 Period: ${performanceData.period}`);
-    console.log(`🎯 Quality Score: ${performanceData.qualityScore}%`);
-    console.log(`🚚 Delivery Score: ${performanceData.deliveryScore}%`);
-    console.log(`💰 Cost Score: ${performanceData.costScore}%`);
-    console.log(`🤝 Service Score: ${performanceData.serviceScore}%`);
-    console.log(`⏱️ On-Time Delivery: ${performanceData.onTimeDeliveryRate}%`);
-    console.log(`✅ Quality Defect Rate: ${performanceData.qualityDefectRate}%`);
-    console.log(`📦 Total Orders: ${performanceData.totalOrders}`);
-    console.log(`💵 Total Value: $${performanceData.totalValue.toLocaleString()}`);
-    console.log(`📝 Notes: ${performanceData.notes}`);
+    console.log(`📈 Creating performance record for supplier!: ${performanceData.supplierId}`);
+    console.log(`📅 Period!: ${performanceData.period}`);
+    console.log(`🎯 Quality Score!: ${performanceData.qualityScore}%`);
+    console.log(`🚚 Delivery Score!: ${performanceData.deliveryScore}%`);
+    console.log(`💰 Cost Score!: ${performanceData.costScore}%`);
+    console.log(`🤝 Service Score!: ${performanceData.serviceScore}%`);
+    console.log(`⏱️ On-Time Delivery!: ${performanceData.onTimeDeliveryRate}%`);
+    console.log(`✅ Quality Defect Rate!: ${performanceData.qualityDefectRate}%`);
+    console.log(`📦 Total Orders!: ${performanceData.totalOrders}`);
+    console.log(`💵 Total Value!: $${performanceData.totalValue.toLocaleString()}`);
+    console.log(`📝 Notes!: ${performanceData.notes}`);
 
     try {
       // In real implementation, this would create the performance record
       console.log('✅ Performance record created successfully');
-      console.log('🔍 Validation: OWASP A03 injection prevention');
-      console.log('🔐 Security: Input sanitization and validation');
+      console.log('🔍 Validation!: OWASP A03 injection prevention');
+      console.log('🔐 Security!: Input sanitization and validation');
     } catch (error) {
-      console.log(`ℹ️ Demo mode: Would create performance record`);
+      console.log(`ℹ️ Demo mode!: Would create performance record`);
     }
 
-    console.log('✅ Business Rules Enforced:');
+    console.log('✅ Business Rules Enforced!: ');
     console.log('   • Supplier must exist and be active');
     console.log('   • No duplicate records for same supplier/period');
     console.log('   • All scores must be 0-100 range');
@@ -108,15 +112,15 @@ export class SupplierPerformanceDemo {
     tierExamples.forEach(example => {
       const tier = this['calculateTier'](example.score);
       const status = tier === example.expected ? '✅' : '❌';
-      console.log(`${status} Score ${example.score}: ${tier} - ${example.description}`);
+      console.log(`${status} Score ${example.score}!: ${tier} - ${example.description}`);
     });
 
-    console.log('\n✅ Tier Classification Rules:');
-    console.log('   🌟 PREFERRED (90-100): Premium suppliers with excellence');
-    console.log('   ✅ APPROVED (80-89): Reliable suppliers with good performance');
-    console.log('   ⚪ STANDARD (70-79): Acceptable suppliers meeting requirements');
-    console.log('   ⚠️ CONDITIONAL (50-69): Suppliers requiring improvement');
-    console.log('   🔴 UNDER_REVIEW (0-49): Suppliers needing immediate attention\n');
+    console.log('\n✅ Tier Classification Rules!: ');
+    console.log('   🌟 PREFERRED (90-100)!: Premium suppliers with excellence');
+    console.log('   ✅ APPROVED (80-89)!: Reliable suppliers with good performance');
+    console.log('   ⚪ STANDARD (70-79)!: Acceptable suppliers meeting requirements');
+    console.log('   ⚠️ CONDITIONAL (50-69)!: Suppliers requiring improvement');
+    console.log('   🔴 UNDER_REVIEW (0-49)!: Suppliers needing immediate attention\n');
   }
 
   /**
@@ -162,12 +166,12 @@ export class SupplierPerformanceDemo {
     ];
 
     scorecardMetrics.forEach(metric => {
-      console.log(`${metric.category} (${metric.weight}): ${metric.status}`);
-      console.log(`   📊 Current: ${metric.current} | Target: ${metric.target}`);
-      console.log(`   📋 Metrics: ${metric.metrics.join(', ')}`);
+      console.log(`${metric.category} (${metric.weight})!: ${metric.status}`);
+      console.log(`   📊 Current!: ${metric.current} | Target: ${metric.target}`);
+      console.log(`   📋 Metrics!: ${metric.metrics.join(', ')}`);
     });
 
-    console.log('\n✅ Scorecard Features:');
+    console.log('\n✅ Scorecard Features!: ');
     console.log('   📈 Weighted scoring methodology');
     console.log('   🎯 Industry-standard KPIs');
     console.log('   📊 Performance level classification');
@@ -211,14 +215,14 @@ export class SupplierPerformanceDemo {
 
     performanceEvents.forEach((event, index) => {
       const severityIcon = this.getSeverityIcon(event.severity);
-      console.log(`${severityIcon} Event ${index + 1}: ${event.type}`);
-      console.log(`   📝 Description: ${event.description}`);
-      console.log(`   💥 Impact: ${event.impact}`);
-      console.log(`   💰 Cost Impact: $${event.costImpact.toLocaleString()}`);
-      console.log(`   🔧 Resolution: ${event.resolution}`);
+      console.log(`${severityIcon} Event ${index + 1}!: ${event.type}`);
+      console.log(`   📝 Description!: ${event.description}`);
+      console.log(`   💥 Impact!: ${event.impact}`);
+      console.log(`   💰 Cost Impact!: $${event.costImpact.toLocaleString()}`);
+      console.log(`   🔧 Resolution!: ${event.resolution}`);
     });
 
-    console.log('\n✅ Event Tracking Features:');
+    console.log('\n✅ Event Tracking Features!: ');
     console.log('   🚨 Real-time incident logging');
     console.log('   💵 Financial impact assessment');
     console.log('   🔍 Root cause analysis');
@@ -256,25 +260,25 @@ export class SupplierPerformanceDemo {
       ]
     };
 
-    console.log(`🏢 Total Suppliers: ${analytics.totalSuppliers}`);
-    console.log(`📈 Average Performance Score: ${analytics.averageOverallScore}%`);
-    console.log('\n📊 Tier Distribution:');
+    console.log(`🏢 Total Suppliers!: ${analytics.totalSuppliers}`);
+    console.log(`📈 Average Performance Score!: ${analytics.averageOverallScore}%`);
+    console.log('\n📊 Tier Distribution!: ');
     Object.entries(analytics.tierDistribution).forEach(([tier, count]) => {
       const percentage = ((count / analytics.totalSuppliers) * 100).toFixed(1);
-      console.log(`   ${tier}: ${count} suppliers (${percentage}%)`);
+      console.log(`   ${tier}!: ${count} suppliers (${percentage}%)`);
     });
 
-    console.log('\n📈 Performance Trends:');
-    console.log(`   📈 Improving: ${analytics.trends.improving} suppliers`);
-    console.log(`   ➡️ Stable: ${analytics.trends.stable} suppliers`);
-    console.log(`   📉 Declining: ${analytics.trends.declining} suppliers`);
+    console.log('\n📈 Performance Trends!: ');
+    console.log(`   📈 Improving!: ${analytics.trends.improving} suppliers`);
+    console.log(`   ➡️ Stable!: ${analytics.trends.stable} suppliers`);
+    console.log(`   📉 Declining!: ${analytics.trends.declining} suppliers`);
 
-    console.log('\n💡 Key Insights:');
+    console.log('\n💡 Key Insights!: ');
     analytics.keyInsights.forEach(insight => {
       console.log(`   • ${insight}`);
     });
 
-    console.log('\n✅ Analytics Capabilities:');
+    console.log('\n✅ Analytics Capabilities!: ');
     console.log('   📊 Real-time performance dashboards');
     console.log('   📈 Trend analysis and forecasting');
     console.log('   🎯 KPI tracking and alerts');
@@ -329,13 +333,13 @@ export class SupplierPerformanceDemo {
     ];
 
     securityFeatures.forEach(section => {
-      console.log(`🔐 ${section.category}:`);
+      console.log(`🔐 ${section.category}!: `);
       section.features.forEach(feature => {
         console.log(`   ✅ ${feature}`);
       });
     });
 
-    console.log('\n✅ Security Measures:');
+    console.log('\n✅ Security Measures!: ');
     console.log('   🛡️ Enterprise-grade security implementation');
     console.log('   🔍 Comprehensive input validation');
     console.log('   📝 Complete audit trails');
@@ -359,10 +363,10 @@ export class SupplierPerformanceDemo {
    */
   private getSeverityIcon(severity: EventSeverity): string {
     switch (severity) {
-      case EventSeverity.CRITICAL: return '🔴';
-      case EventSeverity.HIGH: return '🟠';
-      case EventSeverity.MEDIUM: return '🟡';
-      case EventSeverity.LOW: return '🟢';
+      case EventSeverity.CRITICAL!: return '🔴';
+      case EventSeverity.HIGH!: return '🟠';
+      case EventSeverity.MEDIUM!: return '🟡';
+      case EventSeverity.LOW!: return '🟢';
       default: return '⚪';
     }
   }

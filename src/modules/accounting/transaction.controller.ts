@@ -5,11 +5,11 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
   Query,
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { TransactionService } from './transaction.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -29,8 +29,8 @@ export class TransactionController {
   @ApiOperation({ summary: 'Create a new transaction with double-entry bookkeeping' })
   @ApiResponse({ status: 201, description: 'Transaction created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid transaction data or double-entry rules violated' })
-  create(@Body() createTransactionDto: CreateTransactionDto, @Request() req) {
-    return this.transactionService.create(createTransactionDto, req.user.id);
+  create(@Body() createTransactionDto: CreateTransactionDto, @Request() req: ExpressRequest) {
+    return this.transactionService.create(createTransactionDto, (req.user as any)?.id);
   }
 
   @Get()
@@ -73,8 +73,8 @@ export class TransactionController {
   @ApiResponse({ status: 200, description: 'Transaction posted successfully' })
   @ApiResponse({ status: 400, description: 'Transaction is already posted or not found' })
   @ApiParam({ name: 'id', type: String })
-  postTransaction(@Param('id') id: string, @Request() req) {
-    return this.transactionService.postTransaction(id, req.user.id);
+  postTransaction(@Param('id') id: string, @Request() req: ExpressRequest) {
+    return this.transactionService.postTransaction(id, (req.user as any)?.id);
   }
 
   @Patch(':id/cancel')
@@ -83,8 +83,8 @@ export class TransactionController {
   @ApiResponse({ status: 200, description: 'Transaction cancelled successfully' })
   @ApiResponse({ status: 400, description: 'Cannot cancel posted transaction' })
   @ApiParam({ name: 'id', type: String })
-  cancelTransaction(@Param('id') id: string, @Request() req) {
-    return this.transactionService.cancelTransaction(id, req.user.id);
+  cancelTransaction(@Param('id') id: string, @Request() req: ExpressRequest) {
+    return this.transactionService.cancelTransaction(id, (req.user as any)?.id);
   }
 
   @Get('accounts/:accountId/balance')

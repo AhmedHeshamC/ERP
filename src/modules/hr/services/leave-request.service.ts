@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
 import {
@@ -20,14 +20,6 @@ import {
 /**
  * Leave balance configuration
  */
-const LEAVE_BALANCE_LIMITS = {
-  [LeaveType.ANNUAL]: { maxDays: 365, requiresApproval: true },
-  [LeaveType.SICK]: { maxDays: 90, requiresApproval: false },
-  [LeaveType.PERSONAL]: { maxDays: 30, requiresApproval: true },
-  [LeaveType.MATERNITY]: { maxDays: 180, requiresApproval: true },
-  [LeaveType.PATERNITY]: { maxDays: 30, requiresApproval: true },
-  [LeaveType.UNPAID]: { maxDays: 365, requiresApproval: true },
-};
 
 /**
  * Enterprise Leave Request Service
@@ -51,11 +43,11 @@ export class LeaveRequestService {
    */
   async createLeaveRequest(createLeaveRequestDto: CreateLeaveRequestDto): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Creating leave request for employee: ${createLeaveRequestDto.employeeId}`);
+      this.logger.log(`Creating leave request for employee!: ${createLeaveRequestDto.employeeId}`);
 
       // Input validation and sanitization (OWASP A03)
       if (!this.securityService.validateInput(createLeaveRequestDto)) {
-        this.logger.warn(`Invalid input data for leave request creation: ${createLeaveRequestDto.employeeId}`);
+        this.logger.warn(`Invalid input data for leave request creation!: ${createLeaveRequestDto.employeeId}`);
         throw new BadRequestException('Invalid leave request data');
       }
 
@@ -80,19 +72,19 @@ export class LeaveRequestService {
       });
 
       if (!employee) {
-        this.logger.warn(`Employee not found for leave request creation: ${sanitizedData.employeeId}`);
+        this.logger.warn(`Employee not found for leave request creation!: ${sanitizedData.employeeId}`);
         throw new NotFoundException(`Employee not found`);
       }
 
       if (!employee.isActive) {
-        this.logger.warn(`Inactive employee attempted leave request creation: ${sanitizedData.employeeId}`);
+        this.logger.warn(`Inactive employee attempted leave request creation!: ${sanitizedData.employeeId}`);
         throw new BadRequestException(`Employee is inactive`);
       }
 
       // Validate date range
       if (sanitizedData.startDate >= sanitizedData.endDate) {
         this.logger.warn(`Invalid date range for leave request: ${sanitizedData.startDate} >= ${sanitizedData.endDate}`);
-        throw new BadRequestException('Invalid date range: end date must be after start date');
+        throw new BadRequestException('Invalid date range!: end date must be after start date');
       }
 
       // Calculate days requested
@@ -100,7 +92,7 @@ export class LeaveRequestService {
 
       // Validate leave balance
       if (!this.validateLeaveBalance(employee, sanitizedData.leaveType, daysRequested)) {
-        this.logger.warn(`Insufficient leave balance for employee: ${sanitizedData.employeeId}`);
+        this.logger.warn(`Insufficient leave balance for employee!: ${sanitizedData.employeeId}`);
         throw new BadRequestException('Insufficient leave balance');
       }
 
@@ -136,9 +128,17 @@ export class LeaveRequestService {
         status: leaveRequest.status as LeaveStatus,
         daysRequested: Number(leaveRequest.daysRequested),
         payRate: leaveRequest.payRate ? Number(leaveRequest.payRate) : undefined,
+        reason: leaveRequest.reason || undefined,
+        approvedBy: leaveRequest.approvedBy || undefined,
+        approvedAt: leaveRequest.approvedAt || undefined,
+        rejectedBy: leaveRequest.rejectedBy || undefined,
+        rejectedAt: leaveRequest.rejectedAt || undefined,
+        rejectionReason: leaveRequest.rejectionReason || undefined,
+        createdBy: leaveRequest.createdBy || undefined,
+        updatedBy: leaveRequest.updatedBy || undefined,
       };
 
-      this.logger.log(`Successfully created leave request: ${leaveRequest.id} for employee: ${employee.user?.firstName} ${employee.user?.lastName}`);
+      this.logger.log(`Successfully created leave request!: ${leaveRequest.id} for employee: ${employee.user?.firstName} ${employee.user?.lastName}`);
       return response;
 
     } catch (error) {
@@ -146,7 +146,7 @@ export class LeaveRequestService {
         throw error;
       }
 
-      this.logger.error(`Failed to create leave request: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create leave request: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to create leave request');
     }
   }
@@ -157,7 +157,7 @@ export class LeaveRequestService {
    */
   async getLeaveRequests(queryDto: LeaveRequestQueryDto): Promise<LeaveRequestQueryResponse> {
     try {
-      this.logger.log(`Fetching leave requests with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching leave requests with query!: ${JSON.stringify(queryDto)}`);
 
       const {
         employeeId,
@@ -223,7 +223,7 @@ export class LeaveRequestService {
           where,
           skip,
           take,
-          orderBy: { [sortBy]: sortOrder },
+          orderBy: { [sortBy as string]: sortOrder },
           include: {
             employee: {
               select: {
@@ -251,19 +251,27 @@ export class LeaveRequestService {
         status: request.status as LeaveStatus,
         daysRequested: Number(request.daysRequested),
         payRate: request.payRate ? Number(request.payRate) : undefined,
+        reason: request.reason || undefined,
+        approvedBy: request.approvedBy || undefined,
+        approvedAt: request.approvedAt || undefined,
+        rejectedBy: request.rejectedBy || undefined,
+        rejectedAt: request.rejectedAt || undefined,
+        rejectionReason: request.rejectionReason || undefined,
+        createdBy: request.createdBy || undefined,
+        updatedBy: request.updatedBy || undefined,
       }));
 
       this.logger.log(`Retrieved ${requestsWithTypes.length} leave requests out of ${total} total`);
 
       return {
         leaveRequests: requestsWithTypes,
-        total,
-        skip,
-        take,
+        total: total || 0,
+        skip: skip || 0,
+        take: take || 10,
       };
 
     } catch (error) {
-      this.logger.error(`Failed to fetch leave requests: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch leave requests: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch leave requests');
     }
   }
@@ -273,7 +281,7 @@ export class LeaveRequestService {
    */
   async getLeaveRequestById(id: string): Promise<LeaveRequestResponse | null> {
     try {
-      this.logger.log(`Fetching leave request by ID: ${id}`);
+      this.logger.log(`Fetching leave request by ID!: ${id}`);
 
       const leaveRequest = await this.prismaService.leaveRequest.findUnique({
         where: { id },
@@ -296,7 +304,7 @@ export class LeaveRequestService {
       });
 
       if (!leaveRequest) {
-        this.logger.warn(`Leave request not found: ${id}`);
+        this.logger.warn(`Leave request not found!: ${id}`);
         return null;
       }
 
@@ -307,13 +315,21 @@ export class LeaveRequestService {
         status: leaveRequest.status as LeaveStatus,
         daysRequested: Number(leaveRequest.daysRequested),
         payRate: leaveRequest.payRate ? Number(leaveRequest.payRate) : undefined,
+        reason: leaveRequest.reason || undefined,
+        approvedBy: leaveRequest.approvedBy || undefined,
+        approvedAt: leaveRequest.approvedAt || undefined,
+        rejectedBy: leaveRequest.rejectedBy || undefined,
+        rejectedAt: leaveRequest.rejectedAt || undefined,
+        rejectionReason: leaveRequest.rejectionReason || undefined,
+        createdBy: leaveRequest.createdBy || undefined,
+        updatedBy: leaveRequest.updatedBy || undefined,
       };
 
-      this.logger.log(`Successfully retrieved leave request: ${id}`);
+      this.logger.log(`Successfully retrieved leave request!: ${id}`);
       return response;
 
     } catch (error) {
-      this.logger.error(`Failed to fetch leave request by ID ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch leave request by ID ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch leave request');
     }
   }
@@ -323,7 +339,7 @@ export class LeaveRequestService {
    */
   async updateLeaveRequest(id: string, updateLeaveRequestDto: UpdateLeaveRequestDto): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Updating leave request ${id} with data: ${JSON.stringify(updateLeaveRequestDto)}`);
+      this.logger.log(`Updating leave request ${id} with data!: ${JSON.stringify(updateLeaveRequestDto)}`);
 
       // Check if leave request exists
       const existingRequest = await this.prismaService.leaveRequest.findUnique({
@@ -331,13 +347,13 @@ export class LeaveRequestService {
       });
 
       if (!existingRequest) {
-        this.logger.warn(`Leave request update attempted for non-existent ID: ${id}`);
+        this.logger.warn(`Leave request update attempted for non-existent ID!: ${id}`);
         throw new NotFoundException(`Leave request not found`);
       }
 
       // Input validation and sanitization
       if (!this.securityService.validateInput(updateLeaveRequestDto)) {
-        this.logger.warn(`Invalid input data for leave request update: ${id}`);
+        this.logger.warn(`Invalid input data for leave request update!: ${id}`);
         throw new BadRequestException('Invalid leave request data');
       }
 
@@ -345,7 +361,7 @@ export class LeaveRequestService {
 
       // Only allow updates for PENDING requests
       if (existingRequest.status !== LeaveStatus.PENDING) {
-        this.logger.warn(`Attempted to update non-pending leave request: ${id} with status: ${existingRequest.status}`);
+        this.logger.warn(`Attempted to update non-pending leave request!: ${id} with status: ${existingRequest.status}`);
         throw new BadRequestException('Only pending leave requests can be updated');
       }
 
@@ -378,9 +394,17 @@ export class LeaveRequestService {
         status: updatedRequest.status as LeaveStatus,
         daysRequested: Number(updatedRequest.daysRequested),
         payRate: updatedRequest.payRate ? Number(updatedRequest.payRate) : undefined,
+        reason: updatedRequest.reason || undefined,
+        approvedBy: updatedRequest.approvedBy || undefined,
+        approvedAt: updatedRequest.approvedAt || undefined,
+        rejectedBy: updatedRequest.rejectedBy || undefined,
+        rejectedAt: updatedRequest.rejectedAt || undefined,
+        rejectionReason: updatedRequest.rejectionReason || undefined,
+        createdBy: updatedRequest.createdBy || undefined,
+        updatedBy: updatedRequest.updatedBy || undefined,
       };
 
-      this.logger.log(`Successfully updated leave request: ${updatedRequest.id}`);
+      this.logger.log(`Successfully updated leave request!: ${updatedRequest.id}`);
       return response;
 
     } catch (error) {
@@ -388,7 +412,7 @@ export class LeaveRequestService {
         throw error;
       }
 
-      this.logger.error(`Failed to update leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to update leave request');
     }
   }
@@ -398,7 +422,7 @@ export class LeaveRequestService {
    */
   async approveLeaveRequest(id: string, approvalDto: ApprovalLeaveRequestDto): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Approving leave request: ${id}`);
+      this.logger.log(`Approving leave request!: ${id}`);
 
       // Input validation
       if (!this.securityService.validateInput(approvalDto)) {
@@ -453,9 +477,17 @@ export class LeaveRequestService {
         status: approvedRequest.status as LeaveStatus,
         daysRequested: Number(approvedRequest.daysRequested),
         payRate: approvedRequest.payRate ? Number(approvedRequest.payRate) : undefined,
+        reason: approvedRequest.reason || undefined,
+        approvedBy: approvedRequest.approvedBy || undefined,
+        approvedAt: approvedRequest.approvedAt || undefined,
+        rejectedBy: approvedRequest.rejectedBy || undefined,
+        rejectedAt: approvedRequest.rejectedAt || undefined,
+        rejectionReason: approvedRequest.rejectionReason || undefined,
+        createdBy: approvedRequest.createdBy || undefined,
+        updatedBy: approvedRequest.updatedBy || undefined,
       };
 
-      this.logger.log(`Successfully approved leave request: ${approvedRequest.id}`);
+      this.logger.log(`Successfully approved leave request!: ${approvedRequest.id}`);
       return response;
 
     } catch (error) {
@@ -463,7 +495,7 @@ export class LeaveRequestService {
         throw error;
       }
 
-      this.logger.error(`Failed to approve leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to approve leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to approve leave request');
     }
   }
@@ -473,7 +505,7 @@ export class LeaveRequestService {
    */
   async rejectLeaveRequest(id: string, rejectionDto: RejectLeaveRequestDto): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Rejecting leave request: ${id}`);
+      this.logger.log(`Rejecting leave request!: ${id}`);
 
       // Input validation
       if (!this.securityService.validateInput(rejectionDto)) {
@@ -529,9 +561,17 @@ export class LeaveRequestService {
         status: rejectedRequest.status as LeaveStatus,
         daysRequested: Number(rejectedRequest.daysRequested),
         payRate: rejectedRequest.payRate ? Number(rejectedRequest.payRate) : undefined,
+        reason: rejectedRequest.reason || undefined,
+        approvedBy: rejectedRequest.approvedBy || undefined,
+        approvedAt: rejectedRequest.approvedAt || undefined,
+        rejectedBy: rejectedRequest.rejectedBy || undefined,
+        rejectedAt: rejectedRequest.rejectedAt || undefined,
+        rejectionReason: rejectedRequest.rejectionReason || undefined,
+        createdBy: rejectedRequest.createdBy || undefined,
+        updatedBy: rejectedRequest.updatedBy || undefined,
       };
 
-      this.logger.log(`Successfully rejected leave request: ${rejectedRequest.id}`);
+      this.logger.log(`Successfully rejected leave request!: ${rejectedRequest.id}`);
       return response;
 
     } catch (error) {
@@ -539,7 +579,7 @@ export class LeaveRequestService {
         throw error;
       }
 
-      this.logger.error(`Failed to reject leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to reject leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to reject leave request');
     }
   }
@@ -549,7 +589,7 @@ export class LeaveRequestService {
    */
   async cancelLeaveRequest(id: string, cancelDto: CancelLeaveRequestDto): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Cancelling leave request: ${id}`);
+      this.logger.log(`Cancelling leave request!: ${id}`);
 
       // Input validation
       if (!this.securityService.validateInput(cancelDto)) {
@@ -605,9 +645,17 @@ export class LeaveRequestService {
         status: cancelledRequest.status as LeaveStatus,
         daysRequested: Number(cancelledRequest.daysRequested),
         payRate: cancelledRequest.payRate ? Number(cancelledRequest.payRate) : undefined,
+        reason: cancelledRequest.reason || undefined,
+        approvedBy: cancelledRequest.approvedBy || undefined,
+        approvedAt: cancelledRequest.approvedAt || undefined,
+        rejectedBy: cancelledRequest.rejectedBy || undefined,
+        rejectedAt: cancelledRequest.rejectedAt || undefined,
+        rejectionReason: cancelledRequest.rejectionReason || undefined,
+        createdBy: cancelledRequest.createdBy || undefined,
+        updatedBy: cancelledRequest.updatedBy || undefined,
       };
 
-      this.logger.log(`Successfully cancelled leave request: ${cancelledRequest.id}`);
+      this.logger.log(`Successfully cancelled leave request!: ${cancelledRequest.id}`);
       return response;
 
     } catch (error) {
@@ -615,7 +663,7 @@ export class LeaveRequestService {
         throw error;
       }
 
-      this.logger.error(`Failed to cancel leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to cancel leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to cancel leave request');
     }
   }
@@ -625,7 +673,7 @@ export class LeaveRequestService {
    */
   async getLeaveBalance(employeeId: string): Promise<LeaveBalanceResponse> {
     try {
-      this.logger.log(`Fetching leave balance for employee: ${employeeId}`);
+      this.logger.log(`Fetching leave balance for employee!: ${employeeId}`);
 
       const employee = await this.prismaService.employee.findUnique({
         where: { id: employeeId },
@@ -639,7 +687,7 @@ export class LeaveRequestService {
       });
 
       if (!employee) {
-        this.logger.warn(`Employee not found for leave balance: ${employeeId}`);
+        this.logger.warn(`Employee not found for leave balance!: ${employeeId}`);
         throw new NotFoundException(`Employee not found`);
       }
 
@@ -651,7 +699,7 @@ export class LeaveRequestService {
         lastUpdated: employee.updatedAt,
       };
 
-      this.logger.log(`Successfully retrieved leave balance for employee: ${employeeId}`);
+      this.logger.log(`Successfully retrieved leave balance for employee!: ${employeeId}`);
       return response;
 
     } catch (error) {
@@ -659,7 +707,7 @@ export class LeaveRequestService {
         throw error;
       }
 
-      this.logger.error(`Failed to fetch leave balance for employee ${employeeId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch leave balance for employee ${employeeId}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch leave balance');
     }
   }
@@ -669,7 +717,7 @@ export class LeaveRequestService {
    */
   async getLeaveAnalytics(queryDto: LeaveAnalyticsQueryDto): Promise<LeaveAnalyticsResponse> {
     try {
-      this.logger.log(`Fetching leave analytics with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching leave analytics with query!: ${JSON.stringify(queryDto)}`);
 
       const { employeeId, departmentId, startDateFrom, startDateTo } = queryDto;
 
@@ -765,11 +813,11 @@ export class LeaveRequestService {
         monthlyTrends: [], // TODO: Implement monthly trends if needed
       };
 
-      this.logger.log(`Successfully generated leave analytics: ${totalRequests} total requests`);
+      this.logger.log(`Successfully generated leave analytics!: ${totalRequests} total requests`);
       return response;
 
     } catch (error) {
-      this.logger.error(`Failed to generate leave analytics: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate leave analytics: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate leave analytics');
     }
   }

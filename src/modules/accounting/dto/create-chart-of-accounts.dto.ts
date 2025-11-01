@@ -1,14 +1,14 @@
 import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength } from 'class-validator';
-import { AccountType, AccountCategory } from '../enums/accounting.enum';
+import { AccountType } from '../enums/accounting.enum';
 
 export class CreateChartOfAccountsDto {
   @IsString()
   @MaxLength(20)
-  code: string;
+  code!: string;
 
   @IsString()
   @MaxLength(100)
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -16,11 +16,11 @@ export class CreateChartOfAccountsDto {
   description?: string;
 
   @IsEnum(AccountType)
-  type: AccountType;
+  type!: AccountType;
 
   @IsString()
   @MaxLength(50)
-  category: string;
+  category!: string;
 
   @IsOptional()
   @IsString()

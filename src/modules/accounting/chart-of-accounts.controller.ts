@@ -10,6 +10,7 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { ChartOfAccountsService } from './chart-of-accounts.service';
 import { CreateChartOfAccountsDto } from './dto/create-chart-of-accounts.dto';
@@ -31,8 +32,8 @@ export class ChartOfAccountsController {
   @ApiResponse({ status: 201, description: 'Account created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input' })
   @ApiResponse({ status: 409, description: 'Account code already exists' })
-  create(@Body() createChartOfAccountsDto: CreateChartOfAccountsDto, @Request() req) {
-    return this.chartOfAccountsService.create(createChartOfAccountsDto, req.user.id);
+  create(@Body() createChartOfAccountsDto: CreateChartOfAccountsDto, @Request() req: ExpressRequest) {
+    return this.chartOfAccountsService.create(createChartOfAccountsDto, (req.user as any)?.id);
   }
 
   @Get()
@@ -82,8 +83,8 @@ export class ChartOfAccountsController {
   @ApiResponse({ status: 404, description: 'Account not found' })
   @ApiResponse({ status: 403, description: 'System accounts cannot be modified' })
   @ApiParam({ name: 'id', type: String })
-  update(@Param('id') id: string, @Body() updateChartOfAccountsDto: UpdateChartOfAccountsDto, @Request() req) {
-    return this.chartOfAccountsService.update(id, updateChartOfAccountsDto, req.user.id);
+  update(@Param('id') id: string, @Body() updateChartOfAccountsDto: UpdateChartOfAccountsDto, @Request() req: ExpressRequest) {
+    return this.chartOfAccountsService.update(id, updateChartOfAccountsDto, (req.user as any)?.id);
   }
 
   @Delete(':id')
@@ -93,7 +94,7 @@ export class ChartOfAccountsController {
   @ApiResponse({ status: 404, description: 'Account not found' })
   @ApiResponse({ status: 403, description: 'System accounts cannot be deleted' })
   @ApiParam({ name: 'id', type: String })
-  remove(@Param('id') id: string, @Request() req) {
-    return this.chartOfAccountsService.remove(id, req.user.id);
+  remove(@Param('id') id: string, @Request() req: ExpressRequest) {
+    return this.chartOfAccountsService.remove(id, (req.user as any)?.id);
   }
 }

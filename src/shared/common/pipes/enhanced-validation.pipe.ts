@@ -52,7 +52,7 @@ export class EnhancedValidationPipe implements PipeTransform {
 
       // Perform basic type validation
       if (!this.validateType(value, metadata)) {
-        throw this.createValidationException('Invalid input type', metadata);
+        throw this.createValidationException('Invalid input type');
       }
 
       // Perform security validation
@@ -90,8 +90,7 @@ export class EnhancedValidationPipe implements PipeTransform {
       // Handle unexpected errors
       throw this.createValidationException(
         'Validation failed due to system error',
-        metadata,
-        error
+        error instanceof Error ? error : undefined
       );
     }
   }
@@ -254,7 +253,6 @@ export class EnhancedValidationPipe implements PipeTransform {
    */
   private createValidationException(
     message: string,
-    metadata: ArgumentMetadata,
     originalError?: Error
   ): HttpException {
     const response = ApiResponseBuilder.error(
@@ -278,7 +276,7 @@ export class EnhancedValidationPipe implements PipeTransform {
       'Security validation failed',
       securityResult.errors.map((error: any) => ({
         code: error.code,
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
         field: error.field,
         timestamp: new Date().toISOString(),
       })),

@@ -33,7 +33,6 @@ import {
 } from '../dto/leave-request.dto';
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
-import { Roles } from '../../../shared/security/decorators/roles.decorator';
 
 /**
  * Enterprise Leave Request Controller
@@ -69,7 +68,7 @@ export class LeaveRequestController {
     @Request() req: any,
   ): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Creating leave request for employee: ${createLeaveRequestDto.employeeId}`);
+      this.logger.log(`Creating leave request for employee!: ${createLeaveRequestDto.employeeId}`);
 
       // Validate user context (OWASP A01: Broken Access Control)
       // Allow mock user context for integration tests
@@ -88,7 +87,7 @@ export class LeaveRequestController {
 
       const userId = req.user?.id || req.user?.sub || mockUserId;
       if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-        this.logger.warn(`Invalid user ID format: ${userId}`);
+        this.logger.warn(`Invalid user ID format!: ${userId}`);
         throw new ForbiddenException('Invalid user ID');
       }
 
@@ -97,18 +96,18 @@ export class LeaveRequestController {
 
       const result = await this.leaveRequestService.createLeaveRequest(createLeaveRequestDto);
 
-      this.logger.log(`Successfully created leave request: ${result.id} by user: ${req.user.sub}`);
+      this.logger.log(`Successfully created leave request!: ${result.id} by user: ${req.user.sub}`);
       return result;
 
     } catch (error) {
       // Let service errors (NotFoundException, BadRequestException, etc.) bubble up
       if (error instanceof BadRequestException || error instanceof ForbiddenException || error instanceof NotFoundException) {
-        this.logger.warn(`Failed to create leave request: ${error.message}`);
+        this.logger.warn(`Failed to create leave request!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
       // Handle unexpected errors
-      this.logger.error(`Failed to create leave request: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create leave request: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -134,7 +133,7 @@ export class LeaveRequestController {
     @Query(ValidationPipe) queryDto: LeaveRequestQueryDto,
   ): Promise<LeaveRequestQueryResponse> {
     try {
-      this.logger.log(`Fetching leave requests with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching leave requests with query!: ${JSON.stringify(queryDto)}`);
 
       // Validate query parameters
       this.validateLeaveRequestQuery(queryDto);
@@ -146,11 +145,11 @@ export class LeaveRequestController {
 
     } catch (error) {
       if (error instanceof BadRequestException) {
-        this.logger.warn(`Failed to fetch leave requests: ${error.message}`);
+        this.logger.warn(`Failed to fetch leave requests!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to fetch leave requests: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch leave requests: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -170,7 +169,7 @@ export class LeaveRequestController {
     @Param('id') id: string,
   ): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Fetching leave request by ID: ${id}`);
+      this.logger.log(`Fetching leave request by ID!: ${id}`);
 
       // Validate ID format
       if (!id || id.trim() === '') {
@@ -180,20 +179,20 @@ export class LeaveRequestController {
       const result = await this.leaveRequestService.getLeaveRequestById(id);
 
       if (!result) {
-        this.logger.warn(`Leave request not found: ${id}`);
+        this.logger.warn(`Leave request not found!: ${id}`);
         throw new NotFoundException('Leave request not found');
       }
 
-      this.logger.log(`Successfully retrieved leave request: ${id}`);
+      this.logger.log(`Successfully retrieved leave request!: ${id}`);
       return result;
 
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        this.logger.warn(`Failed to fetch leave request by ID ${id}: ${error.message}`);
+        this.logger.warn(`Failed to fetch leave request by ID ${id}!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to fetch leave request by ID ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch leave request by ID ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -215,7 +214,7 @@ export class LeaveRequestController {
     @Body(ValidationPipe) updateLeaveRequestDto: UpdateLeaveRequestDto,
   ): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Updating leave request: ${id}`);
+      this.logger.log(`Updating leave request!: ${id}`);
 
       // Validate ID format
       if (!id || id.trim() === '') {
@@ -227,16 +226,16 @@ export class LeaveRequestController {
 
       const result = await this.leaveRequestService.updateLeaveRequest(id, updateLeaveRequestDto);
 
-      this.logger.log(`Successfully updated leave request: ${result.id}`);
+      this.logger.log(`Successfully updated leave request!: ${result.id}`);
       return result;
 
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        this.logger.warn(`Failed to update leave request ${id}: ${error.message}`);
+        this.logger.warn(`Failed to update leave request ${id}!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to update leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -259,7 +258,7 @@ export class LeaveRequestController {
     @Body(ValidationPipe) approvalDto: ApprovalLeaveRequestDto,
   ): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Approving leave request: ${id} by: ${approvalDto.approverId}`);
+      this.logger.log(`Approving leave request!: ${id} by: ${approvalDto.approverId}`);
 
       // Validate ID format
       if (!id || id.trim() === '') {
@@ -271,16 +270,16 @@ export class LeaveRequestController {
 
       const result = await this.leaveRequestService.approveLeaveRequest(id, approvalDto);
 
-      this.logger.log(`Successfully approved leave request: ${result.id}`);
+      this.logger.log(`Successfully approved leave request!: ${result.id}`);
       return result;
 
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        this.logger.warn(`Failed to approve leave request ${id}: ${error.message}`);
+        this.logger.warn(`Failed to approve leave request ${id}!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to approve leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to approve leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -303,7 +302,7 @@ export class LeaveRequestController {
     @Body(ValidationPipe) rejectionDto: RejectLeaveRequestDto,
   ): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Rejecting leave request: ${id} by: ${rejectionDto.rejectedBy}`);
+      this.logger.log(`Rejecting leave request!: ${id} by: ${rejectionDto.rejectedBy}`);
 
       // Validate ID format
       if (!id || id.trim() === '') {
@@ -315,16 +314,16 @@ export class LeaveRequestController {
 
       const result = await this.leaveRequestService.rejectLeaveRequest(id, rejectionDto);
 
-      this.logger.log(`Successfully rejected leave request: ${result.id}`);
+      this.logger.log(`Successfully rejected leave request!: ${result.id}`);
       return result;
 
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        this.logger.warn(`Failed to reject leave request ${id}: ${error.message}`);
+        this.logger.warn(`Failed to reject leave request ${id}!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to reject leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to reject leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -347,7 +346,7 @@ export class LeaveRequestController {
     @Body(ValidationPipe) cancelDto: CancelLeaveRequestDto,
   ): Promise<LeaveRequestResponse> {
     try {
-      this.logger.log(`Cancelling leave request: ${id} by: ${cancelDto.cancelledBy}`);
+      this.logger.log(`Cancelling leave request!: ${id} by: ${cancelDto.cancelledBy}`);
 
       // Validate ID format
       if (!id || id.trim() === '') {
@@ -359,16 +358,16 @@ export class LeaveRequestController {
 
       const result = await this.leaveRequestService.cancelLeaveRequest(id, cancelDto);
 
-      this.logger.log(`Successfully cancelled leave request: ${result.id}`);
+      this.logger.log(`Successfully cancelled leave request!: ${result.id}`);
       return result;
 
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        this.logger.warn(`Failed to cancel leave request ${id}: ${error.message}`);
+        this.logger.warn(`Failed to cancel leave request ${id}!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to cancel leave request ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to cancel leave request ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -388,7 +387,7 @@ export class LeaveRequestController {
     @Param('employeeId') employeeId: string,
   ): Promise<LeaveBalanceResponse> {
     try {
-      this.logger.log(`Fetching leave balance for employee: ${employeeId}`);
+      this.logger.log(`Fetching leave balance for employee!: ${employeeId}`);
 
       // Validate employee ID format
       if (!employeeId || employeeId.trim() === '') {
@@ -397,16 +396,16 @@ export class LeaveRequestController {
 
       const result = await this.leaveRequestService.getLeaveBalance(employeeId);
 
-      this.logger.log(`Successfully retrieved leave balance for employee: ${employeeId}`);
+      this.logger.log(`Successfully retrieved leave balance for employee!: ${employeeId}`);
       return result;
 
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
-        this.logger.warn(`Failed to fetch leave balance for employee ${employeeId}: ${error.message}`);
+        this.logger.warn(`Failed to fetch leave balance for employee ${employeeId}!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to fetch leave balance for employee ${employeeId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch leave balance for employee ${employeeId}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -429,23 +428,23 @@ export class LeaveRequestController {
     @Query(ValidationPipe) queryDto: LeaveAnalyticsQueryDto,
   ): Promise<LeaveAnalyticsResponse> {
     try {
-      this.logger.log(`Fetching leave analytics with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching leave analytics with query!: ${JSON.stringify(queryDto)}`);
 
       // Validate analytics query
       this.validateAnalyticsQuery(queryDto);
 
       const result = await this.leaveRequestService.getLeaveAnalytics(queryDto);
 
-      this.logger.log(`Successfully generated leave analytics: ${result.totalLeaveRequests} total requests`);
+      this.logger.log(`Successfully generated leave analytics!: ${result.totalLeaveRequests} total requests`);
       return result;
 
     } catch (error) {
       if (error instanceof BadRequestException) {
-        this.logger.warn(`Failed to generate leave analytics: ${error.message}`);
+        this.logger.warn(`Failed to generate leave analytics!: ${error instanceof Error ? error.message : "Unknown error"}`);
         throw error;
       }
 
-      this.logger.error(`Failed to generate leave analytics: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate leave analytics: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

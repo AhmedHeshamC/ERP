@@ -50,21 +50,21 @@ export interface OrderData {
 
 export class Order {
   public readonly id?: string;
-  public readonly orderNumber: string;
-  public readonly customerId: string;
-  public description: string;
-  public totalAmount: number;
-  public readonly currency: string;
-  public status: OrderStatus;
-  public isActive: boolean;
-  public readonly items: OrderItem[];
-  public readonly taxRate: number;
+  public readonly orderNumber!: string;
+  public readonly customerId!: string;
+  public description!: string;
+  public totalAmount!: number;
+  public readonly currency!: string;
+  public status!: OrderStatus;
+  public isActive!: boolean;
+  public readonly items!: OrderItem[];
+  public readonly taxRate!: number;
   public readonly shippingAddress?: Address;
   public readonly billingAddress?: Address;
   public notes?: string;
   public readonly expectedDeliveryDate?: Date;
-  public readonly createdAt: Date;
-  public updatedAt: Date;
+  public readonly createdAt!: Date;
+  public updatedAt!: Date;
   public confirmedAt?: Date;
   public shippedAt?: Date;
   public deliveredAt?: Date;
@@ -196,22 +196,22 @@ export class Order {
     // Validate each item
     this.items.forEach((item, index) => {
       if (!item.productId || item.productId.trim().length === 0) {
-        errors.push(`Item ${index + 1}: Product ID is required`);
+        errors.push(`Item ${index + 1}!: Product ID is required`);
       }
       if (!item.description || item.description.trim().length === 0) {
-        errors.push(`Item ${index + 1}: Description is required`);
+        errors.push(`Item ${index + 1}!: Description is required`);
       }
       if (item.quantity <= 0) {
-        errors.push(`Item ${index + 1}: Quantity must be positive`);
+        errors.push(`Item ${index + 1}!: Quantity must be positive`);
       }
       if (item.unitPrice < 0) {
-        errors.push(`Item ${index + 1}: Unit price must be non-negative`);
+        errors.push(`Item ${index + 1}!: Unit price must be non-negative`);
       }
       if (item.totalPrice < 0) {
-        errors.push(`Item ${index + 1}: Total price must be non-negative`);
+        errors.push(`Item ${index + 1}!: Total price must be non-negative`);
       }
       if (Math.abs(item.totalPrice - (item.quantity * item.unitPrice)) > 0.01) {
-        errors.push(`Item ${index + 1}: Total price does not match quantity * unit price`);
+        errors.push(`Item ${index + 1}!: Total price does not match quantity * unit price`);
       }
     });
 

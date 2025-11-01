@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SecurityService } from '../../security/security.service';
-import { v4 as uuidv4, validate as uuidValidate } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Transaction Reference Management Service
@@ -149,15 +149,15 @@ export class TransactionReferenceService {
     customPrefix?: string
   ): Promise<string> {
     try {
-      this.logger.log(`Generating transaction reference for type: ${type}`);
+      this.logger.log(`Generating transaction reference for type!: ${type}`);
 
       const config = TRANSACTION_REFERENCE_CONFIGS[type];
       if (!config) {
-        throw new Error(`Unsupported transaction type: ${type}`);
+        throw new Error(`Unsupported transaction type!: ${type}`);
       }
 
       const prefix = customPrefix || config.prefix;
-      let reference: string;
+      let reference!: string;
       let attempts = 0;
       const maxAttempts = 10;
 
@@ -186,10 +186,10 @@ export class TransactionReferenceService {
         },
       );
 
-      this.logger.log(`Transaction reference generated successfully: ${reference}`);
+      this.logger.log(`Transaction reference generated successfully!: ${reference}`);
       return reference;
     } catch (error) {
-      this.logger.error(`Failed to generate transaction reference: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate transaction reference: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -203,7 +203,7 @@ export class TransactionReferenceService {
     type: TransactionType
   ): Promise<TransactionReferenceResult> {
     try {
-      this.logger.log(`Validating transaction reference: ${reference} for type: ${type}`);
+      this.logger.log(`Validating transaction reference!: ${reference} for type: ${type}`);
 
       const errors: string[] = [];
 
@@ -230,7 +230,7 @@ export class TransactionReferenceService {
 
       // Prefix validation
       if (!reference.startsWith(config.prefix)) {
-        errors.push(`Reference must start with prefix: ${config.prefix}`);
+        errors.push(`Reference must start with prefix!: ${config.prefix}`);
       }
 
       // Format validation (basic pattern)
@@ -251,7 +251,7 @@ export class TransactionReferenceService {
 
       const isValid = errors.length === 0;
 
-      this.logger.log(`Transaction reference validation completed: ${reference}, valid: ${isValid}`);
+      this.logger.log(`Transaction reference validation completed!: ${reference}, valid: ${isValid}`);
       return {
         reference,
         type: type.toString(),
@@ -259,7 +259,7 @@ export class TransactionReferenceService {
         errors: errors.length > 0 ? errors : undefined,
       };
     } catch (error) {
-      this.logger.error(`Failed to validate transaction reference: ${error.message}`, error.stack);
+      this.logger.error(`Failed to validate transaction reference: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       return {
         reference,
         type: type.toString(),
@@ -290,7 +290,7 @@ export class TransactionReferenceService {
 
       return !(salesOrder || invoice || purchaseOrder || stockMovement);
     } catch (error) {
-      this.logger.error(`Failed to check reference uniqueness: ${error.message}`, error.stack);
+      this.logger.error(`Failed to check reference uniqueness: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       // Assume not unique on error to be safe
       return false;
     }
@@ -332,7 +332,7 @@ export class TransactionReferenceService {
         cacheExpirations: this.cacheExpiry.size,
       };
     } catch (error) {
-      this.logger.error(`Failed to get reference statistics: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get reference statistics: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

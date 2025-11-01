@@ -3,10 +3,8 @@ import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
 import {
   CreateReportDefinitionDto,
-  UpdateReportDefinitionDto,
   ReportDefinitionResponse,
   GenerateReportDto,
-  ReportsQueryResponse,
   FinancialReportParamsDto,
   SalesReportParamsDto,
   FinancialReportResponse,
@@ -15,7 +13,6 @@ import {
   PurchasingAnalyticsResponse,
   ExecutiveDashboardResponse,
   ReportStatus,
-  ReportFormat,
 } from '../dto/reports.dto';
 
 /**
@@ -39,17 +36,17 @@ export class ReportsService {
    */
   async createReportDefinition(createReportDto: CreateReportDefinitionDto): Promise<ReportDefinitionResponse> {
     try {
-      this.logger.log(`Creating report definition: ${createReportDto.name}`);
+      this.logger.log(`Creating report definition!: ${createReportDto.name}`);
 
       // Input validation and sanitization
       if (!this.securityService.validateInput(createReportDto)) {
-        this.logger.warn(`Invalid input data for report creation: ${createReportDto.name}`);
+        this.logger.warn(`Invalid input data for report creation!: ${createReportDto.name}`);
         throw new BadRequestException('Invalid report definition data');
       }
 
       // Validate SQL query for security
       if (!this.validateReportQuery(createReportDto.query)) {
-        this.logger.warn(`Invalid SQL query detected in report: ${createReportDto.name}`);
+        this.logger.warn(`Invalid SQL query detected in report!: ${createReportDto.name}`);
         throw new BadRequestException('Invalid SQL query detected');
       }
 
@@ -62,9 +59,10 @@ export class ReportsService {
       const response: ReportDefinitionResponse = {
         ...reportDefinition,
         parameters: reportDefinition.parameters as Record<string, any>,
+        description: reportDefinition.description || undefined,
       };
 
-      this.logger.log(`Successfully created report definition: ${reportDefinition.name} (ID: ${reportDefinition.id})`);
+      this.logger.log(`Successfully created report definition!: ${reportDefinition.name} (ID: ${reportDefinition.id})`);
       return response;
 
     } catch (error) {
@@ -72,7 +70,7 @@ export class ReportsService {
         throw error;
       }
 
-      this.logger.error(`Failed to create report definition: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create report definition: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to create report definition');
     }
   }
@@ -83,15 +81,18 @@ export class ReportsService {
    */
   async generateFinancialReport(params: FinancialReportParamsDto): Promise<FinancialReportResponse> {
     try {
-      this.logger.log(`Generating financial report for period: ${params.startDate} to ${params.endDate}`);
+      this.logger.log(`Generating financial report for period!: ${params.startDate} to ${params.endDate}`);
 
-      const { startDate, endDate, currency, includeComparisons } = params;
+      const { startDate, endDate, currency } = params;
 
       // Calculate total revenue (sum of sales transactions)
       const revenueResult = await this.prismaService.transaction.aggregate({
         where: {
           type: 'SALE',
-          date: { gte: startDate, lte: endDate },
+          date: {
+            gte: startDate || new Date(new Date().getFullYear(), 0, 1),
+            lte: endDate || new Date()
+          },
           status: 'POSTED',
         },
         _sum: { amount: true },
@@ -104,7 +105,10 @@ export class ReportsService {
       const expenseResult = await this.prismaService.transaction.aggregate({
         where: {
           type: { in: ['PURCHASE', 'PAYMENT'] },
-          date: { gte: startDate, lte: endDate },
+          date: {
+            gte: startDate || new Date(new Date().getFullYear(), 0, 1),
+            lte: endDate || new Date()
+          },
           status: 'POSTED',
         },
         _sum: { amount: true },
@@ -118,10 +122,16 @@ export class ReportsService {
       const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
       // Generate revenue by period
-      const revenueByPeriod = await this.generateRevenueByPeriod(startDate, endDate);
+      const revenueByPeriod = await this.generateRevenueByPeriod(
+        startDate || new Date(new Date().getFullYear(), 0, 1),
+        endDate || new Date()
+      );
 
       // Generate expenses by category
-      const expensesByCategory = await this.generateExpensesByCategory(startDate, endDate);
+      const expensesByCategory = await this.generateExpensesByCategory(
+        startDate || new Date(new Date().getFullYear(), 0, 1),
+        endDate || new Date()
+      );
 
       const report: FinancialReportResponse = {
         revenue: {
@@ -146,15 +156,15 @@ export class ReportsService {
           net: netProfit,
           margin: profitMargin,
         },
-        period: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
-        currency: currency,
+        period: `${(startDate || new Date(new Date().getFullYear(), 0, 1)).toISOString().split('T')[0]} to ${(endDate || new Date()).toISOString().split('T')[0]}`,
+        currency: currency || 'USD',
       };
 
-      this.logger.log(`Successfully generated financial report: Revenue $${totalRevenue}, Profit $${netProfit}`);
+      this.logger.log(`Successfully generated financial report!: Revenue $${totalRevenue}, Profit $${netProfit}`);
       return report;
 
     } catch (error) {
-      this.logger.error(`Failed to generate financial report: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate financial report: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate financial report');
     }
   }
@@ -165,9 +175,9 @@ export class ReportsService {
    */
   async generateSalesAnalytics(params: SalesReportParamsDto): Promise<SalesAnalyticsResponse> {
     try {
-      this.logger.log(`Generating sales analytics for period: ${params.startDate} to ${params.endDate}`);
+      this.logger.log(`Generating sales analytics for period!: ${params.startDate} to ${params.endDate}`);
 
-      const { startDate, endDate, customerGrouping, productGrouping, includeDetails } = params;
+      const { startDate, endDate } = params;
 
       // Calculate total sales metrics
       const salesResult = await this.prismaService.order.aggregate({
@@ -212,7 +222,7 @@ export class ReportsService {
       }));
 
       // Generate sales by period
-      const salesByPeriod = await this.generateSalesByPeriod(startDate, endDate);
+      const salesByPeriod = await this.generateSalesByPeriod(startDate || new Date(), endDate || new Date());
 
       // Calculate conversion rate (orders vs customers)
       const totalCustomers = await this.prismaService.customer.count({
@@ -230,11 +240,11 @@ export class ReportsService {
         conversionRate,
       };
 
-      this.logger.log(`Successfully generated sales analytics: $${totalSales} from ${totalOrders} orders`);
+      this.logger.log(`Successfully generated sales analytics!: $${totalSales} from ${totalOrders} orders`);
       return report;
 
     } catch (error) {
-      this.logger.error(`Failed to generate sales analytics: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate sales analytics: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate sales analytics');
     }
   }
@@ -298,11 +308,11 @@ export class ReportsService {
         turnoverRate,
       };
 
-      this.logger.log(`Successfully generated inventory report: ${totalProducts} products, $${totalValue} value`);
+      this.logger.log(`Successfully generated inventory report!: ${totalProducts} products, $${totalValue} value`);
       return report;
 
     } catch (error) {
-      this.logger.error(`Failed to generate inventory report: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate inventory report: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate inventory report');
     }
   }
@@ -356,11 +366,11 @@ export class ReportsService {
         averageDeliveryTime,
       };
 
-      this.logger.log(`Successfully generated purchasing analytics: $${totalSpend} from ${totalPurchaseOrders} orders`);
+      this.logger.log(`Successfully generated purchasing analytics!: $${totalSpend} from ${totalPurchaseOrders} orders`);
       return report;
 
     } catch (error) {
-      this.logger.error(`Failed to generate purchasing analytics: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate purchasing analytics: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate purchasing analytics');
     }
   }
@@ -427,7 +437,7 @@ export class ReportsService {
       return report;
 
     } catch (error) {
-      this.logger.error(`Failed to generate executive dashboard: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate executive dashboard: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate executive dashboard');
     }
   }
@@ -437,7 +447,7 @@ export class ReportsService {
    */
   async generateCustomReport(generateReportDto: GenerateReportDto): Promise<any> {
     try {
-      this.logger.log(`Generating custom report: ${generateReportDto.reportDefinitionId}`);
+      this.logger.log(`Generating custom report!: ${generateReportDto.reportDefinitionId}`);
 
       // Get report definition
       const reportDefinition = await this.prismaService.reportDefinition.findUnique({
@@ -445,7 +455,7 @@ export class ReportsService {
       });
 
       if (!reportDefinition) {
-        throw new NotFoundException(`Report definition not found: ${generateReportDto.reportDefinitionId}`);
+        throw new NotFoundException(`Report definition not found!: ${generateReportDto.reportDefinitionId}`);
       }
 
       // In a real implementation, this would execute the SQL query with parameters
@@ -464,7 +474,7 @@ export class ReportsService {
         data: reportData,
       });
 
-      this.logger.log(`Successfully generated custom report: ${reportDefinition.name}`);
+      this.logger.log(`Successfully generated custom report!: ${reportDefinition.name}`);
       return generatedReport;
 
     } catch (error) {
@@ -472,7 +482,7 @@ export class ReportsService {
         throw error;
       }
 
-      this.logger.error(`Failed to generate custom report: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate custom report: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate custom report');
     }
   }

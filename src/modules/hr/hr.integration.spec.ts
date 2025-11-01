@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -26,8 +26,7 @@ import {
   CreateLeaveRequestDto,
   LeaveType,
   LeaveStatus,
-  LeaveRequestQueryDto,
-} from './dto/leave-request.dto';
+  } from './dto/leave-request.dto';
 import { CreatePayrollDto } from './dto/create-payroll.dto';
 import 'chai/register-should';
 import 'chai/register-expect';
@@ -42,10 +41,7 @@ import 'chai/register-expect';
 describe('HR Module Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let employeeService: EmployeeService;
-  let leaveRequestService: LeaveRequestService;
-  let payrollService: PayrollService;
-  let adminToken: string;
+    let adminToken: string;
   let managerToken: string;
   let employeeToken: string;
 
@@ -102,10 +98,7 @@ describe('HR Module Integration Tests', () => {
 
     prismaService = new PrismaService(configService);
     await prismaService.$connect();
-    employeeService = moduleFixture.get<EmployeeService>(EmployeeService);
-    leaveRequestService = moduleFixture.get<LeaveRequestService>(LeaveRequestService);
-    payrollService = moduleFixture.get<PayrollService>(PayrollService);
-
+    
     // Create test users with different roles using direct token generation
     adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
     managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
@@ -567,7 +560,7 @@ describe('HR Module Integration Tests', () => {
 
     it('should filter leave requests by status', async () => {
       // Arrange - Create leave requests with different statuses
-      const pendingLeave = await createTestLeaveRequest(testEmployee.id);
+      await createTestLeaveRequest(testEmployee.id);
       const approvedLeave = await createTestLeaveRequest(testEmployee.id);
 
       await request(app.getHttpServer())
@@ -623,8 +616,7 @@ describe('HR Module Integration Tests', () => {
 
     it('should create payroll run successfully', async () => {
       // Arrange
-      const timestamp = Date.now();
-      const createPayrollDto: CreatePayrollDto = {
+            const createPayrollDto: CreatePayrollDto = {
         employeeId: testEmployee.id,
         payPeriod: '2024-01',
         grossPay: 6250, // Monthly salary (75,000 / 12)
@@ -681,8 +673,7 @@ describe('HR Module Integration Tests', () => {
       expect(response.body.overtimeRate).to.equal(56.25);
 
       // Calculate expected overtime pay
-      const expectedOvertimePay = 10 * 37.50 * 1.5; // 562.5
-
+      
       expect(response.body.grossPay).to.be.closeTo(6562.50, 0.01);
       expect(response.body.netPay).to.equal(createPayrollDto.netPay);
     });
@@ -938,7 +929,7 @@ describe('HR Module Integration Tests', () => {
     it('should protect sensitive payroll information', async () => {
       // Arrange - Create employee and payroll
       const employee = await createTestEmployee();
-      const payroll = await createTestPayroll(employee.id);
+      await createTestPayroll(employee.id);
 
       // Act & Assert - Employee can view their own payroll
       await request(app.getHttpServer())
@@ -1111,11 +1102,10 @@ describe('HR Module Integration Tests', () => {
 
   async function createTestPayroll(employeeId: string, period: string = '2024-01'): Promise<any> {
     // First get the employee to get salary
-    const employeeResponse = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .get(`/employees/${employeeId}`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    const employee = employeeResponse.body;
 
     const payrollData: CreatePayrollDto = {
       employeeId,
@@ -1199,7 +1189,7 @@ describe('HR Module Integration Tests', () => {
         },
       });
     } catch (error) {
-      console.log('Cleanup error:', error.message);
+      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

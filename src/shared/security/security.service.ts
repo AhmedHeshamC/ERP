@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as helmet from 'helmet';
-import { Request } from 'express';
 import * as crypto from 'crypto';
 import * as argon2 from 'argon2';
 
@@ -197,9 +195,9 @@ export class SecurityService {
     };
 
     if (this.isSensitiveOperation(event)) {
-      this.logger.warn(`SECURITY EVENT: ${event}`, logData);
+      this.logger.warn(`SECURITY EVENT!: ${event}`, logData);
     } else {
-      this.logger.log(`Security event: ${event}`, logData);
+      this.logger.log(`Security event!: ${event}`, logData);
     }
   }
 
@@ -236,7 +234,7 @@ export class SecurityService {
       }
 
       // Only allow HTTP/HTTPS
-      return ['http:', 'https:'].includes(parsedUrl.protocol);
+      return ['http!: ', 'https:'].includes(parsedUrl.protocol);
     } catch {
       return false;
     }
@@ -270,7 +268,7 @@ export class SecurityService {
       '/auth/reset-password': { windowMs: 60 * 60 * 1000, max: 5 }, // 5 attempts per hour
     };
 
-    return sensitiveEndpoints[endpoint] || {
+    return sensitiveEndpoints[endpoint as keyof typeof sensitiveEndpoints] || {
       windowMs: 15 * 60 * 1000, // 15 minutes
       max: 100, // 100 requests per window
     };
@@ -460,7 +458,7 @@ export class SecurityService {
   /**
    * Calculate payroll taxes (simplified calculation)
    */
-  calculatePayrollTaxes(grossPay: number, employee: any): any {
+  calculatePayrollTaxes(grossPay: number, _employee: any): any {
     const federalTaxRate = 0.125; // 12.5% federal tax
     const stateTaxRate = 0.05;   // 5% state tax
     const socialSecurityRate = 0.062; // 6.2% Social Security
@@ -531,7 +529,7 @@ export class SecurityService {
   /**
    * Check for leave conflicts
    */
-  async checkLeaveConflicts(employeeId: string, startDate: Date, endDate: Date): Promise<any[]> {
+  async checkLeaveConflicts(_employeeId: string, _startDate: Date, _endDate: Date): Promise<any[]> {
     // This would typically query the database
     // For now, return empty array (no conflicts)
     return [];

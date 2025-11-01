@@ -55,7 +55,7 @@ export class EmployeeController {
     @Request() req: any,
   ): Promise<EmployeeWithDepartment> {
     try {
-      this.logger.log(`Creating new employee: ${createEmployeeDto.email}`);
+      this.logger.log(`Creating new employee!: ${createEmployeeDto.email}`);
 
       // Allow mock user context for integration tests
       const userId = req.user?.sub || (process.env.NODE_ENV === 'test' ? 'test-user-id' : null);
@@ -82,10 +82,10 @@ export class EmployeeController {
         },
       );
 
-      this.logger.log(`Successfully created employee: ${employee.id}`);
+      this.logger.log(`Successfully created employee!: ${employee.id}`);
       return employee;
     } catch (error) {
-      this.logger.error(`Failed to create employee: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create employee: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -98,12 +98,12 @@ export class EmployeeController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
   async getEmployeeById(@Param('id') id: string): Promise<EmployeeWithDepartment> {
     try {
-      this.logger.log(`Fetching employee by ID: ${id}`);
+      this.logger.log(`Fetching employee by ID!: ${id}`);
       const employee = await this.employeeService.findById(id);
-      this.logger.log(`Successfully retrieved employee: ${id}`);
+      this.logger.log(`Successfully retrieved employee!: ${id}`);
       return employee;
     } catch (error) {
-      this.logger.error(`Failed to fetch employee ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch employee ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -118,12 +118,12 @@ export class EmployeeController {
     @Param('employeeId') employeeId: string,
   ): Promise<EmployeeWithDepartment> {
     try {
-      this.logger.log(`Fetching employee by employee number: ${employeeId}`);
+      this.logger.log(`Fetching employee by employee number!: ${employeeId}`);
       const employee = await this.employeeService.findByEmployeeId(employeeId);
-      this.logger.log(`Successfully retrieved employee: ${employeeId}`);
+      this.logger.log(`Successfully retrieved employee!: ${employeeId}`);
       return employee;
     } catch (error) {
-      this.logger.error(`Failed to fetch employee ${employeeId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch employee ${employeeId}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -136,12 +136,12 @@ export class EmployeeController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
   async getEmployees(@Query() filters: EmployeeFilters): Promise<any> {
     try {
-      this.logger.log(`Fetching employees with filters: ${JSON.stringify(filters)}`);
+      this.logger.log(`Fetching employees with filters!: ${JSON.stringify(filters)}`);
       const result = await this.employeeService.findAll(filters);
       this.logger.log(`Successfully retrieved ${result.employees.length} employees`);
       return result;
     } catch (error) {
-      this.logger.error(`Failed to fetch employees: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch employees: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -159,7 +159,7 @@ export class EmployeeController {
     @Request() req: any,
   ): Promise<EmployeeWithDepartment> {
     try {
-      this.logger.log(`Updating employee: ${id}`);
+      this.logger.log(`Updating employee!: ${id}`);
 
       const employee = await this.employeeService.update(
         id,
@@ -181,10 +181,10 @@ export class EmployeeController {
         },
       );
 
-      this.logger.log(`Successfully updated employee: ${id}`);
+      this.logger.log(`Successfully updated employee!: ${id}`);
       return employee;
     } catch (error) {
-      this.logger.error(`Failed to update employee ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update employee ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -200,7 +200,7 @@ export class EmployeeController {
     @Request() req: any,
   ): Promise<EmployeeWithDepartment> {
     try {
-      this.logger.log(`Soft deleting employee: ${id}`);
+      this.logger.log(`Soft deleting employee!: ${id}`);
 
       const employee = await this.employeeService.softDelete(id, req.user.sub);
 
@@ -217,10 +217,10 @@ export class EmployeeController {
         },
       );
 
-      this.logger.log(`Successfully terminated employee: ${id}`);
+      this.logger.log(`Successfully terminated employee!: ${id}`);
       return employee;
     } catch (error) {
-      this.logger.error(`Failed to terminate employee ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to terminate employee ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -236,7 +236,7 @@ export class EmployeeController {
     @Request() req: any,
   ): Promise<EmployeeWithDepartment> {
     try {
-      this.logger.log(`Activating employee: ${id}`);
+      this.logger.log(`Activating employee!: ${id}`);
 
       const employee = await this.employeeService.activate(id, req.user.sub);
 
@@ -252,10 +252,10 @@ export class EmployeeController {
         },
       );
 
-      this.logger.log(`Successfully activated employee: ${id}`);
+      this.logger.log(`Successfully activated employee!: ${id}`);
       return employee;
     } catch (error) {
-      this.logger.error(`Failed to activate employee ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to activate employee ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -271,7 +271,7 @@ export class EmployeeController {
     @Request() req: any,
   ): Promise<EmployeeWithDepartment> {
     try {
-      this.logger.log(`Deactivating employee: ${id}`);
+      this.logger.log(`Deactivating employee!: ${id}`);
 
       const employee = await this.employeeService.deactivate(id, req.user.sub);
 
@@ -287,10 +287,10 @@ export class EmployeeController {
         },
       );
 
-      this.logger.log(`Successfully deactivated employee: ${id}`);
+      this.logger.log(`Successfully deactivated employee!: ${id}`);
       return employee;
     } catch (error) {
-      this.logger.error(`Failed to deactivate employee ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to deactivate employee ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -308,7 +308,7 @@ export class EmployeeController {
       this.logger.log('Successfully retrieved employee summary');
       return summary;
     } catch (error) {
-      this.logger.error(`Failed to fetch employee summary: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch employee summary: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

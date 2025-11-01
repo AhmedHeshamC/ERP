@@ -1,11 +1,8 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
 import { ReportsService } from './reports.service';
-import { PrismaService } from '../../../shared/database/prisma.service';
-import { SecurityService } from '../../../shared/security/security.service';
 import {
   CreateReportDefinitionDto,
-  UpdateReportDefinitionDto,
   ReportDefinitionResponse,
   GenerateReportDto,
   FinancialReportParamsDto,
@@ -13,11 +10,6 @@ import {
   ReportType,
   ReportCategory,
   ReportFormat,
-  FinancialReportResponse,
-  SalesAnalyticsResponse,
-  InventoryReportResponse,
-  PurchasingAnalyticsResponse,
-  ExecutiveDashboardResponse,
 } from '../dto/reports.dto';
 
 describe('ReportsService', () => {
@@ -149,7 +141,7 @@ describe('ReportsService', () => {
         await reportsService.createReportDefinition(createReportDto);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).to.equal('Invalid report definition data');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Invalid report definition data');
       }
 
       expect(securityService.validateInput.calledOnceWith(createReportDto)).to.be.true;
@@ -167,15 +159,6 @@ describe('ReportsService', () => {
 
     it('should generate comprehensive financial report', async () => {
       // Arrange
-      const mockRevenueData = [
-        { month: '2024-01', amount: 50000 },
-        { month: '2024-02', amount: 55000 },
-      ];
-
-      const mockExpenseData = [
-        { month: '2024-01', amount: 30000 },
-        { month: '2024-02', amount: 32000 },
-      ];
 
       prismaService.transaction.aggregate.resolves({
         _sum: { amount: 105000 },
@@ -500,7 +483,7 @@ describe('ReportsService', () => {
         await reportsService.generateCustomReport(generateReportDto);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).to.include('not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('not found');
       }
     });
   });

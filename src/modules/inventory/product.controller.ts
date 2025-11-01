@@ -10,7 +10,6 @@ import {
   UsePipes,
   ValidationPipe,
   Logger,
-  HttpCode,
   HttpStatus,
   Body,
 } from '@nestjs/common';
@@ -69,7 +68,7 @@ export class ProductController {
     @Body() createProductDto: CreateProductDto,
     @CurrentUser() user: any,
   ): Promise<ProductResponse> {
-    this.logger.log(`Product creation request received from user: ${user?.id}`);
+    this.logger.log(`Product creation request received from user!: ${user?.id}`);
     return await this.productService.createProduct(createProductDto);
   }
 
@@ -88,7 +87,7 @@ export class ProductController {
     @Query() query: ProductQueryDto,
     @CurrentUser() user: any,
   ): Promise<ProductsQueryResponse> {
-    this.logger.log(`Product listing request received from user: ${user?.id}`);
+    this.logger.log(`Product listing request received from user!: ${user?.id}`);
     return await this.productService.getProducts(query);
   }
 
@@ -105,7 +104,7 @@ export class ProductController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ): Promise<ProductResponse> {
-    this.logger.log(`Product retrieval request: ${id} by user: ${user?.id}`);
+    this.logger.log(`Product retrieval request!: ${id} by user: ${user?.id}`);
     return await this.productService.getProductById(id);
   }
 
@@ -125,7 +124,7 @@ export class ProductController {
     @Body() updateProductDto: UpdateProductDto,
     @CurrentUser() user: any,
   ): Promise<ProductResponse> {
-    this.logger.log(`Product update request: ${id} by user: ${user?.id}`);
+    this.logger.log(`Product update request!: ${id} by user: ${user?.id}`);
     return await this.productService.updateProduct(id, updateProductDto);
   }
 
@@ -143,7 +142,7 @@ export class ProductController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ): Promise<ProductResponse> {
-    this.logger.log(`Product deletion request: ${id} by user: ${user?.id}`);
+    this.logger.log(`Product deletion request!: ${id} by user: ${user?.id}`);
     return await this.productService.deleteProduct(id);
   }
 
@@ -160,7 +159,7 @@ export class ProductController {
     @Param('categoryId') categoryId: string,
     @CurrentUser() user: any,
   ): Promise<ProductResponse[]> {
-    this.logger.log(`Products by category request: ${categoryId} by user: ${user?.id}`);
+    this.logger.log(`Products by category request!: ${categoryId} by user: ${user?.id}`);
     return await this.productService.getProductsByCategory(categoryId);
   }
 
@@ -176,7 +175,7 @@ export class ProductController {
   async getLowStockProducts(
     @CurrentUser() user: any,
   ): Promise<ProductResponse[]> {
-    this.logger.log('Low stock products request by user: ' + (user?.id || 'anonymous'));
+    this.logger.log('Low stock products request by user!: ' + (user?.id || 'anonymous'));
     return await this.productService.getLowStockProducts();
   }
 
@@ -194,7 +193,7 @@ export class ProductController {
     @Query('q') searchTerm: string,
     @CurrentUser() user: any,
   ): Promise<ProductResponse[]> {
-    this.logger.log(`Product search request: "${searchTerm}" by user: ${user?.id}`);
+    this.logger.log(`Product search request!: "${searchTerm}" by user: ${user?.id}`);
     return await this.productService.searchProducts(searchTerm);
   }
 
@@ -211,7 +210,7 @@ export class ProductController {
     @Param('id') id: string,
     @CurrentUser() user: any,
   ): Promise<any> {
-    this.logger.log(`Product stock request: ${id} by user: ${user?.id}`);
+    this.logger.log(`Product stock request!: ${id} by user: ${user?.id}`);
     return await this.productService.getProductStock(id);
   }
 
@@ -231,7 +230,7 @@ export class ProductController {
     @Body() stockMovementDto: any,
     @CurrentUser() user: any,
   ): Promise<any> {
-    this.logger.log(`Stock adjustment request: ${id} by user: ${user?.id}`);
+    this.logger.log(`Stock adjustment request!: ${id} by user: ${user?.id}`);
     return await this.productService.adjustStock(
       id,
       stockMovementDto.quantity,

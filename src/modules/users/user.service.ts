@@ -2,7 +2,6 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SecurityService } from '../../shared/security/security.service';
 import { CreateUserDto, UpdateUserDto, UserResponse, UserQueryDto, UserPasswordChangeDto, validatePasswordConfirmation } from './dto/user.dto';
-import { UserRole } from './dto/user.dto';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -109,7 +108,7 @@ export class UserService {
         },
       );
 
-      this.logger.log(`User created successfully: ${newUser.email} (${newUser.id})`);
+      this.logger.log(`User created successfully!: ${newUser.email} (${newUser.id})`);
       return newUser;
 
     } catch (error) {
@@ -118,8 +117,8 @@ export class UserService {
       }
 
       // Handle Prisma unique constraint violations
-      if (error.code === 'P2002') {
-        const target = error.meta?.target as string[] || [];
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        const target = (error as any).meta?.target as string[] || [];
         const conflictField = target.includes('email') ? 'email' : 'username';
 
         await this.securityService.logSecurityEvent(
@@ -136,13 +135,13 @@ export class UserService {
         throw new ConflictException(`User with ${conflictField} already exists`);
       }
 
-      this.logger.error(`Failed to create user: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create user: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       await this.securityService.logSecurityEvent(
         'USER_CREATION_ERROR',
         undefined,
         'system',
         'user-service',
-        { error: error.message, email: createUserDto.email },
+        { error: error instanceof Error ? error.message : "Unknown error", email: createUserDto.email },
       );
       throw new InternalServerErrorException('Failed to create user');
     }
@@ -183,7 +182,7 @@ export class UserService {
         throw error;
       }
 
-      this.logger.error(`Failed to find user by ID: ${error.message}`, error.stack);
+      this.logger.error(`Failed to find user by ID: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to retrieve user');
     }
   }
@@ -217,7 +216,7 @@ export class UserService {
 
       return user as UserResponse | null;
     } catch (error) {
-      this.logger.error(`Failed to find user by email/username: ${error.message}`, error.stack);
+      this.logger.error(`Failed to find user by email/username: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to retrieve user');
     }
   }
@@ -233,7 +232,7 @@ export class UserService {
       }
 
       // Check if user exists
-      const existingUser = await this.findById(id);
+      await this.findById(id);
 
       // Sanitize input
       const sanitizedData = this.securityService.sanitizeInput(updateUserDto) as UpdateUserDto;
@@ -266,7 +265,7 @@ export class UserService {
         { updatedFields: Object.keys(sanitizedData) },
       );
 
-      this.logger.log(`User updated successfully: ${updatedUser.email} (${id})`);
+      this.logger.log(`User updated successfully!: ${updatedUser.email} (${id})`);
       return updatedUser as UserResponse;
 
     } catch (error) {
@@ -274,7 +273,7 @@ export class UserService {
         throw error;
       }
 
-      this.logger.error(`Failed to update user: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update user: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to update user');
     }
   }
@@ -342,7 +341,7 @@ export class UserService {
         { timestamp: new Date().toISOString() },
       );
 
-      this.logger.log(`Password changed successfully for user: ${currentUser.email} (${id})`);
+      this.logger.log(`Password changed successfully for user!: ${currentUser.email} (${id})`);
       return { success: true };
 
     } catch (error) {
@@ -350,7 +349,7 @@ export class UserService {
         throw error;
       }
 
-      this.logger.error(`Failed to change password: ${error.message}`, error.stack);
+      this.logger.error(`Failed to change password: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to change password');
     }
   }
@@ -416,7 +415,7 @@ export class UserService {
 
       return { users: users as UserResponse[], total };
     } catch (error) {
-      this.logger.error(`Failed to get users: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get users: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to retrieve users');
     }
   }
@@ -441,14 +440,14 @@ export class UserService {
         { email: user.email },
       );
 
-      this.logger.log(`User deactivated: ${user.email} (${id})`);
+      this.logger.log(`User deactivated!: ${user.email} (${id})`);
       return { success: true };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
 
-      this.logger.error(`Failed to deactivate user: ${error.message}`, error.stack);
+      this.logger.error(`Failed to deactivate user: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to deactivate user');
     }
   }

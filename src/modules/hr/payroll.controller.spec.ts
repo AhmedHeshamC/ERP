@@ -11,40 +11,7 @@ import { CreatePayrollDto, PaymentMethod } from './dto/create-payroll.dto';
 describe('Payroll Controller - Unit Tests', () => {
   let payrollController: PayrollController;
   let payrollService: PayrollService;
-  let securityService: SecurityService;
-
   // Mock data
-  const mockPayrollRecord = {
-    id: 'payroll-123',
-    employeeId: 'emp-123',
-    payPeriod: '2024-01',
-    grossPay: 7500.00,
-    netPay: 6200.00,
-    currency: 'USD',
-    federalTax: 937.50,
-    stateTax: 375.00,
-    socialSecurityTax: 465.00,
-    medicareTax: 108.75,
-    otherDeductions: 200.00,
-    totalDeductions: 2086.25,
-    healthInsurance: 300.00,
-    dentalInsurance: 50.00,
-    retirement401k: 750.00,
-    otherBenefits: 0.00,
-    totalBenefits: 1100.00,
-    regularHours: 160,
-    overtimeHours: 0,
-    hourlyRate: 46.88,
-    overtimeRate: 70.31,
-    paymentMethod: PaymentMethod.DIRECT_DEPOSIT,
-    paymentDate: new Date('2024-01-31'),
-    paymentStatus: 'PENDING',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    processedBy: 'hr-456',
-    approvedBy: null,
-    approvedAt: null,
-  };
 
   const mockCreatePayrollDto: CreatePayrollDto = {
     employeeId: 'emp-123',
@@ -85,8 +52,7 @@ describe('Payroll Controller - Unit Tests', () => {
 
     payrollController = moduleRef.get<PayrollController>(PayrollController);
     payrollService = moduleRef.get<PayrollService>(PayrollService);
-    securityService = moduleRef.get<SecurityService>(SecurityService);
-  });
+      });
 
   afterEach(() => {
     sinon.restore();
@@ -103,7 +69,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -117,7 +83,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid pay period');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid pay period');
       }
     });
 
@@ -131,7 +97,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown ConflictException');
       } catch (error) {
         expect(error).to.be.instanceOf(ConflictException);
-        expect(error.message).to.include('Payroll record already exists');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Payroll record already exists');
       }
     });
   });
@@ -147,7 +113,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Payroll record not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Payroll record not found');
       }
     });
   });
@@ -163,7 +129,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
   });
@@ -179,7 +145,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid pay period');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid pay period');
       }
     });
   });
@@ -195,7 +161,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Payroll record not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Payroll record not found');
       }
     });
 
@@ -209,7 +175,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Payroll must be approved first');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Payroll must be approved first');
       }
     });
   });
@@ -225,7 +191,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Payroll record not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Payroll record not found');
       }
     });
 
@@ -239,7 +205,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Payroll record must be approved before processing');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Payroll record must be approved before processing');
       }
     });
   });
@@ -258,7 +224,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid date range');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid date range');
       }
     });
 
@@ -276,7 +242,7 @@ describe('Payroll Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('No employees found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('No employees found');
       }
     });
   });
@@ -338,7 +304,7 @@ describe('Payroll Controller - Unit Tests', () => {
         await payrollController.getPayrollById('payroll-123');
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error.message).to.include('Database connection failed');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Database connection failed');
       }
     });
   });

@@ -12,17 +12,28 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
-    "strictBindCallApply": false,
-    "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false,
-    "types": ["mocha", "chai"],
+    "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": false,
+    "types": ["mocha", "chai", "node"],
     "paths": {
       "@/*": ["src/*"],
       "@/shared/*": ["src/shared/*"],
       "@/modules/*": ["src/modules/*"],
       "@/config/*": ["src/config/*"]
     }
-  }
+  },
+  "include": [
+    "src/**/*"
+  ]
 }

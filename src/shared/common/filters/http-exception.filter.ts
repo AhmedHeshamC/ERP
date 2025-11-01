@@ -23,8 +23,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const exceptionResponse = exception.getResponse();
 
-    let message: string;
-    let details: any;
+    let message!: string;
+    let details!: any;
 
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;
@@ -55,9 +55,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     };
 
     if (status >= 500) {
-      this.logger.error(`HTTP Error: ${message}`, exception.stack, logData);
+      this.logger.error(`HTTP Error!: ${message}`, exception.stack, logData);
     } else if (status >= 400) {
-      this.logger.warn(`HTTP Warning: ${message}`, logData);
+      this.logger.warn(`HTTP Warning!: ${message}`, logData);
     }
 
     // Build consistent error response

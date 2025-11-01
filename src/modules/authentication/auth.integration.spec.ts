@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -10,8 +10,8 @@ import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
-import { setupIntegrationTest, cleanupIntegrationTest, cleanupDatabase } from '../../shared/testing/integration-setup';
-import { DatabaseCleanup } from '../../shared/testing/database-cleanup';
+import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
+import { User } from '@prisma/client';
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -122,14 +122,14 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should return 404 for root endpoint (no global prefix set)', async () => {
-      const response = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .get('/')
         .expect(404);
     });
 
     it('should check if authentication routes are available', async () => {
       // Check if we can access the auth controller
-      const response = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .get('/auth')
         .expect(404); // Should be 404 since GET /auth is not defined
     });
@@ -396,14 +396,13 @@ describe('Authentication Integration Tests', () => {
       // Verify JWT token structure (without relying on strategy validation)
       try {
         const jwt = require('jsonwebtoken');
-        const decoded = jwt.decode(accessToken);
         const verificationResult = jwt.verify(accessToken, 'test-jwt-secret-key-for-integration-tests');
 
         expect(verificationResult).to.have.property('sub', testUserId);
         expect(verificationResult).to.have.property('email', directUserCheck.email);
         expect(verificationResult).to.have.property('isActive', true);
       } catch (error) {
-        expect.fail(`JWT token validation failed: ${error.message}`);
+        expect.fail(`JWT token validation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
 
       // Test that the token is accepted format (even if strategy has issues in test environment)
@@ -495,7 +494,7 @@ describe('Authentication Integration Tests', () => {
       });
 
       if (testUsers.length > 0) {
-        const userIds = testUsers.map(user => user.id);
+        const userIds = testUsers.map((user: User) => user.id);
 
         // Clean up sessions first (foreign key dependency)
         await prismaService.session.deleteMany({
@@ -519,7 +518,7 @@ describe('Authentication Integration Tests', () => {
       }
     } catch (error) {
       // Ignore cleanup errors but log them
-      console.log('Auth cleanup error:', error.message);
+      console.log('Auth cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 

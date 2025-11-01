@@ -4,7 +4,6 @@ import {
   Post,
   Body,
   Param,
-  Query,
   UsePipes,
   ValidationPipe,
   Logger,
@@ -13,7 +12,6 @@ import {
 import { ReportsService } from './services/reports.service';
 import {
   CreateReportDefinitionDto,
-  UpdateReportDefinitionDto,
   ReportDefinitionResponse,
   GenerateReportDto,
   FinancialReportParamsDto,
@@ -46,7 +44,7 @@ export class ReportsController {
    */
   @Post('definitions')
   async createReportDefinition(@Body() createReportDto: CreateReportDefinitionDto): Promise<ReportDefinitionResponse> {
-    this.logger.log(`Creating report definition: ${createReportDto.name}`);
+    this.logger.log(`Creating report definition!: ${createReportDto.name}`);
     return this.reportsService.createReportDefinition(createReportDto);
   }
 
@@ -55,7 +53,7 @@ export class ReportsController {
    */
   @Post('financial')
   async generateFinancialReport(@Body() params: FinancialReportParamsDto): Promise<FinancialReportResponse> {
-    this.logger.log(`Generating financial report for period: ${params.startDate} to ${params.endDate}`);
+    this.logger.log(`Generating financial report for period!: ${params.startDate} to ${params.endDate}`);
     return this.reportsService.generateFinancialReport(params);
   }
 
@@ -64,7 +62,7 @@ export class ReportsController {
    */
   @Post('sales-analytics')
   async generateSalesAnalytics(@Body() params: SalesReportParamsDto): Promise<SalesAnalyticsResponse> {
-    this.logger.log(`Generating sales analytics for period: ${params.startDate} to ${params.endDate}`);
+    this.logger.log(`Generating sales analytics for period!: ${params.startDate} to ${params.endDate}`);
     return this.reportsService.generateSalesAnalytics(params);
   }
 
@@ -100,7 +98,7 @@ export class ReportsController {
    */
   @Post('custom')
   async generateCustomReport(@Body() generateReportDto: GenerateReportDto): Promise<any> {
-    this.logger.log(`Generating custom report: ${generateReportDto.reportDefinitionId}`);
+    this.logger.log(`Generating custom report!: ${generateReportDto.reportDefinitionId}`);
     return this.reportsService.generateCustomReport(generateReportDto);
   }
 
@@ -145,7 +143,7 @@ export class ReportsController {
    */
   @Get('parameters/:type')
   async getReportParameters(@Param('type') reportType: string): Promise<any> {
-    this.logger.log(`Fetching parameters for report type: ${reportType}`);
+    this.logger.log(`Fetching parameters for report type!: ${reportType}`);
 
     switch (reportType.toUpperCase()) {
       case 'FINANCIAL':
@@ -166,7 +164,7 @@ export class ReportsController {
         };
 
       default:
-        throw new NotFoundException(`Unknown report type: ${reportType}`);
+        throw new NotFoundException(`Unknown report type!: ${reportType}`);
     }
   }
 }

@@ -15,18 +15,18 @@ export enum PaymentStatus {
 
 export class CreatePayrollDto {
   @IsString()
-  employeeId: string;
+  employeeId!: string;
 
   @IsString()
-  payPeriod: string;
+  payPeriod!: string;
 
   @IsNumber()
   @IsDecimal()
-  grossPay: number;
+  grossPay!: number;
 
   @IsNumber()
   @IsDecimal()
-  netPay: number;
+  netPay!: number;
 
   @IsOptional()
   @IsString()

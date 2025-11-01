@@ -14,7 +14,7 @@ export async function cleanupIntegrationTest(): Promise<void> {
   console.log('Cleaning up integration test environment');
 }
 
-export async function cleanupDatabase(prismaService: PrismaService): Promise<void> {
+export async function cleanupDatabase(_prismaService: PrismaService): Promise<void> {
   // Clean up test data
   console.log('Cleaning up database');
 }

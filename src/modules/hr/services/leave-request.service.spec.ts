@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { SinonStub, stub } from 'sinon';
+import { stub } from 'sinon';
 import { LeaveRequestService } from '../services/leave-request.service';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
@@ -12,12 +12,8 @@ import {
   ApprovalLeaveRequestDto,
   RejectLeaveRequestDto,
   CancelLeaveRequestDto,
-  LeaveRequestResponse,
-  LeaveRequestQueryResponse,
-  LeaveBalanceResponse,
-  LeaveAnalyticsResponse,
-} from '../dto/leave-request.dto';
-import { NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+  } from '../dto/leave-request.dto';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('LeaveRequestService', () => {
   let service: LeaveRequestService;
@@ -85,7 +81,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.equal('Invalid leave request data');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Invalid leave request data');
       }
     });
 
@@ -108,7 +104,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -139,7 +135,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Employee is inactive');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee is inactive');
       }
     });
 
@@ -170,7 +166,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid date range');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid date range');
       }
     });
 
@@ -201,7 +197,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Insufficient leave balance');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Insufficient leave balance');
       }
     });
 
@@ -431,9 +427,9 @@ describe('LeaveRequestService', () => {
 
       // Assert
       expect(result).to.not.be.null;
-      expect(result.id).to.equal(leaveRequestId);
-      expect(result.leaveType).to.equal(LeaveType.ANNUAL);
-      expect(result.employee.firstName).to.equal('John');
+      expect(result?.id).to.equal(leaveRequestId);
+      expect(result?.leaveType).to.equal(LeaveType.ANNUAL);
+      expect(result?.employee?.firstName).to.equal('John');
     });
 
     it('should return null for non-existent leave request ID', async () => {
@@ -465,7 +461,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Leave request not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Leave request not found');
       }
     });
 
@@ -526,7 +522,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Leave request not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Leave request not found');
       }
     });
 
@@ -553,7 +549,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Leave request is not in PENDING status');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Leave request is not in PENDING status');
       }
     });
 
@@ -616,7 +612,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Leave request not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Leave request not found');
       }
     });
 
@@ -681,7 +677,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Leave request not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Leave request not found');
       }
     });
 
@@ -710,7 +706,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Cannot cancel approved or completed leave request');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Cannot cancel approved or completed leave request');
       }
     });
 
@@ -788,7 +784,7 @@ describe('LeaveRequestService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
   });

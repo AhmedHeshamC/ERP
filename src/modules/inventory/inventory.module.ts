@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
-import { SecurityModule } from '../../shared/security/security.module';
 import { CommonModule } from '../../shared/common/common.module';
 
 /**
@@ -11,7 +10,7 @@ import { CommonModule } from '../../shared/common/common.module';
  * Follows KISS principle with focused implementation
  */
 @Module({
-  imports: [SecurityModule, CommonModule],
+  imports: [CommonModule],
   controllers: [ProductController],
   providers: [ProductService],
   exports: [ProductService],

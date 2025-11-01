@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Put,
-  Delete,
   Body,
   Param,
   Query,
@@ -74,7 +73,7 @@ export class ScheduledReportsController {
   async createScheduledReport(
     @Body() createScheduledReportDto: CreateScheduledReportDto,
   ): Promise<ScheduledReportResponse> {
-    this.logger.log(`Creating scheduled report: ${createScheduledReportDto.name}`);
+    this.logger.log(`Creating scheduled report!: ${createScheduledReportDto.name}`);
     return this.scheduledReportsService.createScheduledReport(createScheduledReportDto);
   }
 
@@ -104,7 +103,7 @@ export class ScheduledReportsController {
   async getScheduledReports(
     @Query() queryDto: ScheduledReportQueryDto,
   ): Promise<ScheduledReportQueryResponse> {
-    this.logger.log(`Fetching scheduled reports with query: ${JSON.stringify(queryDto)}`);
+    this.logger.log(`Fetching scheduled reports with query!: ${JSON.stringify(queryDto)}`);
     return this.scheduledReportsService.getScheduledReports(queryDto);
   }
 
@@ -130,7 +129,7 @@ export class ScheduledReportsController {
   async getScheduledReportById(
     @Param('id') id: string,
   ): Promise<ScheduledReportResponse | null> {
-    this.logger.log(`Fetching scheduled report by ID: ${id}`);
+    this.logger.log(`Fetching scheduled report by ID!: ${id}`);
     return this.scheduledReportsService.getScheduledReportById(id);
   }
 
@@ -193,7 +192,7 @@ export class ScheduledReportsController {
     @Param('id') id: string,
     @Body() triggerDto: ManualReportTriggerDto,
   ): Promise<ScheduledReportExecutionResponse> {
-    this.logger.log(`Triggering manual execution for scheduled report: ${id}`);
+    this.logger.log(`Triggering manual execution for scheduled report!: ${id}`);
     return this.scheduledReportsService.triggerScheduledReport(id, triggerDto);
   }
 
@@ -219,7 +218,7 @@ export class ScheduledReportsController {
   async getScheduledReportExecutions(
     @Param('id') id: string,
   ): Promise<ScheduledReportExecutionResponse[]> {
-    this.logger.log(`Fetching execution history for scheduled report: ${id}`);
+    this.logger.log(`Fetching execution history for scheduled report!: ${id}`);
     return this.scheduledReportsService.getScheduledReportExecutions(id);
   }
 
@@ -250,7 +249,7 @@ export class ScheduledReportsController {
     @Param('id') id: string,
     @Body() distributionDto: CreateDistributionListDto,
   ): Promise<DistributionListResponse> {
-    this.logger.log(`Adding user to distribution list for scheduled report: ${id}`);
+    this.logger.log(`Adding user to distribution list for scheduled report!: ${id}`);
     // Ensure the scheduled report ID matches the path parameter
     distributionDto.scheduledReportId = id;
     return this.scheduledReportsService.createDistributionList(distributionDto);

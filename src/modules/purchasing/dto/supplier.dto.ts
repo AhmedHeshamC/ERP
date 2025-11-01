@@ -16,15 +16,15 @@ export enum PaymentTerms {
 export class CreateSupplierDto {
   @IsString()
   @MaxLength(100)
-  code: string;
+  code!: string;
 
   @IsString()
   @MaxLength(200)
-  name: string;
+  name!: string;
 
   @IsEmail()
   @MaxLength(255)
-  email: string;
+  email!: string;
 
   @IsOptional()
   @IsString()
@@ -177,10 +177,10 @@ export class SupplierQueryDto {
 }
 
 export class SupplierResponse {
-  id: string;
-  code: string;
-  name: string;
-  email: string;
+  id!: string;
+  code!: string;
+  name!: string;
+  email!: string;
   phone?: string;
   address?: string;
   city?: string;
@@ -188,16 +188,16 @@ export class SupplierResponse {
   postalCode?: string;
   country?: string;
   taxId?: string;
-  isActive: boolean;
-  creditLimit: number;
-  paymentTerms: string;
-  createdAt: Date;
-  updatedAt: Date;
+  isActive!: boolean;
+  creditLimit!: number;
+  paymentTerms!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
 }
 
 export class SuppliersQueryResponse {
-  suppliers: SupplierResponse[];
-  total: number;
-  skip: number;
-  take: number;
+  suppliers!: SupplierResponse[];
+  total!: number;
+  skip!: number;
+  take!: number;
 }

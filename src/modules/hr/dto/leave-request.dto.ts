@@ -31,21 +31,21 @@ export enum LeaveStatus {
 export class CreateLeaveRequestDto {
   @IsString()
   @IsNotEmpty()
-  employeeId: string;
+  employeeId!: string;
 
   @IsEnum(LeaveType)
   @IsNotEmpty()
-  leaveType: LeaveType;
+  leaveType!: LeaveType;
 
   @IsDate()
   @Type(() => Date)
   @IsNotEmpty()
-  startDate: Date;
+  startDate!: Date;
 
   @IsDate()
   @Type(() => Date)
   @IsNotEmpty()
-  endDate: Date;
+  endDate!: Date;
 
   @IsOptional()
   @IsString()
@@ -89,7 +89,7 @@ export class UpdateLeaveRequestDto {
 export class ApprovalLeaveRequestDto {
   @IsString()
   @IsNotEmpty()
-  approverId: string;
+  approverId!: string;
 
   @IsOptional()
   @IsString()
@@ -103,11 +103,11 @@ export class ApprovalLeaveRequestDto {
 export class RejectLeaveRequestDto {
   @IsString()
   @IsNotEmpty()
-  rejectedBy: string;
+  rejectedBy!: string;
 
   @IsString()
   @IsNotEmpty()
-  rejectionReason: string;
+  rejectionReason!: string;
 
   @IsOptional()
   @IsString()
@@ -121,7 +121,7 @@ export class RejectLeaveRequestDto {
 export class CancelLeaveRequestDto {
   @IsString()
   @IsNotEmpty()
-  cancelledBy: string;
+  cancelledBy!: string;
 
   @IsOptional()
   @IsString()
@@ -213,90 +213,110 @@ export class LeaveAnalyticsQueryDto {
 }
 
 /**
+ * Employee DTO for Leave Request Response
+ */
+export interface LeaveRequestEmployee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeId: string;
+  department?: {
+    id: string;
+    name: string;
+  };
+}
+
+/**
  * Leave Request Response DTO
  */
 export class LeaveRequestResponse {
-  id: string;
-  employeeId: string;
-  leaveType: LeaveType;
-  startDate: Date;
-  endDate: Date;
-  daysRequested: number;
+  id!: string;
+  employeeId!: string;
+  leaveType!: LeaveType;
+  startDate!: Date;
+  endDate!: Date;
+  daysRequested!: number;
   reason?: string;
-  status: LeaveStatus;
+  status!: LeaveStatus;
   approvedBy?: string;
   approvedAt?: Date;
   rejectedBy?: string;
   rejectedAt?: Date;
   rejectionReason?: string;
-  paidLeave: boolean;
+  paidLeave!: boolean;
   payRate?: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt!: Date;
+  updatedAt!: Date;
   createdBy?: string;
   updatedBy?: string;
 
   // Include employee details for response
-  employee?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    employeeId: string;
-    department?: {
-      id: string;
-      name: string;
-    };
-  };
+  employee?: LeaveRequestEmployee;
 }
 
 /**
  * Leave Request Query Response DTO
  */
 export class LeaveRequestQueryResponse {
-  leaveRequests: LeaveRequestResponse[];
-  total: number;
-  skip: number;
-  take: number;
+  leaveRequests!: LeaveRequestResponse[];
+  total!: number;
+  skip!: number;
+  take!: number;
 }
 
 /**
  * Leave Balance Response DTO
  */
 export class LeaveBalanceResponse {
-  employeeId: string;
-  annualLeaveBalance: number;
-  sickLeaveBalance: number;
-  personalLeaveBalance: number;
-  lastUpdated: Date;
+  employeeId!: string;
+  annualLeaveBalance!: number;
+  sickLeaveBalance!: number;
+  personalLeaveBalance!: number;
+  lastUpdated!: Date;
+}
+
+/**
+ * Leave Type Statistics DTO
+ */
+export interface LeaveTypeStats {
+  count: number;
+  days: number;
+  percentage: number;
+}
+
+/**
+ * Department Statistics DTO
+ */
+export interface DepartmentStats {
+  count: number;
+  days: number;
+  percentage: number;
+}
+
+/**
+ * Monthly Trend DTO
+ */
+export interface MonthlyTrend {
+  month: string;
+  count: number;
+  days: number;
 }
 
 /**
  * Leave Analytics Response DTO
  */
 export class LeaveAnalyticsResponse {
-  totalLeaveRequests: number;
-  approvedLeaveRequests: number;
-  pendingLeaveRequests: number;
-  rejectedLeaveRequests: number;
-  cancelledLeaveRequests: number;
-  totalLeaveDays: number;
-  averageLeaveDuration: number;
-  byLeaveType: Record<LeaveType, {
-    count: number;
-    days: number;
-    percentage: number;
-  }>;
-  byDepartment: Record<string, {
-    count: number;
-    days: number;
-    percentage: number;
-  }>;
-  byStatus: Record<LeaveStatus, number>;
-  monthlyTrends: Array<{
-    month: string;
-    count: number;
-    days: number;
-  }>;
+  totalLeaveRequests!: number;
+  approvedLeaveRequests!: number;
+  pendingLeaveRequests!: number;
+  rejectedLeaveRequests!: number;
+  cancelledLeaveRequests!: number;
+  totalLeaveDays!: number;
+  averageLeaveDuration!: number;
+  byLeaveType!: Record<LeaveType, LeaveTypeStats>;
+  byDepartment!: Record<string, DepartmentStats>;
+  byStatus!: Record<LeaveStatus, number>;
+  monthlyTrends!: Array<MonthlyTrend>;
 }
 
 /**
@@ -306,7 +326,7 @@ export class BulkLeaveRequestDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateLeaveRequestDto)
-  leaveRequests: CreateLeaveRequestDto[];
+  leaveRequests!: CreateLeaveRequestDto[];
 }
 
 /**
@@ -338,17 +358,17 @@ export class LeaveCalendarDto {
 export class LeaveConflictCheckDto {
   @IsString()
   @IsNotEmpty()
-  employeeId: string;
+  employeeId!: string;
 
   @IsDate()
   @Type(() => Date)
   @IsNotEmpty()
-  startDate: Date;
+  startDate!: Date;
 
   @IsDate()
   @Type(() => Date)
   @IsNotEmpty()
-  endDate: Date;
+  endDate!: Date;
 
   @IsOptional()
   @IsString()
@@ -358,15 +378,20 @@ export class LeaveConflictCheckDto {
 /**
  * Leave Conflict Response DTO
  */
+/**
+ * Leave Conflict DTO
+ */
+export interface LeaveConflict {
+  requestId: string;
+  employeeName: string;
+  leaveType: LeaveType;
+  startDate: Date;
+  endDate: Date;
+  status: LeaveStatus;
+}
+
 export class LeaveConflictResponse {
-  hasConflicts: boolean;
-  conflicts: Array<{
-    requestId: string;
-    employeeName: string;
-    leaveType: LeaveType;
-    startDate: Date;
-    endDate: Date;
-    status: LeaveStatus;
-  }>;
-  overlappingDays: number;
+  hasConflicts!: boolean;
+  conflicts!: Array<LeaveConflict>;
+  overlappingDays!: number;
 }

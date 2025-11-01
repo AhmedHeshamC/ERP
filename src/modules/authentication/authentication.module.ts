@@ -3,7 +3,6 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
-import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
 import { SecurityModule } from '../../shared/security/security.module';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { JwtModule } from '@nestjs/jwt';

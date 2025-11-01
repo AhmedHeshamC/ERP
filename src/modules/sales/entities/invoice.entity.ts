@@ -1,4 +1,4 @@
-import { InvoiceStatus, PaymentStatus, PaymentMethod } from '../enums/sales.enum';
+import { InvoiceStatus } from '../enums/sales.enum';
 
 /**
  * Invoice Entity - Following SOLID Principles
@@ -56,42 +56,43 @@ export interface InvoiceData {
   confirmedAt?: Date;
   paidAt?: Date;
   deliveredAt?: Date;
+  shippedAt?: Date;
   cancelledAt?: Date;
   cancellationReason?: string;
 }
 
 export class Invoice {
   public id?: string;
-  public invoiceNumber: string;
+  public invoiceNumber!: string;
   public orderId?: string;
-  public customerId: string;
-  public description: string;
-  public dueDate: Date;
-  public subtotal: number;
-  public taxAmount: number;
-  public totalAmount: number;
-  public currency: string;
-  public status: InvoiceStatus;
-  public isActive: boolean;
-  public items: InvoiceItem[];
-  public taxRate: number;
+  public customerId!: string;
+  public description!: string;
+  public dueDate!: Date;
+  public subtotal!: number;
+  public taxAmount!: number;
+  public totalAmount!: number;
+  public currency!: string;
+  public status!: InvoiceStatus;
+  public isActive!: boolean;
+  public items!: InvoiceItem[];
+  public taxRate!: number;
   public shippingAddress?: Address;
   public billingAddress?: Address;
   public notes?: string;
   public expectedDeliveryDate?: Date;
-  public createdAt: Date;
-  public updatedAt: Date;
+  public createdAt!: Date;
+  public updatedAt!: Date;
   public confirmedAt?: Date;
   public paidAt?: Date;
   public deliveredAt?: Date;
   public shippedAt?: Date;
   public cancelledAt?: Date;
   public cancellationReason?: string;
-  public paidAmount: number;
-  public remainingBalance: number;
-  public createdAtAging: number;
-  public overdueDays: number;
-  public taxAmountWithTax: number;
+  public paidAmount!: number;
+  public remainingBalance!: number;
+  public createdAtAging!: number;
+  public overdueDays!: number;
+  public taxAmountWithTax!: number;
 
   constructor(data: InvoiceData) {
     // Validate input data
@@ -99,6 +100,14 @@ export class Invoice {
     this.validateCustomer(data.customerId);
     this.validateDueDate(data.dueDate);
     this.validateItems(data.items);
+    this.validateCurrency(data.currency);
+    this.validateDescription(data.description);
+
+    // Calculate values before assignment
+    const calculatedSubtotal = data.subtotal || this.calculateSubtotalFromItems(data.items);
+    const calculatedTaxRate = data.taxRate || 0;
+    const calculatedTaxAmount = data.taxAmount || (calculatedSubtotal * calculatedTaxRate);
+    const calculatedTotalAmount = data.totalAmount || (calculatedSubtotal + calculatedTaxAmount);
 
     // Assign values
     this.invoiceNumber = data.invoiceNumber.trim();
@@ -106,8 +115,9 @@ export class Invoice {
     this.customerId = data.customerId.trim();
     this.description = data.description.trim();
     this.dueDate = data.dueDate;
-    this.subtotal = data.subtotal || this.calculateSubtotal();
-    this.totalAmount = data.totalAmount || this.subtotal + (this.subtotal * (this.taxRate || 0));
+    this.subtotal = calculatedSubtotal;
+    this.taxAmount = calculatedTaxAmount;
+    this.totalAmount = calculatedTotalAmount;
     this.currency = data.currency.trim().toUpperCase();
     this.status = data.status || InvoiceStatus.DRAFT;
     this.isActive = this.status !== InvoiceStatus.CANCELLED && this.status !== InvoiceStatus.VOID;
@@ -118,7 +128,7 @@ export class Invoice {
       discount: item.discount || 0,
       notes: item.notes?.trim(),
     }));
-    this.taxRate = data.taxRate || 0;
+    this.taxRate = calculatedTaxRate;
     this.shippingAddress = data.shippingAddress;
     this.billingAddress = data.billingAddress;
     this.notes = data.notes?.trim();
@@ -128,11 +138,11 @@ export class Invoice {
     const now = new Date();
     this.createdAt = now;
     this.updatedAt = now;
-    this.isActive = true;
-    this.confirmedAt = data.confirmedAt || null;
-    this.paidAt = data.paidAt || null;
-    this.deliveredAt = data.deliveredAt || null;
-    this.cancelledAt = data.cancelledAt || null;
+    this.confirmedAt = data.confirmedAt;
+    this.paidAt = data.paidAt;
+    this.deliveredAt = data.deliveredAt;
+    this.shippedAt = data.shippedAt;
+    this.cancelledAt = data.cancelledAt;
     this.cancellationReason = data.cancellationReason;
     this.paidAmount = 0;
     this.remainingBalance = this.totalAmount;
@@ -143,8 +153,8 @@ export class Invoice {
 
   // Validation methods
   private validateInvoiceNumber(invoiceNumber: string): void {
-    if (!invoiceNumber || invoiceNumber.trim().length === 0) {
-      throw new Error('Invoice number is required');
+    if (!invoiceNumber || typeof invoiceNumber !== 'string' || invoiceNumber.trim().length === 0) {
+      throw new Error('Invoice number is required and must be a non-empty string');
     }
     if (invoiceNumber.trim().length > 50) {
       throw new Error('Invoice number cannot exceed 50 characters');
@@ -152,14 +162,14 @@ export class Invoice {
   }
 
   private validateCustomer(customerId: string): void {
-    if (!customerId || customerId.trim().length === 0) {
-      throw new Error('Customer ID is required');
+    if (!customerId || typeof customerId !== 'string' || customerId.trim().length === 0) {
+      throw new Error('Customer ID is required and must be a non-empty string');
     }
   }
 
   private validateDueDate(dueDate: Date): void {
-    if (!dueDate) {
-      throw new Error('Due date is required');
+    if (!dueDate || !(dueDate instanceof Date) || isNaN(dueDate.getTime())) {
+      throw new Error('Due date is required and must be a valid Date');
     }
     if (dueDate <= new Date()) {
       throw new Error('Due date must be in the future');
@@ -167,20 +177,41 @@ export class Invoice {
   }
 
   private validateItems(items: InvoiceItem[]): void {
-    if (!items || items.length === 0) {
-      throw new Error('At least one item is required');
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new Error('At least one item is required and must be an array');
     }
-    items.forEach(item => {
-      if (!item.description || item.description.trim().length === 0) {
-        throw new Error('Item description is required');
+    items.forEach((item, index) => {
+      if (!item.description || typeof item.description !== 'string' || item.description.trim().length === 0) {
+        throw new Error(`Item ${index + 1}: Description is required and must be a non-empty string`);
       }
-      if (item.quantity <= 0) {
-        throw new Error('Item quantity must be greater than 0');
+      if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+        throw new Error(`Item ${index + 1}: Quantity must be a number greater than 0`);
       }
-      if (item.unitPrice < 0) {
-        throw new Error('Item unit price cannot be negative');
+      if (typeof item.unitPrice !== 'number' || item.unitPrice < 0) {
+        throw new Error(`Item ${index + 1}: Unit price must be a non-negative number`);
+      }
+      if (!item.productId || typeof item.productId !== 'string' || item.productId.trim().length === 0) {
+        throw new Error(`Item ${index + 1}: Product ID is required and must be a non-empty string`);
       }
     });
+  }
+
+  private validateCurrency(currency: string): void {
+    if (!currency || typeof currency !== 'string' || currency.trim().length === 0) {
+      throw new Error('Currency is required and must be a non-empty string');
+    }
+    if (currency.trim().length !== 3) {
+      throw new Error('Currency must be a valid 3-letter currency code');
+    }
+  }
+
+  private validateDescription(description: string): void {
+    if (!description || typeof description !== 'string' || description.trim().length === 0) {
+      throw new Error('Description is required and must be a non-empty string');
+    }
+    if (description.trim().length > 500) {
+      throw new Error('Description cannot exceed 500 characters');
+    }
   }
 
   // Business logic methods
@@ -271,8 +302,8 @@ export class Invoice {
   }
 
   // Calculation methods
-  private calculateSubtotal(): number {
-    return this.items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
+  private calculateSubtotalFromItems(items: InvoiceItem[]): number {
+    return items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0);
   }
 
   private calculateTaxWithTax(): number {
@@ -280,7 +311,7 @@ export class Invoice {
   }
 
   public calculateTotalWithTax(): number {
-    return this.subtotal + this.calculateTaxWithTax();
+    return this.subtotal + this.taxAmount;
   }
 
   public calculateOverdueDays(): number {
@@ -348,6 +379,7 @@ export class Invoice {
     if (this.confirmedAt) result.confirmedAt = this.confirmedAt.toISOString();
     if (this.paidAt) result.paidAt = this.paidAt.toISOString();
     if (this.deliveredAt) result.deliveredAt = this.deliveredAt.toISOString();
+    if (this.shippedAt) result.shippedAt = this.shippedAt.toISOString();
     if (this.cancelledAt) result.cancelledAt = this.cancelledAt.toISOString();
     if (this.cancellationReason) result.cancellationReason = this.cancellationReason;
 

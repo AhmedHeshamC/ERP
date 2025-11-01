@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
 import {
@@ -10,39 +10,14 @@ import {
   DeliveryStatus,
   ReportFormat,
   CreateDistributionListDto,
-  CreateReportSubscriptionDto,
-  SubscriptionType,
   DeliveryMethod,
   ManualReportTriggerDto,
   ScheduledReportResponse,
   ScheduledReportQueryResponse,
   ScheduledReportExecutionResponse,
   DistributionListResponse,
-  ReportSubscriptionResponse,
-  ScheduledReportStatsResponse,
 } from './dto/scheduled-reports.dto';
 
-/**
- * Cron expression validation patterns
- */
-const CRON_PATTERNS = {
-  MINUTE: /^(?:\*|[0-5]?\d|\*)$/,
-  HOUR: /^(?:\*|[01]?\d|2[0-3])$/,
-  DAY: /^(?:\*|[12]?\d|3[01])$/,
-  MONTH: /^(?:\*|[0]?\d|1[0-2])$/,
-  DAY_OF_WEEK: /^(?:\*|[0-6])$/,
-};
-
-/**
- * Default schedule patterns for common schedules
- */
-const DEFAULT_SCHEDULES = {
-  [ScheduleType.DAILY]: '0 9 * * *',     // Daily at 9 AM
-  [ScheduleType.WEEKLY]: '0 9 * * 1',    // Weekly on Monday at 9 AM
-  [ScheduleType.MONTHLY]: '0 9 1 * *',   // Monthly on 1st at 9 AM
-  [ScheduleType.QUARTERLY]: '0 9 1 */3 *', // Quarterly on 1st of quarter at 9 AM
-  [ScheduleType.YEARLY]: '0 9 1 1 *',   // Yearly on January 1st at 9 AM
-};
 
 /**
  * Enterprise Scheduled Reports Service
@@ -66,11 +41,11 @@ export class ScheduledReportsService {
    */
   async createScheduledReport(createScheduledReportDto: CreateScheduledReportDto): Promise<ScheduledReportResponse> {
     try {
-      this.logger.log(`Creating scheduled report: ${createScheduledReportDto.name}`);
+      this.logger.log(`Creating scheduled report!: ${createScheduledReportDto.name}`);
 
       // Input validation and sanitization (OWASP A03)
       if (!this.securityService.validateInput(createScheduledReportDto)) {
-        this.logger.warn(`Invalid input data for scheduled report creation: ${createScheduledReportDto.name}`);
+        this.logger.warn(`Invalid input data for scheduled report creation!: ${createScheduledReportDto.name}`);
         throw new BadRequestException('Invalid scheduled report data');
       }
 
@@ -83,18 +58,18 @@ export class ScheduledReportsService {
       });
 
       if (!reportDefinition) {
-        this.logger.warn(`Report definition not found for scheduled report creation: ${sanitizedData.reportDefinitionId}`);
+        this.logger.warn(`Report definition not found for scheduled report creation!: ${sanitizedData.reportDefinitionId}`);
         throw new NotFoundException(`Report definition not found`);
       }
 
       if (!reportDefinition.isActive) {
-        this.logger.warn(`Inactive report definition attempted for scheduled report creation: ${sanitizedData.reportDefinitionId}`);
+        this.logger.warn(`Inactive report definition attempted for scheduled report creation!: ${sanitizedData.reportDefinitionId}`);
         throw new BadRequestException(`Report definition is inactive`);
       }
 
       // Validate cron expression
       if (!this.validateCronExpression(sanitizedData.schedule)) {
-        this.logger.warn(`Invalid cron expression: ${sanitizedData.schedule}`);
+        this.logger.warn(`Invalid cron expression!: ${sanitizedData.schedule}`);
         throw new BadRequestException('Invalid cron expression format');
       }
 
@@ -103,7 +78,7 @@ export class ScheduledReportsService {
 
       // Validate email recipients if email sending is enabled
       if (sanitizedData.sendEmail && (!sanitizedData.emailRecipients || sanitizedData.emailRecipients.length === 0)) {
-        this.logger.warn(`Email sending enabled but no recipients provided for scheduled report: ${sanitizedData.name}`);
+        this.logger.warn(`Email sending enabled but no recipients provided for scheduled report!: ${sanitizedData.name}`);
         throw new BadRequestException('Email recipients are required when sendEmail is true');
       }
 
@@ -132,9 +107,17 @@ export class ScheduledReportsService {
         scheduleType: scheduledReport.scheduleType as ScheduleType,
         format: scheduledReport.format as ReportFormat,
         parameters: scheduledReport.parameters as Record<string, any>,
-              };
+        description: scheduledReport.description || undefined,
+        lastRunAt: scheduledReport.lastRunAt || undefined,
+        emailSubject: scheduledReport.emailSubject || undefined,
+        emailBody: scheduledReport.emailBody || undefined,
+        archiveAfter: scheduledReport.archiveAfter || undefined,
+        deleteAfter: scheduledReport.deleteAfter || undefined,
+        createdBy: scheduledReport.createdBy || undefined,
+        updatedBy: scheduledReport.updatedBy || undefined,
+      };
 
-      this.logger.log(`Successfully created scheduled report: ${scheduledReport.id} for report definition: ${reportDefinition.name}`);
+      this.logger.log(`Successfully created scheduled report!: ${scheduledReport.id} for report definition: ${reportDefinition.name}`);
       return response;
 
     } catch (error) {
@@ -142,7 +125,7 @@ export class ScheduledReportsService {
         throw error;
       }
 
-      this.logger.error(`Failed to create scheduled report: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create scheduled report: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to create scheduled report');
     }
   }
@@ -153,7 +136,7 @@ export class ScheduledReportsService {
    */
   async getScheduledReports(queryDto: ScheduledReportQueryDto): Promise<ScheduledReportQueryResponse> {
     try {
-      this.logger.log(`Fetching scheduled reports with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching scheduled reports with query!: ${JSON.stringify(queryDto)}`);
 
       const {
         reportDefinitionId,
@@ -198,7 +181,11 @@ export class ScheduledReportsService {
           where,
           skip,
           take,
-          orderBy: { [sortBy]: sortOrder },
+          orderBy: (() => {
+        const orderBy: any = {};
+        orderBy[sortBy || 'createdAt'] = sortOrder;
+        return orderBy;
+      })(),
           include: {
             reportDefinition: {
               select: {
@@ -219,19 +206,27 @@ export class ScheduledReportsService {
         scheduleType: report.scheduleType as ScheduleType,
         format: report.format as ReportFormat,
         parameters: report.parameters as Record<string, any>,
+        description: report.description || undefined,
+        lastRunAt: report.lastRunAt || undefined,
+        emailSubject: report.emailSubject || undefined,
+        emailBody: report.emailBody || undefined,
+        archiveAfter: report.archiveAfter || undefined,
+        deleteAfter: report.deleteAfter || undefined,
+        createdBy: report.createdBy || undefined,
+        updatedBy: report.updatedBy || undefined,
       }));
 
       this.logger.log(`Retrieved ${reportsWithTypes.length} scheduled reports out of ${total} total`);
 
       return {
         scheduledReports: reportsWithTypes,
-        total,
-        skip,
-        take,
+        total: total || 0,
+        skip: skip || 0,
+        take: take || 10,
       };
 
     } catch (error) {
-      this.logger.error(`Failed to fetch scheduled reports: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch scheduled reports: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch scheduled reports');
     }
   }
@@ -241,7 +236,7 @@ export class ScheduledReportsService {
    */
   async getScheduledReportById(id: string): Promise<ScheduledReportResponse | null> {
     try {
-      this.logger.log(`Fetching scheduled report by ID: ${id}`);
+      this.logger.log(`Fetching scheduled report by ID!: ${id}`);
 
       const scheduledReport = await this.prismaService.scheduledReport.findUnique({
         where: { id },
@@ -258,7 +253,7 @@ export class ScheduledReportsService {
       });
 
       if (!scheduledReport) {
-        this.logger.warn(`Scheduled report not found: ${id}`);
+        this.logger.warn(`Scheduled report not found!: ${id}`);
         return null;
       }
 
@@ -268,13 +263,21 @@ export class ScheduledReportsService {
         scheduleType: scheduledReport.scheduleType as ScheduleType,
         format: scheduledReport.format as ReportFormat,
         parameters: scheduledReport.parameters as Record<string, any>,
-              };
+        description: scheduledReport.description || undefined,
+        lastRunAt: scheduledReport.lastRunAt || undefined,
+        emailSubject: scheduledReport.emailSubject || undefined,
+        emailBody: scheduledReport.emailBody || undefined,
+        archiveAfter: scheduledReport.archiveAfter || undefined,
+        deleteAfter: scheduledReport.deleteAfter || undefined,
+        createdBy: scheduledReport.createdBy || undefined,
+        updatedBy: scheduledReport.updatedBy || undefined,
+      };
 
-      this.logger.log(`Successfully retrieved scheduled report: ${id}`);
+      this.logger.log(`Successfully retrieved scheduled report!: ${id}`);
       return response;
 
     } catch (error) {
-      this.logger.error(`Failed to fetch scheduled report by ID ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch scheduled report by ID ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch scheduled report');
     }
   }
@@ -284,7 +287,7 @@ export class ScheduledReportsService {
    */
   async updateScheduledReport(id: string, updateScheduledReportDto: UpdateScheduledReportDto): Promise<ScheduledReportResponse> {
     try {
-      this.logger.log(`Updating scheduled report ${id} with data: ${JSON.stringify(updateScheduledReportDto)}`);
+      this.logger.log(`Updating scheduled report ${id} with data!: ${JSON.stringify(updateScheduledReportDto)}`);
 
       // Check if scheduled report exists
       const existingReport = await this.prismaService.scheduledReport.findUnique({
@@ -292,13 +295,13 @@ export class ScheduledReportsService {
       });
 
       if (!existingReport) {
-        this.logger.warn(`Scheduled report update attempted for non-existent ID: ${id}`);
+        this.logger.warn(`Scheduled report update attempted for non-existent ID!: ${id}`);
         throw new NotFoundException(`Scheduled report not found`);
       }
 
       // Input validation and sanitization
       if (!this.securityService.validateInput(updateScheduledReportDto)) {
-        this.logger.warn(`Invalid input data for scheduled report update: ${id}`);
+        this.logger.warn(`Invalid input data for scheduled report update!: ${id}`);
         throw new BadRequestException('Invalid scheduled report data');
       }
 
@@ -306,7 +309,7 @@ export class ScheduledReportsService {
 
       // Validate cron expression if provided
       if (sanitizedData.schedule && !this.validateCronExpression(sanitizedData.schedule)) {
-        this.logger.warn(`Invalid cron expression for update: ${sanitizedData.schedule}`);
+        this.logger.warn(`Invalid cron expression for update!: ${sanitizedData.schedule}`);
         throw new BadRequestException('Invalid cron expression format');
       }
 
@@ -333,15 +336,40 @@ export class ScheduledReportsService {
         },
       });
 
-      // Convert response format
+      // Convert response format and handle null to undefined conversion
       const response: ScheduledReportResponse = {
-        ...updatedReport,
+        id: updatedReport.id,
+        reportDefinitionId: updatedReport.reportDefinitionId,
+        reportDefinition: updatedReport.reportDefinition ? {
+          id: updatedReport.reportDefinition.id,
+          name: updatedReport.reportDefinition.name,
+          type: updatedReport.reportDefinition.type,
+          category: updatedReport.reportDefinition.category,
+        } : undefined,
+        name: updatedReport.name,
+        description: updatedReport.description || undefined,
+        schedule: updatedReport.schedule,
         scheduleType: updatedReport.scheduleType as ScheduleType,
-        format: updatedReport.format as ReportFormat,
+        isActive: updatedReport.isActive,
+        nextRunAt: updatedReport.nextRunAt || new Date(),
+        lastRunAt: updatedReport.lastRunAt || undefined,
         parameters: updatedReport.parameters as Record<string, any>,
-              };
+        format: updatedReport.format as ReportFormat,
+        timezone: updatedReport.timezone,
+        sendEmail: updatedReport.sendEmail,
+        emailRecipients: updatedReport.emailRecipients || [],
+        emailSubject: updatedReport.emailSubject || undefined,
+        emailBody: updatedReport.emailBody || undefined,
+        maxRetries: updatedReport.maxRetries,
+        archiveAfter: updatedReport.archiveAfter || undefined,
+        deleteAfter: updatedReport.deleteAfter || undefined,
+        createdAt: updatedReport.createdAt,
+        updatedAt: updatedReport.updatedAt,
+        createdBy: updatedReport.createdBy || undefined,
+        updatedBy: updatedReport.updatedBy || undefined,
+      };
 
-      this.logger.log(`Successfully updated scheduled report: ${updatedReport.id}`);
+      this.logger.log(`Successfully updated scheduled report!: ${updatedReport.id}`);
       return response;
 
     } catch (error) {
@@ -349,7 +377,7 @@ export class ScheduledReportsService {
         throw error;
       }
 
-      this.logger.error(`Failed to update scheduled report ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update scheduled report ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to update scheduled report');
     }
   }
@@ -359,7 +387,7 @@ export class ScheduledReportsService {
    */
   async triggerScheduledReport(id: string, triggerDto: ManualReportTriggerDto): Promise<ScheduledReportExecutionResponse> {
     try {
-      this.logger.log(`Triggering manual execution for scheduled report: ${id}`);
+      this.logger.log(`Triggering manual execution for scheduled report!: ${id}`);
 
       // Validate scheduled report exists
       const scheduledReport = await this.prismaService.scheduledReport.findUnique({
@@ -367,7 +395,7 @@ export class ScheduledReportsService {
       });
 
       if (!scheduledReport) {
-        this.logger.warn(`Scheduled report not found for trigger: ${id}`);
+        this.logger.warn(`Scheduled report not found for trigger!: ${id}`);
         throw new NotFoundException('Scheduled report not found');
       }
 
@@ -447,9 +475,13 @@ export class ScheduledReportsService {
           deliveryStatus: updatedExecution.deliveryStatus as DeliveryStatus,
           executionTimeMs: updatedExecution.executionTimeMs || 0,
           generatedReportId: generatedReport.id,
+          completedAt: updatedExecution.completedAt || undefined,
+          generatedReport: generatedReport || undefined,
+          errorMessage: updatedExecution.errorMessage || undefined,
+          createdBy: updatedExecution.createdBy || undefined,
         };
 
-        this.logger.log(`Successfully triggered execution for scheduled report: ${execution.id}`);
+        this.logger.log(`Successfully triggered execution for scheduled report!: ${execution.id}`);
         return response;
 
       } catch (error) {
@@ -459,7 +491,7 @@ export class ScheduledReportsService {
           data: {
             status: ExecutionStatus.FAILED,
             completedAt: new Date(),
-            errorMessage: error.message,
+            errorMessage: error instanceof Error ? error.message : "Unknown error",
             executionTimeMs: Date.now() - now.getTime(),
           },
         });
@@ -471,7 +503,7 @@ export class ScheduledReportsService {
         throw error;
       }
 
-      this.logger.error(`Failed to trigger scheduled report ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to trigger scheduled report ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to trigger scheduled report');
     }
   }
@@ -481,7 +513,7 @@ export class ScheduledReportsService {
    */
   async getScheduledReportExecutions(scheduledReportId: string): Promise<ScheduledReportExecutionResponse[]> {
     try {
-      this.logger.log(`Fetching execution history for scheduled report: ${scheduledReportId}`);
+      this.logger.log(`Fetching execution history for scheduled report!: ${scheduledReportId}`);
 
       const executions = await this.prismaService.scheduledReportExecution.findMany({
         where: { scheduledReportId },
@@ -510,13 +542,21 @@ export class ScheduledReportsService {
         status: execution.status as ExecutionStatus,
         deliveryStatus: execution.deliveryStatus as DeliveryStatus,
         executionTimeMs: execution.executionTimeMs || 0,
+        completedAt: execution.completedAt || undefined,
+        generatedReportId: execution.generatedReportId || undefined,
+        generatedReport: execution.generatedReport ? {
+          ...execution.generatedReport,
+          fileUrl: execution.generatedReport.fileUrl || undefined,
+        } : undefined,
+        errorMessage: execution.errorMessage || undefined,
+        createdBy: execution.createdBy || undefined,
       }));
 
-      this.logger.log(`Retrieved ${response.length} executions for scheduled report: ${scheduledReportId}`);
+      this.logger.log(`Retrieved ${response.length} executions for scheduled report!: ${scheduledReportId}`);
       return response;
 
     } catch (error) {
-      this.logger.error(`Failed to fetch execution history: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch execution history: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch execution history');
     }
   }
@@ -526,7 +566,7 @@ export class ScheduledReportsService {
    */
   async createDistributionList(distributionDto: CreateDistributionListDto): Promise<DistributionListResponse> {
     try {
-      this.logger.log(`Creating distribution list entry for scheduled report: ${distributionDto.scheduledReportId}`);
+      this.logger.log(`Creating distribution list entry for scheduled report!: ${distributionDto.scheduledReportId}`);
 
       // Input validation
       if (!this.securityService.validateInput(distributionDto)) {
@@ -580,9 +620,13 @@ export class ScheduledReportsService {
         ...distribution,
         deliveryMethod: distribution.deliveryMethod as DeliveryMethod,
         preferredFormat: distribution.preferredFormat ? distribution.preferredFormat as ReportFormat : undefined,
+        unsubscribedAt: distribution.unsubscribedAt || undefined,
+        customSubject: distribution.customSubject || undefined,
+        customBody: distribution.customBody || undefined,
+        createdBy: distribution.createdBy || undefined,
       };
 
-      this.logger.log(`Successfully created distribution list entry: ${distribution.id}`);
+      this.logger.log(`Successfully created distribution list entry!: ${distribution.id}`);
       return response;
 
     } catch (error) {
@@ -590,7 +634,7 @@ export class ScheduledReportsService {
         throw error;
       }
 
-      this.logger.error(`Failed to create distribution list: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create distribution list: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to create distribution list');
     }
   }
@@ -608,14 +652,14 @@ export class ScheduledReportsService {
       throw new Error('Invalid cron expression');
     }
 
-    const [minute, hour, day, month, dayOfWeek] = parts;
+    const [minute, hour, _day, _month, __________dayOfWeek] = parts;
 
     // Start from tomorrow to ensure next run
     const nextRun = new Date(fromDate);
 
     // Handle specific day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    if (dayOfWeek !== '*') {
-      const targetDayOfWeek = parseInt(dayOfWeek, 10);
+    if (__________dayOfWeek !== '*') {
+      const targetDayOfWeek = parseInt(__________dayOfWeek, 10);
       const currentDayOfWeek = nextRun.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
 
       // Calculate days to add to reach target day
@@ -658,7 +702,7 @@ export class ScheduledReportsService {
       return false;
     }
 
-    const [minute, hour, day, month, dayOfWeek] = parts;
+    const [minute, hour, _day, _month, __________dayOfWeek] = parts;
 
     // Basic validation - in production, use a proper cron validator
     try {
@@ -673,17 +717,17 @@ export class ScheduledReportsService {
       }
 
       // Validate day (1-31, *, */N, or ranges)
-      if (!this.validateCronField(day, 1, 31)) {
+      if (!this.validateCronField(_day, 1, 31)) {
         return false;
       }
 
       // Validate month (1-12, *, */N, or ranges)
-      if (!this.validateCronField(month, 1, 12)) {
+      if (!this.validateCronField(_month, 1, 12)) {
         return false;
       }
 
       // Validate day of week (0-6, *, */N, or ranges)
-      if (!this.validateCronField(dayOfWeek, 0, 6)) {
+      if (!this.validateCronField(__________dayOfWeek, 0, 6)) {
         return false;
       }
 

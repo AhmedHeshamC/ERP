@@ -60,7 +60,7 @@ import { validationSchema } from './config/validation';
     // Static Files
     ServeStaticModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => [
+      useFactory: (_configService: ConfigService) => [
         {
           rootPath: join(__dirname, '..', 'public'),
           serveRoot: '/static',

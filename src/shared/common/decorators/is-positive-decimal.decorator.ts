@@ -8,7 +8,7 @@ export function IsPositiveDecimal(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: any) {
           return typeof value === 'number' && value > 0;
         },
         defaultMessage(args: ValidationArguments) {

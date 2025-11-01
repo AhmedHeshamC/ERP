@@ -83,7 +83,7 @@ export class ConcurrencyControlService {
     options: LockOptions = {}
   ): Promise<LockInfo> {
     try {
-      this.logger.log(`Acquiring ${options.lockType || LockType.EXCLUSIVE} lock on ${resourceType}:${resourceId}`);
+      this.logger.log(`Acquiring ${options.lockType || LockType.EXCLUSIVE} lock on ${resourceType}!: ${resourceId}`);
 
       const lockType = options.lockType || LockType.EXCLUSIVE;
       const timeout = options.timeout || this.DEFAULT_LOCK_TIMEOUT;
@@ -95,12 +95,12 @@ export class ConcurrencyControlService {
         // Check if lock is expired
         if (existingLock.expiresAt < new Date()) {
           await this.releaseLock(existingLock.id);
-          this.logger.warn(`Released expired lock: ${existingLock.id}`);
+          this.logger.warn(`Released expired lock!: ${existingLock.id}`);
         } else {
           // Check if owner is trying to reacquire
           if (existingLock.ownerId === ownerId) {
             await this.extendLock(existingLock.id, timeout);
-            this.logger.log(`Extended existing lock: ${existingLock.id}`);
+            this.logger.log(`Extended existing lock!: ${existingLock.id}`);
             return existingLock;
           }
 
@@ -135,7 +135,7 @@ export class ConcurrencyControlService {
         },
       );
 
-      this.logger.log(`Lock acquired successfully: ${lock.id}`);
+      this.logger.log(`Lock acquired successfully!: ${lock.id}`);
       return {
         id: lock.id,
         resourceType: lock.resourceType,
@@ -146,7 +146,7 @@ export class ConcurrencyControlService {
         expiresAt: lock.expiresAt,
       };
     } catch (error) {
-      this.logger.error(`Failed to acquire lock: ${error.message}`, error.stack);
+      this.logger.error(`Failed to acquire lock: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -157,14 +157,14 @@ export class ConcurrencyControlService {
    */
   async releaseLock(lockId: string): Promise<void> {
     try {
-      this.logger.log(`Releasing lock: ${lockId}`);
+      this.logger.log(`Releasing lock!: ${lockId}`);
 
       const lock = await this.prismaService.resourceLock.findUnique({
         where: { id: lockId },
       });
 
       if (!lock) {
-        this.logger.warn(`Lock not found for release: ${lockId}`);
+        this.logger.warn(`Lock not found for release!: ${lockId}`);
         return;
       }
 
@@ -176,7 +176,7 @@ export class ConcurrencyControlService {
       await this.securityService.logSecurityEvent(
         'RESOURCE_UNLOCKED',
         lockId,
-        lock.userId,
+        lock.userId || undefined,
         'concurrency-control-service',
         {
           resourceType: lock.resourceType,
@@ -185,9 +185,9 @@ export class ConcurrencyControlService {
         },
       );
 
-      this.logger.log(`Lock released successfully: ${lockId}`);
+      this.logger.log(`Lock released successfully!: ${lockId}`);
     } catch (error) {
-      this.logger.error(`Failed to release lock: ${error.message}`, error.stack);
+      this.logger.error(`Failed to release lock: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -237,13 +237,13 @@ export class ConcurrencyControlService {
     const delay = options.delay || this.DEFAULT_RETRY_DELAY;
     const backoff = options.backoff !== false;
 
-    let lastError: Error;
+    let lastError!: Error;
 
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         return await operation();
       } catch (error) {
-        lastError = error;
+        lastError = error as Error;
 
         // Don't retry on certain error types
         if (this.shouldNotRetry(error)) {
@@ -252,7 +252,7 @@ export class ConcurrencyControlService {
 
         if (attempt < attempts) {
           const currentDelay = backoff ? delay * attempt : delay;
-          this.logger.warn(`Attempt ${attempt} failed, retrying in ${currentDelay}ms: ${error.message}`);
+          this.logger.warn(`Attempt ${attempt} failed, retrying in ${currentDelay}ms!: ${error instanceof Error ? error.message : "Unknown error"}`);
           await this.sleep(currentDelay);
         }
       }
@@ -270,10 +270,10 @@ export class ConcurrencyControlService {
     resourceId: string,
     expectedVersion: number,
     updateFn: (current: T) => Promise<T>,
-    options: LockOptions = {}
+    _options: LockOptions = {}
   ): Promise<T> {
     try {
-      this.logger.log(`Performing optimistic update on ${resourceType}:${resourceId}, version: ${expectedVersion}`);
+      this.logger.log(`Performing optimistic update on ${resourceType}!: ${resourceId}, version: ${expectedVersion}`);
 
       // Get current entity
       const current = await this.getEntityByVersion(resourceType, resourceId);
@@ -315,10 +315,10 @@ export class ConcurrencyControlService {
       } as T;
       const updated = await updateFn(updateData);
 
-      this.logger.log(`Optimistic update successful: ${resourceType}:${resourceId}, new version: ${updated.version}`);
+      this.logger.log(`Optimistic update successful!: ${resourceType}:${resourceId}, new version: ${updated.version}`);
       return updated;
     } catch (error) {
-      this.logger.error(`Optimistic update failed: ${error.message}`, error.stack);
+      this.logger.error(`Optimistic update failed: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -353,9 +353,9 @@ export class ConcurrencyControlService {
         ownerId: lock.userId || 'unknown',
         createdAt: lock.createdAt,
         expiresAt: lock.expiresAt,
-      } : null;
+      } !: null;
     } catch (error) {
-      this.logger.error(`Failed to get active lock: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get active lock: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       return null;
     }
   }
@@ -372,9 +372,9 @@ export class ConcurrencyControlService {
         data: { expiresAt },
       });
 
-      this.logger.log(`Lock extended: ${lockId}, expires at: ${expiresAt.toISOString()}`);
+      this.logger.log(`Lock extended!: ${lockId}, expires at: ${expiresAt.toISOString()}`);
     } catch (error) {
-      this.logger.error(`Failed to extend lock: ${error.message}`, error.stack);
+      this.logger.error(`Failed to extend lock: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -407,7 +407,7 @@ export class ConcurrencyControlService {
         }, {} as Record<string, number>),
       };
     } catch (error) {
-      this.logger.error(`Failed to get lock statistics: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get lock statistics: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -430,7 +430,7 @@ export class ConcurrencyControlService {
             id: product.id,
             version: 1, // Simplified - would use actual version field
             updatedAt: product.updatedAt,
-          } : null;
+          } !: null;
 
         case 'SalesOrder':
           const order = await this.prismaService.order.findUnique({
@@ -440,13 +440,13 @@ export class ConcurrencyControlService {
             id: order.id,
             version: 1, // Simplified - would use actual version field
             updatedAt: order.updatedAt,
-          } : null;
+          } !: null;
 
         default:
-          throw new Error(`Unsupported entity type: ${resourceType}`);
+          throw new Error(`Unsupported entity type!: ${resourceType}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to get entity by version: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get entity by version: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       return null;
     }
   }
@@ -487,7 +487,7 @@ export class ConcurrencyControlService {
       try {
         await this.cleanupExpiredLocks();
       } catch (error) {
-        this.logger.error(`Failed to cleanup expired locks: ${error.message}`, error.stack);
+        this.logger.error(`Failed to cleanup expired locks: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       }
     }, 5 * 60 * 1000);
   }
@@ -507,7 +507,7 @@ export class ConcurrencyControlService {
         this.logger.log(`Cleaned up ${result.count} expired locks`);
       }
     } catch (error) {
-      this.logger.error(`Failed to cleanup expired locks: ${error.message}`, error.stack);
+      this.logger.error(`Failed to cleanup expired locks: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
     }
   }
 }

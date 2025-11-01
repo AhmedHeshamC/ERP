@@ -68,7 +68,7 @@ export class ReportsService {
 
   async generateIncomeStatement(startDate: Date, endDate: Date) {
     // Get revenue accounts
-    const revenues = await this.prisma.$queryRaw`
+    const revenues = await this.prisma.$queryRaw<Array<{ accountId: string; name: string; amount: number }>>`
       SELECT
         ca.id as accountId,
         ca.name,
@@ -84,10 +84,10 @@ export class ReportsService {
       GROUP BY ca.id, ca.name
       HAVING COALESCE(SUM(je.creditAmount - je.debitAmount), 0) != 0
       ORDER BY ca.code
-    ` as Array<{ accountId: string; name: string; amount: number }>;
+    `;
 
     // Get expense accounts
-    const expenses = await this.prisma.$queryRaw`
+    const expenses = await this.prisma.$queryRaw<Array<{ accountId: string; name: string; amount: number }>>`
       SELECT
         ca.id as accountId,
         ca.name,
@@ -103,7 +103,7 @@ export class ReportsService {
       GROUP BY ca.id, ca.name
       HAVING COALESCE(SUM(je.debitAmount - je.creditAmount), 0) != 0
       ORDER BY ca.code
-    ` as Array<{ accountId: string; name: string; amount: number }>;
+    `;
 
     const totalRevenue = revenues.reduce((sum, rev) => sum + Number(rev.amount), 0);
     const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
@@ -121,7 +121,7 @@ export class ReportsService {
 
   async generateBalanceSheet(asOfDate: Date) {
     // Get asset accounts
-    const assets = await this.prisma.$queryRaw`
+    const assets = await this.prisma.$queryRaw<Array<{ code: string; name: string; balance: number }>>`
       SELECT
         ca.code,
         ca.name,
@@ -136,10 +136,10 @@ export class ReportsService {
       GROUP BY ca.id, ca.code, ca.name
       HAVING COALESCE(SUM(je.debitAmount - je.creditAmount), 0) != 0
       ORDER BY ca.code
-    ` as Array<{ code: string; name: string; balance: number }>;
+    `;
 
     // Get liability accounts
-    const liabilities = await this.prisma.$queryRaw`
+    const liabilities = await this.prisma.$queryRaw<Array<{ code: string; name: string; balance: number }>>`
       SELECT
         ca.code,
         ca.name,
@@ -154,10 +154,10 @@ export class ReportsService {
       GROUP BY ca.id, ca.code, ca.name
       HAVING COALESCE(SUM(je.creditAmount - je.debitAmount), 0) != 0
       ORDER BY ca.code
-    ` as Array<{ code: string; name: string; balance: number }>;
+    `;
 
     // Get equity accounts
-    const equity = await this.prisma.$queryRaw`
+    const equity = await this.prisma.$queryRaw<Array<{ code: string; name: string; balance: number }>>`
       SELECT
         ca.code,
         ca.name,
@@ -172,10 +172,10 @@ export class ReportsService {
       GROUP BY ca.id, ca.code, ca.name
       HAVING COALESCE(SUM(je.creditAmount - je.debitAmount), 0) != 0
       ORDER BY ca.code
-    ` as Array<{ code: string; name: string; balance: number }>;
+    `;
 
     // Calculate retained earnings (revenue - expenses for all periods up to asOfDate)
-    const retainedEarnings = await this.prisma.$queryRaw`
+    const retainedEarnings = await this.prisma.$queryRaw<Array<{ retainedEarnings: number }>>`
       SELECT
         COALESCE(SUM(CASE
           WHEN ca.type = 'REVENUE' THEN je.creditAmount - je.debitAmount
@@ -189,7 +189,7 @@ export class ReportsService {
         AND ca.isActive = true
         AND t.date <= ${asOfDate}
         AND t.status = 'POSTED'
-    ` as Array<{ retainedEarnings: number }>;
+    `;
 
     const totalAssets = assets.reduce((sum, asset) => sum + Number(asset.balance), 0);
     const totalLiabilities = liabilities.reduce((sum, liability) => sum + Number(liability.balance), 0);
@@ -215,7 +215,7 @@ export class ReportsService {
 
   async generateCashFlowStatement(startDate: Date, endDate: Date) {
     // Operating activities (changes in current assets and current liabilities)
-    const operatingActivities = await this.prisma.$queryRaw`
+    const operatingActivities = await this.prisma.$queryRaw<Array<{ cashFlow: number }>>`
       SELECT COALESCE(SUM(
         CASE
           WHEN ca.type = 'ASSET' AND ca.category = 'Current Assets' THEN je.debitAmount - je.creditAmount
@@ -235,10 +235,10 @@ export class ReportsService {
         AND t.date >= ${startDate}
         AND t.date <= ${endDate}
         AND t.status = 'POSTED'
-    ` as Array<{ cashFlow: number }>;
+    `;
 
     // Investing activities (changes in non-current assets)
-    const investingActivities = await this.prisma.$queryRaw`
+    const investingActivities = await this.prisma.$queryRaw<Array<{ cashFlow: number }>>`
       SELECT COALESCE(SUM(je.creditAmount - je.debitAmount), 0) as cashFlow
       FROM ChartOfAccounts ca
       LEFT JOIN JournalEntry je ON ca.id = je.accountId
@@ -249,10 +249,10 @@ export class ReportsService {
         AND t.date >= ${startDate}
         AND t.date <= ${endDate}
         AND t.status = 'POSTED'
-    ` as Array<{ cashFlow: number }>;
+    `;
 
     // Financing activities (changes in non-current liabilities and equity)
-    const financingActivities = await this.prisma.$queryRaw`
+    const financingActivities = await this.prisma.$queryRaw<Array<{ cashFlow: number }>>`
       SELECT COALESCE(SUM(je.creditAmount - je.debitAmount), 0) as cashFlow
       FROM ChartOfAccounts ca
       LEFT JOIN JournalEntry je ON ca.id = je.accountId
@@ -263,7 +263,7 @@ export class ReportsService {
         AND t.date >= ${startDate}
         AND t.date <= ${endDate}
         AND t.status = 'POSTED'
-    ` as Array<{ cashFlow: number }>;
+    `;
 
     const operatingCashFlow = operatingActivities[0]?.cashFlow || 0;
     const investingCashFlow = investingActivities[0]?.cashFlow || 0;

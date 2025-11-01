@@ -1,8 +1,6 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
 import { SupplierService } from './supplier.service';
-import { PrismaService } from '../../shared/database/prisma.service';
-import { SecurityService } from '../../shared/security/security.service';
 import {
   CreateSupplierDto,
   UpdateSupplierDto,
@@ -99,7 +97,7 @@ describe('SupplierService', () => {
         await supplierService.createSupplier(createSupplierDto);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).to.equal('Invalid supplier data');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Invalid supplier data');
       }
 
       expect(securityService.validateInput.calledOnceWith(createSupplierDto)).to.be.true;
@@ -118,7 +116,7 @@ describe('SupplierService', () => {
         await supplierService.createSupplier(createSupplierDto);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).to.include('already exists');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('already exists');
       }
     });
   });
@@ -283,7 +281,7 @@ describe('SupplierService', () => {
         await supplierService.updateSupplier(supplierId, updateSupplierDto);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).to.include('not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('not found');
       }
     });
   });
@@ -323,7 +321,7 @@ describe('SupplierService', () => {
         await supplierService.deleteSupplier(supplierId);
         expect.fail('Should have thrown an error');
       } catch (error: any) {
-        expect(error.message).to.include('not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('not found');
       }
     });
   });

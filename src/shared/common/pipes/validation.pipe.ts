@@ -36,7 +36,7 @@ export class ValidationPipe implements PipeTransform<any> {
 
     if (errors.length > 0) {
       const validationErrors = this.formatValidationErrors(errors);
-      this.logger.warn(`Validation failed: ${JSON.stringify(validationErrors)}`);
+      this.logger.warn(`Validation failed!: ${JSON.stringify(validationErrors)}`);
       throw new BadRequestException({
         message: 'Validation failed',
         errors: validationErrors,

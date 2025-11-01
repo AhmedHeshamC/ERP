@@ -18,6 +18,17 @@ export interface JwtTokenPayload {
 }
 
 /**
+ * Test User Data Interface
+ */
+export interface TestUserData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+}
+
+/**
  * Test Token Configuration
  */
 export interface TestTokenConfig {
@@ -133,7 +144,7 @@ export class AuthHelpers {
     try {
       return this.createTestTokenDirect(role, overrides);
     } catch (error) {
-      console.warn('Direct token creation failed, falling back to HTTP method:', error.message);
+      console.warn('Direct token creation failed, falling back to HTTP method!: ', error instanceof Error ? error.message : "Unknown error");
     }
 
     const userData = {
@@ -184,7 +195,7 @@ export class AuthHelpers {
       try {
         tokens[role] = this.createTestTokenDirect(role);
       } catch (error) {
-        console.warn(`Failed to create token for role ${role}:`, error.message);
+        console.warn(`Failed to create token for role ${role}!: `, error instanceof Error ? error.message : "Unknown error");
         // Continue with other roles
       }
     }
@@ -208,7 +219,7 @@ export class AuthHelpers {
     try {
       return this.createTestTokensForRolesDirect(roles);
     } catch (error) {
-      console.warn('Direct token creation failed, falling back to HTTP method:', error.message);
+      console.warn('Direct token creation failed, falling back to HTTP method!: ', error instanceof Error ? error.message : "Unknown error");
     }
 
     const tokens: Partial<Record<UserRole, string>> = {};
@@ -217,7 +228,7 @@ export class AuthHelpers {
       try {
         tokens[role] = await this.createTestToken(app, role);
       } catch (error) {
-        console.warn(`Failed to create token for role ${role}:`, error.message);
+        console.warn(`Failed to create token for role ${role}!: `, error instanceof Error ? error.message : "Unknown error");
         // Continue with other roles
       }
     }
@@ -282,7 +293,7 @@ export class AuthHelpers {
       const decoded = Buffer.from(payload, 'base64').toString('utf-8');
       return JSON.parse(decoded) as JwtTokenPayload;
     } catch (error) {
-      throw new Error(`Failed to decode token: ${error.message}`);
+      throw new Error(`Failed to decode token!: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
@@ -302,7 +313,7 @@ export class AuthHelpers {
       const payload = this.decodeToken(token);
       const requiredFields = ['sub', 'email', 'role', 'firstName', 'lastName', 'username'];
 
-      return requiredFields.every(field => payload[field] !== undefined);
+      return requiredFields.every(field => payload[field as keyof JwtTokenPayload] !== undefined);
     } catch (error) {
       return false;
     }
@@ -317,13 +328,7 @@ export class AuthHelpers {
    */
   private static async registerUser(
     app: INestApplication,
-    userData: {
-      email: string;
-      password: string;
-      firstName: string;
-      lastName: string;
-      username: string;
-    }
+    userData: TestUserData
   ): Promise<any> {
     return request(app.getHttpServer())
       .post('/auth/register')
@@ -416,14 +421,14 @@ export class AuthHelpers {
    * @param emails - Array of user emails to clean up
    */
   static async cleanupTestUsers(
-    app: INestApplication,
+    _app: INestApplication,
     emails?: string[]
   ): Promise<void> {
     // This would require direct database access or a cleanup endpoint
     // For now, this is a placeholder for the cleanup concept
     const emailsToClean = emails || Object.values(this.TEST_USERS).map(user => user.email);
 
-    console.log('Test user cleanup needed for emails:', emailsToClean);
+    console.log('Test user cleanup needed for emails!: ', emailsToClean);
     // Implementation would depend on database access patterns in tests
   }
 

@@ -38,21 +38,21 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleInit() {
     // Add logging event listeners - using type assertion to bypass Prisma type issues
     (this as any).$on('query', (e: any) => {
-      this.logger.debug(`Query: ${e.query}`);
-      this.logger.debug(`Params: ${e.params}`);
-      this.logger.debug(`Duration: ${e.duration}ms`);
+      this.logger.debug(`Query!: ${e.query}`);
+      this.logger.debug(`Params!: ${e.params}`);
+      this.logger.debug(`Duration!: ${e.duration}ms`);
     });
 
     (this as any).$on('error', (e: any) => {
-      this.logger.error(`Database error: ${e.message}`);
+      this.logger.error(`Database error!: ${e.message}`);
     });
 
     (this as any).$on('info', (e: any) => {
-      this.logger.log(`Database info: ${e.message}`);
+      this.logger.log(`Database info!: ${e.message}`);
     });
 
     (this as any).$on('warn', (e: any) => {
-      this.logger.warn(`Database warning: ${e.message}`);
+      this.logger.warn(`Database warning!: ${e.message}`);
     });
 
     await this.$connect();
@@ -80,7 +80,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       try {
         await this.$executeRawUnsafe(`TRUNCATE TABLE ${tables} CASCADE;`);
       } catch (error) {
-        this.logger.error('Failed to clean database:', error);
+        this.logger.error('Failed to clean database!: ', error);
       }
     }
   }
@@ -91,7 +91,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       await this.$connect();
       this.logger.log('Migrations checked successfully');
     } catch (error) {
-      this.logger.error('Migration check failed:', error);
+      this.logger.error('Migration check failed!: ', error);
       throw error;
     }
   }
@@ -101,7 +101,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       await this.$queryRaw`SELECT 1`;
       return true;
     } catch (error) {
-      this.logger.error('Database health check failed:', error);
+      this.logger.error('Database health check failed!: ', error);
       return false;
     }
   }

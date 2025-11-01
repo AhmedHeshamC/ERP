@@ -1,9 +1,9 @@
-import { Injectable, Logger, NotFoundException, ConflictException, HttpException, HttpStatus, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SecurityService } from '../../shared/security/security.service';
 import { TransactionReferenceService, TransactionType } from '../../shared/common/services/transaction-reference.service';
 import { ErrorHandlingService } from '../../shared/common/services/error-handling.service';
-import { ConcurrencyControlService, LockType } from '../../shared/common/services/concurrency-control.service';
+import { ConcurrencyControlService } from '../../shared/common/services/concurrency-control.service';
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -13,7 +13,7 @@ import {
   StockMovementDto,
   StockMovementType,
 } from './dto/product.dto';
-import { AuditEvents, ConcurrencyEvents } from '../../shared/common/constants';
+import { AuditEvents } from '../../shared/common/constants';
 
 /**
  * Enterprise Product Service
@@ -42,7 +42,7 @@ export class ProductService {
    */
   async createProduct(createProductDto: CreateProductDto, userId?: string): Promise<ProductResponse> {
     try {
-      this.logger.log(`Creating new product: ${createProductDto.name} (SKU: ${createProductDto.sku})`);
+      this.logger.log(`Creating new product!: ${createProductDto.name} (SKU: ${createProductDto.sku})`);
 
       // Enhanced validation with concurrency control
       return await this.concurrencyControlService.withRetry(async () => {
@@ -101,16 +101,17 @@ export class ProductService {
           endpoint: 'POST /products',
         });
 
-        this.logger.log(`Product created successfully: ${product.id}`);
+        this.logger.log(`Product created successfully!: ${product.id}`);
         return {
           ...product,
           price: Number(product.price),
           stockQuantity: Number(product.stockQuantity),
           status: product.status as ProductStatus,
+          description: product.description || undefined,
         };
       });
     } catch (error) {
-      this.logger.error(`Failed to create product: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create product: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       await this.handleProductError(error, 'createProduct', createProductDto);
       throw error;
     }
@@ -164,6 +165,7 @@ export class ProductService {
           price: Number(product.price),
           stockQuantity: Number(product.stockQuantity),
           status: product.status as ProductStatus,
+          description: product.description || undefined,
         })),
         total,
         page,
@@ -174,7 +176,7 @@ export class ProductService {
         skip,
       };
     } catch (error) {
-      this.logger.error(`Failed to retrieve products: ${error.message}`, error.stack);
+      this.logger.error(`Failed to retrieve products: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to retrieve products');
     }
   }
@@ -185,7 +187,7 @@ export class ProductService {
    */
   async getProductById(id: string): Promise<ProductResponse> {
     try {
-      this.logger.log(`Retrieving product: ${id}`);
+      this.logger.log(`Retrieving product!: ${id}`);
 
       const product = await this.prismaService.product.findFirst({
         where: {
@@ -205,15 +207,16 @@ export class ProductService {
         throw new NotFoundException(`Product with id ${id} not found`);
       }
 
-      this.logger.log(`Product retrieved successfully: ${product.name}`);
+      this.logger.log(`Product retrieved successfully!: ${product.name}`);
       return {
         ...product,
         price: Number(product.price),
         stockQuantity: Number(product.stockQuantity),
         status: product.status as ProductStatus,
+        description: product.description || undefined,
       };
     } catch (error) {
-      this.logger.error(`Failed to retrieve product: ${error.message}`, error.stack);
+      this.logger.error(`Failed to retrieve product: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to retrieve product');
     }
   }
@@ -225,7 +228,7 @@ export class ProductService {
    */
   async updateProduct(id: string, updateProductDto: UpdateProductDto): Promise<ProductResponse> {
     try {
-      this.logger.log(`Updating product: ${id}`);
+      this.logger.log(`Updating product!: ${id}`);
 
       // Verify product exists and is active
       const existingProduct = await this.prismaService.product.findFirst({
@@ -258,15 +261,16 @@ export class ProductService {
         },
       );
 
-      this.logger.log(`Product updated successfully: ${product.name}`);
+      this.logger.log(`Product updated successfully!: ${product.name}`);
       return {
         ...product,
         price: Number(product.price),
         stockQuantity: Number(product.stockQuantity),
         status: product.status as ProductStatus,
+        description: product.description || undefined,
       };
     } catch (error) {
-      this.logger.error(`Failed to update product: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update product: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       if (error instanceof NotFoundException || error instanceof ConflictException) {
         throw error;
       }
@@ -280,7 +284,7 @@ export class ProductService {
    */
   async deleteProduct(id: string): Promise<ProductResponse> {
     try {
-      this.logger.log(`Deleting product: ${id}`);
+      this.logger.log(`Deleting product!: ${id}`);
 
       // Verify product exists and is active
       const existingProduct = await this.prismaService.product.findFirst({
@@ -312,15 +316,16 @@ export class ProductService {
         },
       );
 
-      this.logger.log(`Product deleted successfully: ${existingProduct.name}`);
+      this.logger.log(`Product deleted successfully!: ${existingProduct.name}`);
       return {
         ...product,
         price: Number(product.price),
         stockQuantity: Number(product.stockQuantity),
         status: product.status as ProductStatus,
+        description: product.description || undefined,
       };
     } catch (error) {
-      this.logger.error(`Failed to delete product: ${error.message}`, error.stack);
+      this.logger.error(`Failed to delete product: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       if (error instanceof NotFoundException) {
         throw error;
       }
@@ -334,7 +339,7 @@ export class ProductService {
    */
   async getProductsByCategory(categoryId: string): Promise<ProductResponse[]> {
     try {
-      this.logger.log(`Retrieving products by category: ${categoryId}`);
+      this.logger.log(`Retrieving products by category!: ${categoryId}`);
 
       const products = await this.prismaService.product.findMany({
         where: {
@@ -353,9 +358,10 @@ export class ProductService {
         price: Number(product.price),
         stockQuantity: Number(product.stockQuantity),
         status: product.status as ProductStatus,
+        description: product.description || undefined,
       }));
     } catch (error) {
-      this.logger.error(`Failed to get products by category: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get products by category: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to get products by category');
     }
   }
@@ -374,7 +380,7 @@ export class ProductService {
     createdById?: string,
   ): Promise<any> {
     try {
-      this.logger.log(`Adjusting stock for product ${productId}: ${type} ${quantity}`);
+      this.logger.log(`Adjusting stock for product ${productId}!: ${type} ${quantity}`);
 
       // Verify product exists
       const product = await this.prismaService.product.findFirst({
@@ -393,7 +399,7 @@ export class ProductService {
       const newStock = currentStock + quantity;
 
       if (newStock < 0) {
-        throw new Error(`Insufficient stock. Current: ${currentStock}, Requested: ${quantity}`);
+        throw new Error(`Insufficient stock. Current!: ${currentStock}, Requested: ${quantity}`);
       }
 
       // Update stock quantity
@@ -435,10 +441,10 @@ export class ProductService {
         },
       );
 
-      this.logger.log(`Stock adjusted successfully: ${product.name} (${currentStock} -> ${newStock})`);
+      this.logger.log(`Stock adjusted successfully!: ${product.name} (${currentStock} -> ${newStock})`);
       return { updatedProduct, stockMovement };
     } catch (error) {
-      this.logger.error(`Failed to adjust stock: ${error.message}`, error.stack);
+      this.logger.error(`Failed to adjust stock: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to adjust stock');
     }
   }
@@ -470,7 +476,7 @@ export class ProductService {
         lastMovements: product.stockMovements,
       };
     } catch (error) {
-      this.logger.error(`Failed to get product stock: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get product stock: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to get product stock');
     }
   }
@@ -481,7 +487,7 @@ export class ProductService {
    */
   async searchProducts(searchTerm: string, limit = 10): Promise<ProductResponse[]> {
     try {
-      this.logger.log(`Searching products with term: ${searchTerm}`);
+      this.logger.log(`Searching products with term!: ${searchTerm}`);
 
       const products = await this.prismaService.product.findMany({
         where: {
@@ -498,15 +504,16 @@ export class ProductService {
         orderBy: { name: 'asc' },
       });
 
-      this.logger.log(`Found ${products.length} matching products for search: ${searchTerm}`);
+      this.logger.log(`Found ${products.length} matching products for search!: ${searchTerm}`);
       return products.map(product => ({
         ...product,
         price: Number(product.price),
         stockQuantity: Number(product.stockQuantity),
         status: product.status as ProductStatus,
+        description: product.description || undefined,
       }));
     } catch (error) {
-      this.logger.error(`Failed to search products: ${error.message}`, error.stack);
+      this.logger.error(`Failed to search products: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to search products');
     }
   }
@@ -598,7 +605,7 @@ export class ProductService {
 
     if (similarProduct) {
       // Warn but don't block if it's not an exact match
-      this.logger.warn(`Similar product name detected: '${sanitizedDto.name}' vs '${similarProduct.name}'`);
+      this.logger.warn(`Similar product name detected!: '${sanitizedDto.name}' vs '${similarProduct.name}'`);
 
       // If it's very similar (Levenshtein distance < 3), block it
       if (this.areNamesSimilar(sanitizedDto.name, similarProduct.name)) {
@@ -687,13 +694,7 @@ export class ProductService {
     }
   }
 
-  /**
-   * Original validation method for backward compatibility
-   */
-  private async validateProductBusinessRules(createProductDto: CreateProductDto): Promise<void> {
-    await this.validateProductBusinessRulesEnhanced(createProductDto);
-  }
-
+  
   /**
    * Calculate Levenshtein distance to check for similar names
    */
@@ -763,7 +764,7 @@ export class ProductService {
    */
   async updateStock(productId: string, stockUpdateDto: StockMovementDto): Promise<ProductResponse> {
     try {
-      this.logger.log(`Updating stock for product: ${productId}`);
+      this.logger.log(`Updating stock for product!: ${productId}`);
 
       // Validate stock movement
       await this.validateStockMovement(stockUpdateDto);
@@ -829,15 +830,16 @@ export class ProductService {
         },
       );
 
-      this.logger.log(`Stock updated successfully: ${productId}, new level: ${newStockLevel}`);
+      this.logger.log(`Stock updated successfully!: ${productId}, new level: ${newStockLevel}`);
       return {
         ...result,
         price: Number(result.price),
         stockQuantity: Number(result.stockQuantity),
         status: result.status as ProductStatus,
+        description: result.description || undefined,
       };
     } catch (error) {
-      this.logger.error(`Failed to update stock: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update stock: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -848,7 +850,7 @@ export class ProductService {
    */
   async createStockMovement(stockMovementDto: StockMovementDto): Promise<any> {
     try {
-      this.logger.log(`Creating stock movement for product: ${stockMovementDto.productId}`);
+      this.logger.log(`Creating stock movement for product!: ${stockMovementDto.productId}`);
 
       // Validate stock movement
       await this.validateStockMovement(stockMovementDto);
@@ -899,10 +901,10 @@ export class ProductService {
         return movement;
       });
 
-      this.logger.log(`Stock movement created successfully: ${result.id}`);
+      this.logger.log(`Stock movement created successfully!: ${result.id}`);
       return result;
     } catch (error) {
-      this.logger.error(`Failed to create stock movement: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create stock movement: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -950,7 +952,7 @@ export class ProductService {
         stockQuantity: Number(product.stockQuantity),
       }));
     } catch (error) {
-      this.logger.error(`Failed to retrieve low stock products: ${error.message}`, error.stack);
+      this.logger.error(`Failed to retrieve low stock products: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to retrieve low stock products');
     }
   }
@@ -961,7 +963,7 @@ export class ProductService {
    */
   async createCategory(categoryData: any): Promise<any> {
     try {
-      this.logger.log(`Creating product category: ${categoryData.name}`);
+      this.logger.log(`Creating product category!: ${categoryData.name}`);
 
       // Handle parent category for hierarchy
       let level = 0;
@@ -982,10 +984,10 @@ export class ProductService {
         },
       });
 
-      this.logger.log(`Category created successfully: ${category.id}`);
+      this.logger.log(`Category created successfully!: ${category.id}`);
       return category;
     } catch (error) {
-      this.logger.error(`Failed to create category: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create category: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -1018,7 +1020,7 @@ export class ProductService {
         totalItems += Number(product.stockQuantity);
       });
 
-      this.logger.log(`Stock valuation generated: ${products.length} products, total value: ${totalValue}`);
+      this.logger.log(`Stock valuation generated!: ${products.length} products, total value: ${totalValue}`);
 
       return {
         totalValue,
@@ -1030,7 +1032,7 @@ export class ProductService {
         })),
       };
     } catch (error) {
-      this.logger.error(`Failed to generate stock valuation: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate stock valuation: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate stock valuation');
     }
   }
@@ -1070,7 +1072,7 @@ export class ProductService {
         .filter(m => m.type === StockMovementType.OUT)
         .reduce((sum, m) => sum + m.quantity, 0);
 
-      this.logger.log(`Movement report generated: ${movements.length} movements`);
+      this.logger.log(`Movement report generated!: ${movements.length} movements`);
 
       return {
         movements,
@@ -1083,7 +1085,7 @@ export class ProductService {
         },
       };
     } catch (error) {
-      this.logger.error(`Failed to generate movement report: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate movement report: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate movement report');
     }
   }
@@ -1095,15 +1097,15 @@ export class ProductService {
   private async handleProductError(
     error: any,
     operation: string,
-    context?: any,
+    _context?: any,
   ): Promise<never> {
     // Log the full error for debugging
-    this.logger.error(`${operation} failed: ${error.message}`, error.stack);
+    this.logger.error(`${operation} failed: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
     // Map database errors to appropriate HTTP exceptions
     if (error.code === 'P2002') {
       throw new ConflictException(
-        error.message.includes('Unique constraint') ? 'SKU already exists' : 'Duplicate record',
+        error instanceof Error ? error.message : "Unknown error".includes('Unique constraint') ? 'SKU already exists' : 'Duplicate record',
       );
     }
 
@@ -1116,7 +1118,7 @@ export class ProductService {
     }
 
     // For any other errors, wrap in InternalServerErrorException
-    throw new InternalServerErrorException(`Operation failed: ${error.message}`);
+    throw new InternalServerErrorException(`Operation failed!: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 

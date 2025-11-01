@@ -5,7 +5,7 @@ import { TransactionType } from '../enums/accounting.enum';
 
 export class JournalEntryDto {
   @IsString()
-  accountId: string;
+  accountId!: string;
 
   @IsOptional()
   @IsString()
@@ -13,21 +13,21 @@ export class JournalEntryDto {
 
   @IsPositiveDecimal()
   @IsDecimal()
-  debitAmount: number;
+  debitAmount!: number;
 
   @IsPositiveDecimal()
   @IsDecimal()
-  creditAmount: number;
+  creditAmount!: number;
 }
 
 export class CreateTransactionDto {
   @IsString()
   @MaxLength(50)
-  reference: string;
+  reference!: string;
 
   @IsString()
   @MaxLength(255)
-  description: string;
+  description!: string;
 
   @IsOptional()
   @Type(() => Date)
@@ -35,7 +35,7 @@ export class CreateTransactionDto {
 
   @IsPositiveDecimal()
   @IsDecimal()
-  amount: number;
+  amount!: number;
 
   @IsOptional()
   @IsString()
@@ -43,10 +43,10 @@ export class CreateTransactionDto {
   currency?: string;
 
   @IsEnum(TransactionType)
-  type: TransactionType;
+  type!: TransactionType;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => JournalEntryDto)
-  entries: JournalEntryDto[];
+  entries!: JournalEntryDto[];
 }

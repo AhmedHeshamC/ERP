@@ -52,7 +52,7 @@ export class PayrollController {
     @Request() req: any,
   ) {
     try {
-      this.logger.log(`Calculating payroll for employee: ${createPayrollDto.employeeId}, period: ${createPayrollDto.payPeriod}`);
+      this.logger.log(`Calculating payroll for employee!: ${createPayrollDto.employeeId}, period: ${createPayrollDto.payPeriod}`);
 
       // Allow mock user context for integration tests
       const userId = req.user?.sub || (process.env.NODE_ENV === 'test' ? 'test-user-id' : null);
@@ -82,10 +82,10 @@ export class PayrollController {
         },
       );
 
-      this.logger.log(`Successfully calculated payroll: ${payrollRecord.id}`);
+      this.logger.log(`Successfully calculated payroll!: ${payrollRecord.id}`);
       return payrollRecord;
     } catch (error) {
-      this.logger.error(`Failed to calculate payroll: ${error.message}`, error.stack);
+      this.logger.error(`Failed to calculate payroll: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -98,12 +98,12 @@ export class PayrollController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
   async getPayrollById(@Param('id') id: string) {
     try {
-      this.logger.log(`Fetching payroll record: ${id}`);
+      this.logger.log(`Fetching payroll record!: ${id}`);
       const payroll = await this.payrollService.findById(id);
-      this.logger.log(`Successfully retrieved payroll record: ${id}`);
+      this.logger.log(`Successfully retrieved payroll record!: ${id}`);
       return payroll;
     } catch (error) {
-      this.logger.error(`Failed to fetch payroll ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch payroll ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -116,12 +116,12 @@ export class PayrollController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
   async getPayrollByEmployee(@Param('employeeId') employeeId: string) {
     try {
-      this.logger.log(`Fetching payroll records for employee: ${employeeId}`);
+      this.logger.log(`Fetching payroll records for employee!: ${employeeId}`);
       const payrollRecords = await this.payrollService.findByEmployee(employeeId);
-      this.logger.log(`Successfully retrieved ${payrollRecords.length} payroll records for employee: ${employeeId}`);
+      this.logger.log(`Successfully retrieved ${payrollRecords.length} payroll records for employee!: ${employeeId}`);
       return payrollRecords;
     } catch (error) {
-      this.logger.error(`Failed to fetch payroll records for employee ${employeeId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch payroll records for employee ${employeeId}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -134,12 +134,12 @@ export class PayrollController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
   async getPayroll(@Query() filters: any): Promise<any> {
     try {
-      this.logger.log(`Fetching payroll records with filters: ${JSON.stringify(filters)}`);
+      this.logger.log(`Fetching payroll records with filters!: ${JSON.stringify(filters)}`);
       const result = await this.payrollService.findAll(filters);
       this.logger.log(`Successfully retrieved ${result.payrollRecords.length} payroll records`);
       return result;
     } catch (error) {
-      this.logger.error(`Failed to fetch payroll records: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch payroll records: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -156,7 +156,7 @@ export class PayrollController {
     @Request() req: any,
   ) {
     try {
-      this.logger.log(`Approving payroll record: ${id}`);
+      this.logger.log(`Approving payroll record!: ${id}`);
 
       const payroll = await this.payrollService.approvePayroll(id, req.user.sub);
 
@@ -174,10 +174,10 @@ export class PayrollController {
         },
       );
 
-      this.logger.log(`Successfully approved payroll: ${id}`);
+      this.logger.log(`Successfully approved payroll!: ${id}`);
       return payroll;
     } catch (error) {
-      this.logger.error(`Failed to approve payroll ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to approve payroll ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -193,7 +193,7 @@ export class PayrollController {
     @Request() req: any,
   ) {
     try {
-      this.logger.log(`Processing payroll payment: ${id}`);
+      this.logger.log(`Processing payroll payment!: ${id}`);
 
       const payroll = await this.payrollService.processPayment(id, req.user.sub);
 
@@ -211,10 +211,10 @@ export class PayrollController {
         },
       );
 
-      this.logger.log(`Successfully processed payroll payment: ${id}`);
+      this.logger.log(`Successfully processed payroll payment!: ${id}`);
       return payroll;
     } catch (error) {
-      this.logger.error(`Failed to process payroll payment ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to process payroll payment ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -227,12 +227,12 @@ export class PayrollController {
   @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
   async generatePayrollReport(@Body() reportParams: any) {
     try {
-      this.logger.log(`Generating payroll report: ${JSON.stringify(reportParams)}`);
+      this.logger.log(`Generating payroll report!: ${JSON.stringify(reportParams)}`);
       const report = await this.payrollService.generatePayrollReport(reportParams);
       this.logger.log('Successfully generated payroll report');
       return report;
     } catch (error) {
-      this.logger.error(`Failed to generate payroll report: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate payroll report: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -261,7 +261,7 @@ export class PayrollController {
       this.logger.log('Successfully retrieved payroll summary');
       return payrollSummary;
     } catch (error) {
-      this.logger.error(`Failed to fetch payroll summary: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch payroll summary: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

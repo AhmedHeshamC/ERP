@@ -43,7 +43,7 @@ export class SupplierController {
    */
   @Post()
   async createSupplier(@Body() createSupplierDto: CreateSupplierDto): Promise<SupplierResponse> {
-    this.logger.log(`Creating supplier: ${createSupplierDto.code} - ${createSupplierDto.name}`);
+    this.logger.log(`Creating supplier!: ${createSupplierDto.code} - ${createSupplierDto.name}`);
     return this.supplierService.createSupplier(createSupplierDto);
   }
 
@@ -52,7 +52,7 @@ export class SupplierController {
    */
   @Get()
   async getSuppliers(@Query() queryDto: SupplierQueryDto): Promise<SuppliersQueryResponse> {
-    this.logger.log(`Fetching suppliers with query: ${JSON.stringify(queryDto)}`);
+    this.logger.log(`Fetching suppliers with query!: ${JSON.stringify(queryDto)}`);
     return this.supplierService.getSuppliers(queryDto);
   }
 
@@ -61,11 +61,11 @@ export class SupplierController {
    */
   @Get(':id')
   async getSupplierById(@Param('id', ParseUUIDPipe) id: string): Promise<SupplierResponse> {
-    this.logger.log(`Fetching supplier by ID: ${id}`);
+    this.logger.log(`Fetching supplier by ID!: ${id}`);
     const supplier = await this.supplierService.getSupplierById(id);
 
     if (!supplier) {
-      this.logger.warn(`Supplier not found: ${id}`);
+      this.logger.warn(`Supplier not found!: ${id}`);
       throw new NotFoundException(`Supplier with ID ${id} not found`);
     }
 
@@ -80,7 +80,7 @@ export class SupplierController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateSupplierDto: UpdateSupplierDto,
   ): Promise<SupplierResponse> {
-    this.logger.log(`Updating supplier ${id} with data: ${JSON.stringify(updateSupplierDto)}`);
+    this.logger.log(`Updating supplier ${id} with data!: ${JSON.stringify(updateSupplierDto)}`);
     return this.supplierService.updateSupplier(id, updateSupplierDto);
   }
 
@@ -89,7 +89,7 @@ export class SupplierController {
    */
   @Delete(':id')
   async deleteSupplier(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    this.logger.log(`Deleting supplier: ${id}`);
+    this.logger.log(`Deleting supplier!: ${id}`);
     return this.supplierService.deleteSupplier(id);
   }
 
@@ -98,7 +98,7 @@ export class SupplierController {
    */
   @Post(':id/reactivate')
   async reactivateSupplier(@Param('id', ParseUUIDPipe) id: string): Promise<SupplierResponse> {
-    this.logger.log(`Reactivating supplier: ${id}`);
+    this.logger.log(`Reactivating supplier!: ${id}`);
     return this.supplierService.reactivateSupplier(id);
   }
 }

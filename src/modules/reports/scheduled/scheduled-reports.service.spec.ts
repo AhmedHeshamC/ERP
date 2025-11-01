@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { SinonStub, stub } from 'sinon';
+import { stub } from 'sinon';
 import { ScheduledReportsService } from './scheduled-reports.service';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
@@ -12,11 +12,10 @@ import {
   DeliveryStatus,
   ReportFormat,
   CreateDistributionListDto,
-  SubscriptionType,
-  DeliveryMethod,
+    DeliveryMethod,
   ManualReportTriggerDto,
 } from './dto/scheduled-reports.dto';
-import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('ScheduledReportsService', () => {
   let service: ScheduledReportsService;
@@ -115,7 +114,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.equal('Invalid scheduled report data');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Invalid scheduled report data');
       }
     });
 
@@ -137,7 +136,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Report definition not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Report definition not found');
       }
     });
 
@@ -161,7 +160,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Report definition is inactive');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Report definition is inactive');
       }
     });
 
@@ -269,7 +268,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid cron expression');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid cron expression');
       }
     });
   });
@@ -391,9 +390,9 @@ describe('ScheduledReportsService', () => {
 
       // Assert
       expect(result).to.not.be.null;
-      expect(result.id).to.equal(reportId);
-      expect(result.reportDefinitionId).to.equal('report-123');
-      expect(result.reportDefinition.name).to.equal('Test Definition');
+      expect(result?.id).to.equal(reportId);
+      expect(result?.reportDefinitionId).to.equal('report-123');
+      expect(result?.reportDefinition?.name).to.equal('Test Definition');
     });
 
     it('should return null for non-existent scheduled report ID', async () => {
@@ -425,7 +424,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Scheduled report not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Scheduled report not found');
       }
     });
 
@@ -552,7 +551,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Scheduled report not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Scheduled report not found');
       }
     });
   });
@@ -671,7 +670,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Scheduled report not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Scheduled report not found');
       }
     });
 
@@ -699,7 +698,7 @@ describe('ScheduledReportsService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('User not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('User not found');
       }
     });
   });

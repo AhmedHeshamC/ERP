@@ -20,9 +20,9 @@ export class ErrorsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    let status: HttpStatus;
-    let message: string;
-    let details: any;
+    let status!: HttpStatus;
+    let message!: string;
+    let details!: any;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -59,9 +59,9 @@ export class ErrorsFilter implements ExceptionFilter {
     };
 
     if (status >= 500) {
-      this.logger.error(`Server Error: ${message}`, exception instanceof Error ? exception.stack : exception, errorLog);
+      this.logger.error(`Server Error!: ${message}`, exception instanceof Error ? exception.stack : exception, errorLog);
     } else if (status >= 400) {
-      this.logger.warn(`Client Error: ${message}`, errorLog);
+      this.logger.warn(`Client Error!: ${message}`, errorLog);
     }
 
     // Sanitize error details for production

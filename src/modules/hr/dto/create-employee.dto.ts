@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsEnum, IsNumber, IsDateString, Min, Max } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsEnum, IsNumber, IsDateString, Min } from 'class-validator';
 
 export enum EmploymentType {
   FULL_TIME = 'FULL_TIME',
@@ -16,16 +16,16 @@ export enum EmployeeStatus {
 
 export class CreateEmployeeDto {
   @IsString()
-  userId: string;
+  userId!: string;
 
   @IsString()
-  firstName: string;
+  firstName!: string;
 
   @IsString()
-  lastName: string;
+  lastName!: string;
 
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsOptional()
   @IsString()
@@ -52,23 +52,23 @@ export class CreateEmployeeDto {
   country?: string;
 
   @IsDateString()
-  dateOfBirth: string;
+  dateOfBirth!: string;
 
   @IsString()
-  departmentId: string;
+  departmentId!: string;
 
   @IsString()
-  position: string;
+  position!: string;
 
   @IsString()
-  jobTitle: string;
+  jobTitle!: string;
 
   @IsEnum(EmploymentType)
-  employmentType: EmploymentType;
+  employmentType!: EmploymentType;
 
   @IsNumber()
   @Min(0)
-  salary: number;
+  salary!: number;
 
   @IsOptional()
   @IsString()

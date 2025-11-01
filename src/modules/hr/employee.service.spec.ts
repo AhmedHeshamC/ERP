@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { describe, it, before, after, beforeEach } from 'mocha';
+import { describe, it, beforeEach } from 'mocha';
 import * as sinon from 'sinon';
 import { EmployeeService } from './services/employee.service';
 import { PrismaService } from '../../shared/database/prisma.service';
@@ -139,7 +139,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('User not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('User not found');
       }
     });
 
@@ -167,7 +167,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Department not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Department not found');
       }
     });
 
@@ -196,7 +196,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown ConflictException');
       } catch (error) {
         expect(error).to.be.instanceOf(ConflictException);
-        expect(error.message).to.include('Employee already exists');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee already exists');
       }
     });
 
@@ -224,7 +224,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid employment type');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid employment type');
       }
     });
   });
@@ -241,7 +241,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -256,7 +256,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -273,7 +273,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Department not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Department not found');
       }
     });
   });
@@ -295,7 +295,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -315,7 +315,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Department not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Department not found');
       }
     });
 
@@ -334,7 +334,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Salary must be positive');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Salary must be positive');
       }
     });
   });
@@ -351,7 +351,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -372,7 +372,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Employee is already terminated');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee is already terminated');
       }
     });
   });
@@ -389,7 +389,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -408,7 +408,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Employee is already inactive');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee is already inactive');
       }
     });
   });
@@ -427,7 +427,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid date range');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid date range');
       }
     });
 
@@ -443,7 +443,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid employment type');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid employment type');
       }
     });
   });
@@ -474,7 +474,7 @@ describe('Employee Service - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid personal information');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid personal information');
       }
     });
 
@@ -502,7 +502,7 @@ describe('Employee Service - Unit Tests', () => {
         await employeeService.create(createEmployeeDto, 'admin-123');
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error.message).to.include('XSS detected');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('XSS detected');
       }
     });
   });

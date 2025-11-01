@@ -1,6 +1,5 @@
-import { IsString, IsOptional, IsEmail, IsEnum, IsDecimal, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsDecimal, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CustomerStatus } from '../enums/sales.enum';
 
 export class CreateCustomerDto {
   @ApiProperty({
@@ -10,7 +9,7 @@ export class CreateCustomerDto {
   })
   @IsString()
   @MaxLength(20)
-  code: string;
+  code!: string;
 
   @ApiProperty({
     description: 'Customer name',
@@ -19,14 +18,14 @@ export class CreateCustomerDto {
   })
   @IsString()
   @MaxLength(100)
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: 'Customer email address',
     example: 'john.doe@example.com',
   })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiPropertyOptional({
     description: 'Customer phone number',

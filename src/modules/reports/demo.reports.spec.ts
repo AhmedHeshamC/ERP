@@ -13,54 +13,9 @@ import * as sinon from 'sinon';
  */
 
 describe('Reports Module Demonstration', () => {
-  let mockPrismaService: any;
-  let mockSecurityService: any;
-
   beforeEach(() => {
-    // Mock PrismaService
-    mockPrismaService = {
-      reportDefinition: {
-        findMany: sinon.stub(),
-        findUnique: sinon.stub(),
-        create: sinon.stub(),
-        update: sinon.stub(),
-        count: sinon.stub(),
-      },
-      transaction: {
-        aggregate: sinon.stub(),
-      },
-      journalEntry: {
-        aggregate: sinon.stub(),
-      },
-      order: {
-        aggregate: sinon.stub(),
-        count: sinon.stub(),
-      },
-      customer: {
-        count: sinon.stub(),
-      },
-      orderItem: {
-        groupBy: sinon.stub(),
-        aggregate: sinon.stub(),
-      },
-      product: {
-        findMany: sinon.stub(),
-        aggregate: sinon.stub(),
-      },
-      stockMovement: {
-        aggregate: sinon.stub(),
-      },
-      purchaseOrder: {
-        aggregate: sinon.stub(),
-      },
-    };
-
-    // Mock SecurityService
-    mockSecurityService = {
-      validateInput: sinon.stub(),
-      sanitizeInput: sinon.stub(),
-      logSecurityEvent: sinon.stub(),
-    };
+    // Mock setup for demonstration purposes
+    // Mock services would be used in actual implementation
   });
 
   afterEach(() => {

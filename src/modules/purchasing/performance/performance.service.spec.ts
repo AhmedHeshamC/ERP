@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { SinonStub, stub } from 'sinon';
+import { stub } from 'sinon';
 import { SupplierPerformanceService } from './performance.service';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
@@ -7,14 +7,13 @@ import {
   CreateSupplierPerformanceDto,
   UpdateSupplierPerformanceDto,
   SupplierPerformanceQueryDto,
-  SupplierPerformanceResponse,
   SupplierTier,
-  PerformanceMetricType,
   PerformanceLevel,
   CreateScorecardDetailDto,
   CreatePerformanceEventDto,
   PerformanceEventType,
   EventSeverity,
+  PerformanceMetricType,
 } from './dto/performance.dto';
 import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 
@@ -93,7 +92,7 @@ describe('SupplierPerformanceService', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.equal('Invalid performance data');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Invalid performance data');
       }
     });
 
@@ -117,7 +116,7 @@ describe('SupplierPerformanceService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('not found');
       }
     });
 
@@ -145,7 +144,7 @@ describe('SupplierPerformanceService', () => {
         expect.fail('Should have thrown ConflictException');
       } catch (error) {
         expect(error).to.be.instanceOf(ConflictException);
-        expect(error.message).to.include('already exists');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('already exists');
       }
     });
 
@@ -523,10 +522,10 @@ describe('SupplierPerformanceService', () => {
 
       // Assert
       expect(result).to.not.be.null;
-      expect(result.id).to.equal(performanceId);
-      expect(result.supplierId).to.equal('supplier-123');
-      expect(result.supplier.name).to.equal('Test Supplier');
-      expect(result.calculator.firstName).to.equal('John');
+      expect(result!.id).to.equal(performanceId);
+      expect(result!.supplierId).to.equal('supplier-123');
+      expect(result!.supplier!.name).to.equal('Test Supplier');
+      expect(result!.calculator!.firstName).to.equal('John');
     });
 
     it('should return null for non-existent performance ID', async () => {
@@ -558,7 +557,7 @@ describe('SupplierPerformanceService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('not found');
       }
     });
 
@@ -823,7 +822,7 @@ describe('SupplierPerformanceService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Performance record not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Performance record not found');
       }
     });
   });
@@ -901,7 +900,7 @@ describe('SupplierPerformanceService', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Supplier not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Supplier not found');
       }
     });
   });

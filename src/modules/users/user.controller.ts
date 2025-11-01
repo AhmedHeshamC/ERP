@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SecurityService } from '../../shared/security/security.service';
-import { CreateUserDto, UpdateUserDto, UserQueryDto, UserPasswordChangeDto, UserRole } from './dto/user.dto';
+import { CreateUserDto, UpdateUserDto, UserQueryDto, UserPasswordChangeDto } from './dto/user.dto';
 
 /**
  * Enterprise User Controller
@@ -42,7 +42,7 @@ export class UserController {
   @Post()
   async createUser(@Body() createUserDto: CreateUserDto) {
     try {
-      this.logger.log(`Creating new user: ${createUserDto.email}`);
+      this.logger.log(`Creating new user!: ${createUserDto.email}`);
 
       const user = await this.userService.createUser(createUserDto);
 
@@ -66,7 +66,7 @@ export class UserController {
         data: user,
       };
     } catch (error) {
-      this.logger.error(`Failed to create user: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create user: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       // Log security event for failed creation
       await this.securityService.logSecurityEvent(
@@ -76,7 +76,7 @@ export class UserController {
         'user-controller',
         {
           email: createUserDto.email,
-          error: error.message,
+          error: error instanceof Error ? error.message : "Unknown error",
           endpoint: 'POST /users',
         },
       );
@@ -92,7 +92,7 @@ export class UserController {
   @Get(':id')
   async getUserById(@Param('id') id: string) {
     try {
-      this.logger.log(`Retrieving user: ${id}`);
+      this.logger.log(`Retrieving user!: ${id}`);
 
       const user = await this.userService.findById(id);
 
@@ -114,7 +114,7 @@ export class UserController {
         ...user, // Spread user data to root level for test compatibility
       };
     } catch (error) {
-      this.logger.error(`Failed to retrieve user ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to retrieve user ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -129,7 +129,7 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     try {
-      this.logger.log(`Updating user: ${id}`);
+      this.logger.log(`Updating user!: ${id}`);
 
       const user = await this.userService.updateUser(id, updateUserDto);
 
@@ -152,7 +152,7 @@ export class UserController {
         data: user,
       };
     } catch (error) {
-      this.logger.error(`Failed to update user ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update user ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       // Log failed update attempt
       await this.securityService.logSecurityEvent(
@@ -161,7 +161,7 @@ export class UserController {
         'system',
         'user-controller',
         {
-          error: error.message,
+          error: error instanceof Error ? error.message : "Unknown error",
           endpoint: `PUT /users/${id}`,
           attemptedBy: 'system',
         },
@@ -220,7 +220,7 @@ export class UserController {
         },
       };
     } catch (error) {
-      this.logger.error(`Failed to retrieve users: ${error.message}`, error.stack);
+      this.logger.error(`Failed to retrieve users: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -232,7 +232,7 @@ export class UserController {
   @Delete(':id')
   async deleteUser(@Param('id') id: string) {
     try {
-      this.logger.log(`Deactivating user: ${id}`);
+      this.logger.log(`Deactivating user!: ${id}`);
 
       await this.userService.softDeleteUser(id);
 
@@ -253,7 +253,7 @@ export class UserController {
         message: 'User deleted successfully',
       };
     } catch (error) {
-      this.logger.error(`Failed to deactivate user ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to deactivate user ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       // Log failed deactivation attempt
       await this.securityService.logSecurityEvent(
@@ -262,7 +262,7 @@ export class UserController {
         'system',
         'user-controller',
         {
-          error: error.message,
+          error: error instanceof Error ? error.message : "Unknown error",
           endpoint: `DELETE /users/${id}`,
           attemptedBy: 'system',
         },
@@ -284,7 +284,7 @@ export class UserController {
     @Body() changePasswordDto: UserPasswordChangeDto,
   ) {
     try {
-      this.logger.log(`Changing password for user: ${id}`);
+      this.logger.log(`Changing password for user!: ${id}`);
 
       await this.userService.changePassword(id, changePasswordDto);
 
@@ -305,7 +305,7 @@ export class UserController {
         message: 'Password changed successfully',
       };
     } catch (error) {
-      this.logger.error(`Failed to change password for user ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to change password for user ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       // Log failed password change attempt
       await this.securityService.logSecurityEvent(
@@ -314,7 +314,7 @@ export class UserController {
         'system',
         'user-controller',
         {
-          error: error.message,
+          error: error instanceof Error ? error.message : "Unknown error",
           endpoint: `POST /users/${id}/change-password`,
           attemptedBy: 'anonymous',
         },
@@ -367,7 +367,7 @@ export class UserController {
         }
       };
     } catch (error) {
-      this.logger.error(`Failed to retrieve security events: ${error.message}`, error.stack);
+      this.logger.error(`Failed to retrieve security events: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

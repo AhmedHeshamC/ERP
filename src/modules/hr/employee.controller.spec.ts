@@ -12,44 +12,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 describe('Employee Controller - Unit Tests', () => {
   let employeeController: EmployeeController;
   let employeeService: EmployeeService;
-  let securityService: SecurityService;
-
   // Mock data
-  const mockEmployee = {
-    id: 'emp-123',
-    employeeId: 'EMP001',
-    userId: 'user-123',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@company.com',
-    phone: '+1-555-0123',
-    address: '123 Main St',
-    city: 'New York',
-    state: 'NY',
-    postalCode: '10001',
-    country: 'USA',
-    dateOfBirth: new Date('1990-01-15'),
-    hireDate: new Date('2023-01-01'),
-    departmentId: 'dept-123',
-    position: 'Software Developer',
-    jobTitle: 'Senior Software Developer',
-    employmentType: EmploymentType.FULL_TIME,
-    status: 'ACTIVE',
-    salary: 75000,
-    currency: 'USD',
-    isActive: true,
-    annualLeaveBalance: 20,
-    sickLeaveBalance: 10,
-    personalLeaveBalance: 5,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    department: {
-      id: 'dept-123',
-      name: 'Technology',
-      code: 'TECH',
-    },
-  };
-
   const mockCreateEmployeeDto: CreateEmployeeDto = {
     userId: 'user-123',
     firstName: 'John',
@@ -97,8 +60,7 @@ describe('Employee Controller - Unit Tests', () => {
 
     employeeController = moduleRef.get<EmployeeController>(EmployeeController);
     employeeService = moduleRef.get<EmployeeService>(EmployeeService);
-    securityService = moduleRef.get<SecurityService>(SecurityService);
-  });
+      });
 
   afterEach(() => {
     sinon.restore();
@@ -115,7 +77,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('User not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('User not found');
       }
     });
 
@@ -129,7 +91,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown ConflictException');
       } catch (error) {
         expect(error).to.be.instanceOf(ConflictException);
-        expect(error.message).to.include('Employee already exists');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee already exists');
       }
     });
 
@@ -143,7 +105,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid employment type');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid employment type');
       }
     });
   });
@@ -159,7 +121,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
   });
@@ -175,7 +137,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
   });
@@ -191,7 +153,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Department not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Department not found');
       }
     });
 
@@ -208,7 +170,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Invalid date range');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Invalid date range');
       }
     });
   });
@@ -224,7 +186,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -238,7 +200,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Salary must be positive');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Salary must be positive');
       }
     });
   });
@@ -254,7 +216,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -268,7 +230,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Employee is already terminated');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee is already terminated');
       }
     });
   });
@@ -284,7 +246,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -298,7 +260,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Employee is already active');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee is already active');
       }
     });
   });
@@ -314,7 +276,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown NotFoundException');
       } catch (error) {
         expect(error).to.be.instanceOf(NotFoundException);
-        expect(error.message).to.include('Employee not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee not found');
       }
     });
 
@@ -328,7 +290,7 @@ describe('Employee Controller - Unit Tests', () => {
         expect.fail('Should have thrown BadRequestException');
       } catch (error) {
         expect(error).to.be.instanceOf(BadRequestException);
-        expect(error.message).to.include('Employee is already inactive');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Employee is already inactive');
       }
     });
   });
@@ -343,7 +305,7 @@ describe('Employee Controller - Unit Tests', () => {
         await employeeController.getEmployeeSummary();
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error.message).to.include('Database connection failed');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Database connection failed');
       }
     });
   });
@@ -424,7 +386,7 @@ describe('Employee Controller - Unit Tests', () => {
         await employeeController.getEmployeeById('emp-123');
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error.message).to.include('Unexpected database error');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('Unexpected database error');
       }
     });
   });

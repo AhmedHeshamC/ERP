@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SecurityService } from '../../shared/security/security.service';
 import {
@@ -11,7 +11,6 @@ import {
   PurchaseOrdersQueryResponse,
   PurchaseOrderItemResponse,
   PurchaseOrderSummaryDto,
-  PurchaseOrderAnalyticsDto,
 } from './dto/purchase-order.dto';
 
 /**
@@ -36,11 +35,11 @@ export class PurchaseOrderService {
    */
   async createPurchaseOrder(createPurchaseOrderDto: CreatePurchaseOrderDto): Promise<PurchaseOrderResponse> {
     try {
-      this.logger.log(`Creating purchase order for supplier: ${createPurchaseOrderDto.supplierId}`);
+      this.logger.log(`Creating purchase order for supplier!: ${createPurchaseOrderDto.supplierId}`);
 
       // Input validation and sanitization (OWASP A03)
       if (!this.securityService.validateInput(createPurchaseOrderDto)) {
-        this.logger.warn(`Invalid input data for PO creation: ${createPurchaseOrderDto.supplierId}`);
+        this.logger.warn(`Invalid input data for PO creation!: ${createPurchaseOrderDto.supplierId}`);
         throw new BadRequestException('Invalid purchase order data');
       }
 
@@ -52,12 +51,12 @@ export class PurchaseOrderService {
       });
 
       if (!supplier) {
-        this.logger.warn(`Supplier not found for PO creation: ${sanitizedData.supplierId}`);
+        this.logger.warn(`Supplier not found for PO creation!: ${sanitizedData.supplierId}`);
         throw new NotFoundException(`Supplier with ID ${sanitizedData.supplierId} not found`);
       }
 
       if (!supplier.isActive) {
-        this.logger.warn(`Inactive supplier attempted for PO creation: ${sanitizedData.supplierId}`);
+        this.logger.warn(`Inactive supplier attempted for PO creation!: ${sanitizedData.supplierId}`);
         throw new BadRequestException(`Supplier ${supplier.name} is not active`);
       }
 
@@ -68,7 +67,7 @@ export class PurchaseOrderService {
       });
 
       if (!requester) {
-        this.logger.warn(`Requesting user not found: ${sanitizedData.requestedBy}`);
+        this.logger.warn(`Requesting user not found!: ${sanitizedData.requestedBy}`);
         throw new NotFoundException(`User with ID ${sanitizedData.requestedBy} not found`);
       }
 
@@ -122,7 +121,7 @@ export class PurchaseOrderService {
       // Fetch complete order with relationships for response
       const completeOrder = await this.getPurchaseOrderById(result.purchaseOrder.id);
 
-      this.logger.log(`Successfully created purchase order: ${orderNumber} (ID: ${result.purchaseOrder.id})`);
+      this.logger.log(`Successfully created purchase order!: ${orderNumber} (ID: ${result.purchaseOrder.id})`);
       return completeOrder!;
 
     } catch (error) {
@@ -130,7 +129,7 @@ export class PurchaseOrderService {
         throw error;
       }
 
-      this.logger.error(`Failed to create purchase order: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create purchase order: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to create purchase order');
     }
   }
@@ -141,7 +140,7 @@ export class PurchaseOrderService {
    */
   async submitForApproval(orderId: string): Promise<PurchaseOrderResponse> {
     try {
-      this.logger.log(`Submitting purchase order for approval: ${orderId}`);
+      this.logger.log(`Submitting purchase order for approval!: ${orderId}`);
 
       const order = await this.prismaService.purchaseOrder.findUnique({
         where: { id: orderId },
@@ -155,7 +154,7 @@ export class PurchaseOrderService {
         throw new BadRequestException('Only DRAFT orders can be submitted for approval');
       }
 
-      const updatedOrder = await this.prismaService.purchaseOrder.update({
+      await this.prismaService.purchaseOrder.update({
         where: { id: orderId },
         data: {
           status: PurchaseOrderStatus.PENDING_APPROVAL,
@@ -165,7 +164,7 @@ export class PurchaseOrderService {
 
       const completeOrder = await this.getPurchaseOrderById(orderId);
 
-      this.logger.log(`Successfully submitted order for approval: ${order.orderNumber}`);
+      this.logger.log(`Successfully submitted order for approval!: ${order.orderNumber}`);
       return completeOrder!;
 
     } catch (error) {
@@ -173,7 +172,7 @@ export class PurchaseOrderService {
         throw error;
       }
 
-      this.logger.error(`Failed to submit order for approval ${orderId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to submit order for approval ${orderId}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to submit order for approval');
     }
   }
@@ -184,7 +183,7 @@ export class PurchaseOrderService {
    */
   async processApproval(orderId: string, approvalDto: ApprovalActionDto): Promise<PurchaseOrderResponse> {
     try {
-      this.logger.log(`Processing approval for order ${orderId}: ${approvalDto.action}`);
+      this.logger.log(`Processing approval for order ${orderId}!: ${approvalDto.action}`);
 
       const order = await this.prismaService.purchaseOrder.findUnique({
         where: { id: orderId },
@@ -209,7 +208,7 @@ export class PurchaseOrderService {
       }
 
       // Determine new status based on action
-      let newStatus: PurchaseOrderStatus;
+      let newStatus!: PurchaseOrderStatus;
       switch (approvalDto.action) {
         case 'APPROVE':
           newStatus = PurchaseOrderStatus.APPROVED;
@@ -221,10 +220,10 @@ export class PurchaseOrderService {
           newStatus = PurchaseOrderStatus.DRAFT;
           break;
         default:
-          throw new BadRequestException(`Invalid approval action: ${approvalDto.action}`);
+          throw new BadRequestException(`Invalid approval action!: ${approvalDto.action}`);
       }
 
-      const updatedOrder = await this.prismaService.purchaseOrder.update({
+      await this.prismaService.purchaseOrder.update({
         where: { id: orderId },
         data: {
           status: newStatus,
@@ -239,7 +238,7 @@ export class PurchaseOrderService {
 
       const completeOrder = await this.getPurchaseOrderById(orderId);
 
-      this.logger.log(`Successfully processed approval for order ${order.orderNumber}: ${newStatus}`);
+      this.logger.log(`Successfully processed approval for order ${order.orderNumber}!: ${newStatus}`);
       return completeOrder!;
 
     } catch (error) {
@@ -247,7 +246,7 @@ export class PurchaseOrderService {
         throw error;
       }
 
-      this.logger.error(`Failed to process approval for order ${orderId}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to process approval for order ${orderId}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to process approval');
     }
   }
@@ -258,14 +257,13 @@ export class PurchaseOrderService {
    */
   async getPurchaseOrders(queryDto: PurchaseOrderQueryDto): Promise<PurchaseOrdersQueryResponse> {
     try {
-      this.logger.log(`Fetching purchase orders with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching purchase orders with query!: ${JSON.stringify(queryDto)}`);
 
       const {
         search,
         supplierId,
         status,
         requestedBy,
-        approvedBy,
         orderDateFrom,
         orderDateTo,
         expectedDeliveryDateFrom,
@@ -325,7 +323,7 @@ export class PurchaseOrderService {
           where,
           skip,
           take,
-          orderBy: { [sortBy]: sortOrder },
+          orderBy: { [sortBy || 'orderDate']: sortOrder || 'desc' },
           include: {
             supplier: {
               select: {
@@ -353,12 +351,12 @@ export class PurchaseOrderService {
       return {
         orders: transformedOrders,
         total,
-        skip,
-        take,
+        skip: skip || 0,
+        take: take || 10,
       };
 
     } catch (error) {
-      this.logger.error(`Failed to fetch purchase orders: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch purchase orders: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch purchase orders');
     }
   }
@@ -368,7 +366,7 @@ export class PurchaseOrderService {
    */
   async getPurchaseOrderById(id: string): Promise<PurchaseOrderResponse | null> {
     try {
-      this.logger.log(`Fetching purchase order by ID: ${id}`);
+      this.logger.log(`Fetching purchase order by ID!: ${id}`);
 
       const order = await this.prismaService.purchaseOrder.findUnique({
         where: { id },
@@ -390,7 +388,7 @@ export class PurchaseOrderService {
       });
 
       if (!order) {
-        this.logger.warn(`Purchase order not found: ${id}`);
+        this.logger.warn(`Purchase order not found!: ${id}`);
         return null;
       }
 
@@ -405,11 +403,11 @@ export class PurchaseOrderService {
 
       const transformedOrder = this.transformOrderToResponse(order, requester);
 
-      this.logger.log(`Successfully retrieved purchase order: ${order.orderNumber} (ID: ${id})`);
+      this.logger.log(`Successfully retrieved purchase order!: ${order.orderNumber} (ID: ${id})`);
       return transformedOrder;
 
     } catch (error) {
-      this.logger.error(`Failed to fetch purchase order by ID ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch purchase order by ID ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch purchase order');
     }
   }
@@ -419,7 +417,7 @@ export class PurchaseOrderService {
    */
   async updatePurchaseOrder(id: string, updatePurchaseOrderDto: UpdatePurchaseOrderDto): Promise<PurchaseOrderResponse> {
     try {
-      this.logger.log(`Updating purchase order ${id} with data: ${JSON.stringify(updatePurchaseOrderDto)}`);
+      this.logger.log(`Updating purchase order ${id} with data!: ${JSON.stringify(updatePurchaseOrderDto)}`);
 
       // Check if order exists and is in DRAFT status
       const existingOrder = await this.prismaService.purchaseOrder.findUnique({
@@ -474,7 +472,7 @@ export class PurchaseOrderService {
       }
 
       // Update main order
-      const updatedOrder = await this.prismaService.purchaseOrder.update({
+      await this.prismaService.purchaseOrder.update({
         where: { id },
         data: {
           ...sanitizedData,
@@ -487,7 +485,7 @@ export class PurchaseOrderService {
 
       const completeOrder = await this.getPurchaseOrderById(id);
 
-      this.logger.log(`Successfully updated purchase order: ${existingOrder.orderNumber} (ID: ${id})`);
+      this.logger.log(`Successfully updated purchase order!: ${existingOrder.orderNumber} (ID: ${id})`);
       return completeOrder!;
 
     } catch (error) {
@@ -495,7 +493,7 @@ export class PurchaseOrderService {
         throw error;
       }
 
-      this.logger.error(`Failed to update purchase order ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update purchase order ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to update purchase order');
     }
   }
@@ -505,7 +503,7 @@ export class PurchaseOrderService {
    */
   async cancelPurchaseOrder(id: string): Promise<PurchaseOrderResponse> {
     try {
-      this.logger.log(`Cancelling purchase order: ${id}`);
+      this.logger.log(`Cancelling purchase order!: ${id}`);
 
       const order = await this.prismaService.purchaseOrder.findUnique({
         where: { id },
@@ -519,7 +517,7 @@ export class PurchaseOrderService {
         throw new BadRequestException('Cannot cancel order in COMPLETED status');
       }
 
-      const updatedOrder = await this.prismaService.purchaseOrder.update({
+      await this.prismaService.purchaseOrder.update({
         where: { id },
         data: {
           status: PurchaseOrderStatus.CANCELLED,
@@ -529,7 +527,7 @@ export class PurchaseOrderService {
 
       const completeOrder = await this.getPurchaseOrderById(id);
 
-      this.logger.log(`Successfully cancelled purchase order: ${order.orderNumber} (ID: ${id})`);
+      this.logger.log(`Successfully cancelled purchase order!: ${order.orderNumber} (ID: ${id})`);
       return completeOrder!;
 
     } catch (error) {
@@ -537,7 +535,7 @@ export class PurchaseOrderService {
         throw error;
       }
 
-      this.logger.error(`Failed to cancel purchase order ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to cancel purchase order ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to cancel purchase order');
     }
   }
@@ -573,7 +571,7 @@ export class PurchaseOrderService {
       return `PO-${currentYear}-${nextNumber.toString().padStart(3, '0')}`;
 
     } catch (error) {
-      this.logger.error(`Failed to generate order number: ${error.message}`, error.stack);
+      this.logger.error(`Failed to generate order number: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to generate order number');
     }
   }
@@ -637,7 +635,7 @@ export class PurchaseOrderService {
       };
 
     } catch (error) {
-      this.logger.error(`Failed to fetch purchase order summary: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch purchase order summary: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch purchase order summary');
     }
   }

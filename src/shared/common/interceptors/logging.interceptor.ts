@@ -37,7 +37,7 @@ export class LoggingInterceptor implements NestInterceptor {
       .handle()
       .pipe(
         tap({
-          next: (data) => {
+          next: () => {
             const duration = Date.now() - now;
             const statusCode = response.statusCode;
 
@@ -64,13 +64,13 @@ export class LoggingInterceptor implements NestInterceptor {
             const duration = Date.now() - now;
             const statusCode = error.status || 500;
 
-            this.logger.error(`Request failed: ${method} ${url} - ${statusCode}`, error.stack, {
+            this.logger.error(`Request failed: ${method} ${url} - ${statusCode}`, error instanceof Error ? error.stack : undefined, {
               method,
               url,
               statusCode,
               duration: `${duration}ms`,
               userId,
-              error: error.message,
+              error: error instanceof Error ? error.message : "Unknown error",
               timestamp: new Date().toISOString(),
             });
           },

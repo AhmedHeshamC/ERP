@@ -1,9 +1,8 @@
 import { expect } from 'chai';
-import { SinonStub, stub } from 'sinon';
+import { stub } from 'sinon';
 import { PurchaseOrderService } from './purchase-order.service';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SecurityService } from '../../shared/security/security.service';
-import { ConfigService } from '@nestjs/config';
 import {
   CreatePurchaseOrderDto,
   UpdatePurchaseOrderDto,
@@ -239,7 +238,7 @@ describe('PurchaseOrderService', () => {
         await service.createPurchaseOrder(createOrderDto);
         expect.fail('Should have thrown NotFoundException');
       } catch (error: any) {
-        expect(error.message).to.equal('Supplier with ID supplier-123 not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Supplier with ID supplier-123 not found');
       }
     });
 
@@ -262,7 +261,7 @@ describe('PurchaseOrderService', () => {
         await service.createPurchaseOrder(createOrderDto);
         expect.fail('Should have thrown NotFoundException');
       } catch (error: any) {
-        expect(error.message).to.equal('User with ID user-123 not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('User with ID user-123 not found');
       }
     });
 
@@ -275,7 +274,7 @@ describe('PurchaseOrderService', () => {
         await service.createPurchaseOrder(createOrderDto);
         expect.fail('Should have thrown BadRequestException');
       } catch (error: any) {
-        expect(error.message).to.equal('Invalid purchase order data');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Invalid purchase order data');
       }
     });
 
@@ -454,7 +453,7 @@ describe('PurchaseOrderService', () => {
         await service.submitForApproval(orderId);
         expect.fail('Should have thrown BadRequestException');
       } catch (error: any) {
-        expect(error.message).to.equal('Only DRAFT orders can be submitted for approval');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Only DRAFT orders can be submitted for approval');
       }
     });
 
@@ -467,7 +466,7 @@ describe('PurchaseOrderService', () => {
         await service.submitForApproval(orderId);
         expect.fail('Should have thrown NotFoundException');
       } catch (error: any) {
-        expect(error.message).to.equal('Purchase order with ID po-123 not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Purchase order with ID po-123 not found');
       }
     });
   });
@@ -652,7 +651,7 @@ describe('PurchaseOrderService', () => {
         await service.processApproval(orderId, approvalDto);
         expect.fail('Should have thrown BadRequestException');
       } catch (error: any) {
-        expect(error.message).to.equal('Only PENDING_APPROVAL orders can be processed for approval');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Only PENDING_APPROVAL orders can be processed for approval');
       }
     });
 
@@ -671,7 +670,7 @@ describe('PurchaseOrderService', () => {
         await service.processApproval(orderId, approvalDto);
         expect.fail('Should have thrown NotFoundException');
       } catch (error: any) {
-        expect(error.message).to.equal('Approver with ID manager-123 not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Approver with ID manager-123 not found');
       }
     });
   });
@@ -740,70 +739,6 @@ describe('PurchaseOrderService', () => {
           },
         },
       ];
-
-      const mockTransformedOrders = [
-        {
-          id: 'po-1',
-          orderNumber: 'PO-2024-001',
-          status: PurchaseOrderStatus.APPROVED,
-          supplierId: 'supplier-123',
-          totalAmount: 1000,
-          items: [
-            {
-              id: 'item-1',
-              productId: 'product-1',
-              quantity: 5,
-              unitPrice: 200,
-              totalPrice: 1000,
-              description: 'Product 1',
-              receivedQuantity: 0,
-              remainingQuantity: 5,
-            },
-          ],
-          supplier: {
-            id: 'supplier-123',
-            name: 'Test Supplier',
-            email: 'test@supplier.com',
-            code: 'SUP001',
-          },
-          orderDate: new Date('2024-01-15'),
-          notes: 'Test order 1',
-          requestedBy: 'user-1',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          id: 'po-2',
-          orderNumber: 'PO-2024-002',
-          status: PurchaseOrderStatus.APPROVED,
-          supplierId: 'supplier-123',
-          totalAmount: 2000,
-          items: [
-            {
-              id: 'item-2',
-              productId: 'product-2',
-              quantity: 10,
-              unitPrice: 200,
-              totalPrice: 2000,
-              description: 'Product 2',
-              receivedQuantity: 0,
-              remainingQuantity: 10,
-            },
-          ],
-          supplier: {
-            id: 'supplier-123',
-            name: 'Test Supplier',
-            email: 'test@supplier.com',
-            code: 'SUP001',
-          },
-          orderDate: new Date('2024-01-10'),
-          notes: 'Test order 2',
-          requestedBy: 'user-1',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ];
-
       prismaStub.purchaseOrder.findMany.resolves(mockOrders);
       prismaStub.purchaseOrder.count.resolves(2);
 
@@ -992,7 +927,7 @@ describe('PurchaseOrderService', () => {
         await service.updatePurchaseOrder(orderId, updateDto);
         expect.fail('Should have thrown BadRequestException');
       } catch (error: any) {
-        expect(error.message).to.equal('Only DRAFT orders can be updated');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Only DRAFT orders can be updated');
       }
     });
   });
@@ -1148,7 +1083,7 @@ describe('PurchaseOrderService', () => {
         await service.cancelPurchaseOrder(orderId);
         expect.fail('Should have thrown BadRequestException');
       } catch (error: any) {
-        expect(error.message).to.equal('Cannot cancel order in COMPLETED status');
+        expect(error instanceof Error ? error.message : "Unknown error").to.equal('Cannot cancel order in COMPLETED status');
       }
     });
   });

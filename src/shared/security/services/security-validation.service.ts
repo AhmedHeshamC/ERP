@@ -234,7 +234,7 @@ export class SecurityValidationService {
 
       return this.createValidationResult(errors, warnings);
     } catch (error) {
-      this.logger.error(`Security validation failed: ${error.message}`, error.stack);
+      this.logger.error(`Security validation failed: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       errors.push({
         code: 'VALIDATION_SYSTEM_ERROR',
@@ -321,7 +321,7 @@ export class SecurityValidationService {
 
       return this.createValidationResult(errors, warnings);
     } catch (error) {
-      this.logger.error(`Access validation failed: ${error.message}`, error.stack);
+      this.logger.error(`Access validation failed: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       errors.push({
         code: 'ACCESS_VALIDATION_ERROR',
@@ -426,7 +426,7 @@ export class SecurityValidationService {
 
       return this.createValidationResult(errors, warnings);
     } catch (error) {
-      this.logger.error(`File validation failed: ${error.message}`, error.stack);
+      this.logger.error(`File validation failed: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       errors.push({
         code: 'FILE_VALIDATION_ERROR',
@@ -490,7 +490,7 @@ export class SecurityValidationService {
 
       return this.createValidationResult(errors, warnings);
     } catch (error) {
-      this.logger.error(`Rate limit validation failed: ${error.message}`, error.stack);
+      this.logger.error(`Rate limit validation failed: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
 
       // On rate limiting errors, allow the request but log the issue
       warnings.push({
@@ -513,7 +513,7 @@ export class SecurityValidationService {
     fieldName: string,
     value: any,
     rules: InputValidationRules,
-    context: SecurityValidationContext
+    _context: SecurityValidationContext
   ): Promise<ValidationError[]> {
     const errors: ValidationError[] = [];
 
@@ -668,27 +668,27 @@ export class SecurityValidationService {
   }
 
   // Placeholder methods - would implement actual logic
-  private async validateUserExists(userId: string): Promise<boolean> {
+  private async validateUserExists(_userId: string): Promise<boolean> {
     // Implement actual user validation
     return true;
   }
 
-  private async checkUserPermission(userId: string, resource: string, action: string): Promise<boolean> {
+  private async checkUserPermission(_userId: string, _resource: string, _action: string): Promise<boolean> {
     // Implement actual permission checking
     return true;
   }
 
-  private async detectSuspiciousActivity(userId: string, context: SecurityValidationContext): Promise<boolean> {
+  private async detectSuspiciousActivity(_userId: string, _context: SecurityValidationContext): Promise<boolean> {
     // Implement actual suspicious activity detection
     return false;
   }
 
-  private async scanForMalware(file: any): Promise<{ isClean: boolean }> {
+  private async scanForMalware(_file: any): Promise<{ isClean: boolean }> {
     // Implement actual malware scanning
     return { isClean: true };
   }
 
-  private async getCurrentRequestCount(identifier: string, windowMs: number): Promise<number> {
+  private async getCurrentRequestCount(_identifier: string, _windowMs: number): Promise<number> {
     // Implement actual rate limiting with Redis
     return 0;
   }

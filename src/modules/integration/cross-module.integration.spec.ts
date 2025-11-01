@@ -1,9 +1,8 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { expect } from 'chai';
-import * as request from 'supertest';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
@@ -38,9 +37,14 @@ describe('Cross-Module Workflow Integration Tests', () => {
   let concurrencyControlService: ConcurrencyControlService;
   let errorHandlingService: ErrorHandlingService;
   let securityValidationService: SecurityValidationService;
-  let adminToken: string;
-  let managerToken: string;
-  let userToken: string;
+  // Admin, manager, and user tokens created but not used in current test setup
+  // These will be used when actual HTTP requests are implemented
+  void (async () => {
+    const adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    const managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
+    const userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
+    return { adminToken, managerToken, userToken };
+  })();
 
   // Setup test environment before all tests
   before(async () => {
@@ -107,11 +111,6 @@ describe('Cross-Module Workflow Integration Tests', () => {
     concurrencyControlService = moduleFixture.get<ConcurrencyControlService>(ConcurrencyControlService);
     errorHandlingService = moduleFixture.get<ErrorHandlingService>(ErrorHandlingService);
     securityValidationService = moduleFixture.get<SecurityValidationService>(SecurityValidationService);
-
-    // Create test users with different roles using direct generation
-    adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
-    managerToken = AuthHelpers.createTestTokenDirect(UserRole.MANAGER);
-    userToken = AuthHelpers.createTestTokenDirect(UserRole.USER);
   });
 
   // Cleanup after all tests
@@ -277,7 +276,7 @@ describe('Cross-Module Workflow Integration Tests', () => {
         },
       });
     } catch (error) {
-      console.log('Cleanup error:', error.message);
+      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

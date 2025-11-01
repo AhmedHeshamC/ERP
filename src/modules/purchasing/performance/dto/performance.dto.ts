@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsDecimal, IsOptional, IsEnum, IsInt, IsArray, IsDate, Min, Max } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, IsInt, IsDate, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -82,11 +82,11 @@ export enum ReviewStatus {
 export class CreateSupplierPerformanceDto {
   @ApiProperty({ description: 'Supplier ID' })
   @IsString()
-  supplierId: string;
+  supplierId!: string;
 
   @ApiProperty({ description: 'Period in YYYY-MM format' })
   @IsString()
-  period: string;
+  period!: string;
 
   @ApiPropertyOptional({ description: 'Quality score (0-100)', type: 'number', format: 'decimal' })
   @IsOptional()
@@ -356,88 +356,163 @@ export class SupplierPerformanceQueryDto {
 /**
  * Supplier Performance Response DTO
  */
-export interface SupplierPerformanceResponse {
-  id: string;
-  supplierId: string;
+export class SupplierPerformanceResponse {
+  @ApiProperty({ description: 'Performance record ID' })
+  id!: string;
+
+  @ApiProperty({ description: 'Supplier ID' })
+  supplierId!: string;
+
+  @ApiPropertyOptional({ description: 'Supplier information' })
   supplier?: {
     id: string;
     name: string;
     code: string;
     email: string;
   };
-  period: string;
-  qualityScore: number;
-  deliveryScore: number;
-  costScore: number;
-  serviceScore: number;
-  overallScore: number;
-  tier: SupplierTier;
-  onTimeDeliveryRate: number;
-  qualityDefectRate: number;
-  orderAccuracyRate: number;
-  priceVarianceRate: number;
-  responseTimeHours: number;
-  totalOrders: number;
-  totalValue: number;
-  lateDeliveries: number;
-  qualityIssues: number;
-  returnsCount: number;
+
+  @ApiProperty({ description: 'Period in YYYY-MM format' })
+  period!: string;
+
+  @ApiProperty({ description: 'Quality score (0-100)', type: 'number', format: 'decimal' })
+  qualityScore!: number;
+
+  @ApiProperty({ description: 'Delivery score (0-100)', type: 'number', format: 'decimal' })
+  deliveryScore!: number;
+
+  @ApiProperty({ description: 'Cost score (0-100)', type: 'number', format: 'decimal' })
+  costScore!: number;
+
+  @ApiProperty({ description: 'Service score (0-100)', type: 'number', format: 'decimal' })
+  serviceScore!: number;
+
+  @ApiProperty({ description: 'Overall score (0-100)', type: 'number', format: 'decimal' })
+  overallScore!: number;
+
+  @ApiProperty({ description: 'Supplier tier', enum: SupplierTier })
+  tier!: SupplierTier;
+
+  @ApiProperty({ description: 'On-time delivery rate (%)', type: 'number', format: 'decimal' })
+  onTimeDeliveryRate!: number;
+
+  @ApiProperty({ description: 'Quality defect rate (%)', type: 'number', format: 'decimal' })
+  qualityDefectRate!: number;
+
+  @ApiProperty({ description: 'Order accuracy rate (%)', type: 'number', format: 'decimal' })
+  orderAccuracyRate!: number;
+
+  @ApiProperty({ description: 'Price variance rate (%)', type: 'number', format: 'decimal' })
+  priceVarianceRate!: number;
+
+  @ApiProperty({ description: 'Response time in hours', type: 'number', format: 'decimal' })
+  responseTimeHours!: number;
+
+  @ApiProperty({ description: 'Total orders' })
+  totalOrders!: number;
+
+  @ApiProperty({ description: 'Total value', type: 'number', format: 'decimal' })
+  totalValue!: number;
+
+  @ApiProperty({ description: 'Late deliveries count' })
+  lateDeliveries!: number;
+
+  @ApiProperty({ description: 'Quality issues count' })
+  qualityIssues!: number;
+
+  @ApiProperty({ description: 'Returns count' })
+  returnsCount!: number;
+
+  @ApiPropertyOptional({ description: 'Performance notes' })
   notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
+
+  @ApiProperty({ description: 'Creation timestamp' })
+  createdAt!: Date;
+
+  @ApiProperty({ description: 'Last update timestamp' })
+  updatedAt!: Date;
+
+  @ApiPropertyOptional({ description: 'Calculator user ID' })
   calculatedBy?: string;
+
+  @ApiPropertyOptional({ description: 'Calculator user information' })
   calculator?: {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
   };
+
+  @ApiPropertyOptional({ description: 'Reviewer user ID' })
   reviewedBy?: string;
+
+  @ApiPropertyOptional({ description: 'Reviewer user information' })
   reviewer?: {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
   };
+
+  @ApiPropertyOptional({ description: 'Review timestamp' })
   reviewedAt?: Date;
 }
 
 /**
  * Supplier Performance Query Response DTO
  */
-export interface SupplierPerformanceQueryResponse {
-  performances: SupplierPerformanceResponse[];
-  total: number;
-  skip: number;
-  take: number;
+export class SupplierPerformanceQueryResponse {
+  @ApiProperty({ description: 'Array of supplier performance records', type: [SupplierPerformanceResponse] })
+  performances!: SupplierPerformanceResponse[];
+
+  @ApiProperty({ description: 'Total number of records' })
+  total!: number;
+
+  @ApiProperty({ description: 'Number of records skipped' })
+  skip!: number;
+
+  @ApiProperty({ description: 'Number of records taken' })
+  take!: number;
 }
 
 /**
  * Performance Analytics Response DTO
  */
-export interface PerformanceAnalyticsResponse {
-  totalSuppliers: number;
-  averageOverallScore: number;
-  tierDistribution: Record<SupplierTier, number>;
-  performanceTrends: {
+export class PerformanceAnalyticsResponse {
+  @ApiProperty({ description: 'Total number of suppliers' })
+  totalSuppliers!: number;
+
+  @ApiProperty({ description: 'Average overall score across all suppliers', type: 'number', format: 'decimal' })
+  averageOverallScore!: number;
+
+  @ApiProperty({ description: 'Distribution of suppliers by tier' })
+  tierDistribution!: Record<SupplierTier, number>;
+
+  @ApiProperty({ description: 'Performance trends over time', type: Array })
+  performanceTrends!: {
     period: string;
     averageScore: number;
     totalOrders: number;
     totalValue: number;
   }[];
-  topPerformers: {
+
+  @ApiProperty({ description: 'Top performing suppliers', type: Array })
+  topPerformers!: {
     supplierId: string;
     supplierName: string;
     overallScore: number;
     tier: SupplierTier;
   }[];
-  lowPerformers: {
+
+  @ApiProperty({ description: 'Low performing suppliers', type: Array })
+  lowPerformers!: {
     supplierId: string;
     supplierName: string;
     overallScore: number;
     tier: SupplierTier;
   }[];
-  keyMetrics: {
+
+  @ApiProperty({ description: 'Key performance metrics' })
+  keyMetrics!: {
     averageOnTimeDelivery: number;
     averageQualityScore: number;
     averageDeliveryScore: number;
@@ -454,27 +529,27 @@ export interface PerformanceAnalyticsResponse {
 export class CreateScorecardDetailDto {
   @ApiProperty({ description: 'Performance ID' })
   @IsString()
-  performanceId: string;
+  performanceId!: string;
 
   @ApiProperty({ description: 'Metric type', enum: PerformanceMetricType })
   @IsEnum(PerformanceMetricType)
-  metricType: PerformanceMetricType;
+  metricType!: PerformanceMetricType;
 
   @ApiProperty({ description: 'Metric name' })
   @IsString()
-  metricName: string;
+  metricName!: string;
 
   @ApiProperty({ description: 'Metric value', type: 'number', format: 'decimal' })
   @IsNumber()
-  metricValue: number;
+  metricValue!: number;
 
   @ApiProperty({ description: 'Target value', type: 'number', format: 'decimal' })
   @IsNumber()
-  targetValue: number;
+  targetValue!: number;
 
   @ApiProperty({ description: 'Performance level', enum: PerformanceLevel })
   @IsEnum(PerformanceLevel)
-  performanceLevel: PerformanceLevel;
+  performanceLevel!: PerformanceLevel;
 
   @ApiPropertyOptional({ description: 'Weight in calculation', type: 'number', format: 'decimal' })
   @IsOptional()
@@ -507,24 +582,24 @@ export class CreateScorecardDetailDto {
 export class CreatePerformanceEventDto {
   @ApiProperty({ description: 'Supplier ID' })
   @IsString()
-  supplierId: string;
+  supplierId!: string;
 
   @ApiProperty({ description: 'Event type', enum: PerformanceEventType })
   @IsEnum(PerformanceEventType)
-  eventType: PerformanceEventType;
+  eventType!: PerformanceEventType;
 
   @ApiProperty({ description: 'Event date' })
   @IsDate()
   @Type(() => Date)
-  eventDate: Date;
+  eventDate!: Date;
 
   @ApiProperty({ description: 'Event severity', enum: EventSeverity })
   @IsEnum(EventSeverity)
-  severity: EventSeverity;
+  severity!: EventSeverity;
 
   @ApiProperty({ description: 'Event description' })
   @IsString()
-  description: string;
+  description!: string;
 
   @ApiPropertyOptional({ description: 'Business impact description' })
   @IsOptional()

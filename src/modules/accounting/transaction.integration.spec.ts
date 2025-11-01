@@ -1,13 +1,13 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { expect } from 'chai';
-import * as request from 'supertest';
 import { TransactionService } from './transaction.service';
 import { TransactionType } from './enums/accounting.enum';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { PrismaModule } from '../../shared/database/prisma.module';
-import { setupIntegrationTest, cleanupIntegrationTest, cleanupDatabase } from '../../shared/testing/integration-setup';
+import { JournalEntry, Transaction, ChartOfAccounts } from '@prisma/client';
+import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
 import 'chai/register-should';
 import 'chai/register-expect';
 
@@ -176,7 +176,7 @@ describe('Database Transaction Integration Tests', () => {
         await transactionService.create(invalidTransactionDto, 'test-user');
         expect.fail('Should have thrown an error');
       } catch (error) {
-        expect(error.message).to.include('not found');
+        expect(error instanceof Error ? error.message : "Unknown error").to.include('not found');
       }
 
       // Assert - Verify no data was created
@@ -247,7 +247,7 @@ describe('Database Transaction Integration Tests', () => {
       expect(journalEntries).to.have.length(2);
 
       // All journal entries should reference the correct transaction
-      journalEntries.forEach(entry => {
+      journalEntries.forEach((entry: JournalEntry) => {
         expect(entry.transactionId).to.equal(result.id);
       });
 
@@ -613,7 +613,7 @@ describe('Database Transaction Integration Tests', () => {
       });
 
       // Act - Simulate a potentially blocking operation with timeout
-      const blockingOperationPromise = new Promise((resolve, reject) => {
+      const blockingOperationPromise = new Promise((resolve, _reject) => {
         // Simulate a long-running operation
         setTimeout(() => {
           resolve('operation-completed');
@@ -658,7 +658,7 @@ describe('Database Transaction Integration Tests', () => {
       });
 
       if (testTransactions.length > 0) {
-        const transactionIds = testTransactions.map(t => t.id);
+        const transactionIds = testTransactions.map((t: Transaction) => t.id);
 
         // Delete journal entries that reference test transactions
         await prismaService.journalEntry.deleteMany({
@@ -696,7 +696,7 @@ describe('Database Transaction Integration Tests', () => {
       });
 
       if (testAccounts.length > 0) {
-        const accountIds = testAccounts.map(a => a.id);
+        const accountIds = testAccounts.map((a: ChartOfAccounts) => a.id);
 
         // Delete any remaining journal entries that reference test accounts
         await prismaService.journalEntry.deleteMany({
@@ -714,7 +714,7 @@ describe('Database Transaction Integration Tests', () => {
       }
     } catch (error) {
       // Ignore cleanup errors but log them
-      console.log('Cleanup error:', error.message);
+      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

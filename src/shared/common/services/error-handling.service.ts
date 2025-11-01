@@ -1,7 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ErrorDetail, ValidationErrorDetail, ApiResponseBuilder, ErrorCodes } from '../interfaces/api-response.interface';
-import { AuditEvents } from '../constants';
 
 /**
  * Concurrency Error for resource locking conflicts
@@ -110,7 +109,7 @@ export class ErrorHandlingService {
           type: 'HTTP_EXCEPTION',
           code: this.getErrorCodeFromStatus(statusCode),
           message: response,
-          originalError: error,
+          originalError: error as Error,
           isOperational: true,
         };
       }
@@ -121,7 +120,7 @@ export class ErrorHandlingService {
           code: ErrorCodes.VALIDATION_ERROR,
           message: (response as any).message || 'Validation failed',
           details: this.extractValidationDetails(response),
-          originalError: error,
+          originalError: error as Error,
           isOperational: true,
         };
       }
@@ -140,10 +139,10 @@ export class ErrorHandlingService {
         message: 'Database validation failed',
         details: [{
           code: 'DATABASE_VALIDATION',
-          message: error.message,
+          message: error instanceof Error ? error.message : "Unknown error",
           timestamp: new Date().toISOString(),
         }],
-        originalError: error,
+        originalError: error as Error,
         isOperational: true,
       };
     }
@@ -153,15 +152,15 @@ export class ErrorHandlingService {
       return {
         type: 'BUSINESS_RULE_ERROR',
         code: error.code || ErrorCodes.BUSINESS_RULE_VIOLATION,
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
         details: error.field ? [{
           code: error.code,
-          message: error.message,
+          message: error instanceof Error ? error.message : "Unknown error",
           field: error.field,
           value: error.value,
           timestamp: new Date().toISOString(),
         }] : undefined,
-        originalError: error,
+        originalError: error as Error,
         isOperational: true,
       };
     }
@@ -174,10 +173,10 @@ export class ErrorHandlingService {
         message: 'Resource was modified by another process. Please refresh and try again.',
         details: [{
           code: 'OPTIMISTIC_CONCURRENCY',
-          message: error.message,
+          message: error instanceof Error ? error.message : "Unknown error",
           timestamp: new Date().toISOString(),
         }],
-        originalError: error,
+        originalError: error as Error,
         isOperational: true,
       };
     }
@@ -188,8 +187,8 @@ export class ErrorHandlingService {
       code: ErrorCodes.INTERNAL_ERROR,
       message: process.env.NODE_ENV === 'production'
         ? 'An unexpected error occurred. Please try again later.'
-        : error.message || 'Unknown error occurred',
-      originalError: error,
+        : error instanceof Error ? error.message : 'Unknown error occurred',
+      originalError: error as Error,
       isOperational: false,
     };
   }
@@ -221,7 +220,7 @@ export class ErrorHandlingService {
             field,
             timestamp: new Date().toISOString(),
           }],
-          originalError: error,
+          originalError: error as Error,
           isOperational: true,
         };
 
@@ -231,7 +230,7 @@ export class ErrorHandlingService {
           type: 'NOT_FOUND_ERROR',
           code: ErrorCodes.NOT_FOUND,
           message: 'Record not found.',
-          originalError: error,
+          originalError: error as Error,
           isOperational: true,
         };
 
@@ -246,7 +245,7 @@ export class ErrorHandlingService {
             message: 'Invalid reference to related record',
             timestamp: new Date().toISOString(),
           }],
-          originalError: error,
+          originalError: error as Error,
           isOperational: true,
         };
 
@@ -261,7 +260,7 @@ export class ErrorHandlingService {
             message: 'Record has dependent records',
             timestamp: new Date().toISOString(),
           }],
-          originalError: error,
+          originalError: error as Error,
           isOperational: true,
         };
 
@@ -271,7 +270,7 @@ export class ErrorHandlingService {
           type: 'DATABASE_ERROR',
           code: ErrorCodes.INTERNAL_ERROR,
           message: 'Database configuration error.',
-          originalError: error,
+          originalError: error as Error,
           isOperational: false,
         };
 
@@ -281,7 +280,7 @@ export class ErrorHandlingService {
           type: 'DATABASE_ERROR',
           code: ErrorCodes.INTERNAL_ERROR,
           message: 'Database schema error.',
-          originalError: error,
+          originalError: error as Error,
           isOperational: false,
         };
 
@@ -290,7 +289,7 @@ export class ErrorHandlingService {
           type: 'DATABASE_ERROR',
           code: ErrorCodes.DATABASE_ERROR,
           message: 'Database operation failed.',
-          originalError: error,
+          originalError: error as Error,
           isOperational: false,
         };
     }
@@ -303,7 +302,7 @@ export class ErrorHandlingService {
     const details: ValidationErrorDetail[] = [];
 
     if (Array.isArray(response.message)) {
-      response.message.forEach((message: string, index: number) => {
+      response.message.forEach((message: string, _index: number) => {
         details.push({
           code: 'VALIDATION_ERROR',
           message,
@@ -369,18 +368,18 @@ export class ErrorHandlingService {
       message: errorInfo.message,
       timestamp: new Date().toISOString(),
       context,
-      stack: error.stack,
+      stack: error instanceof Error ? error.stack : undefined,
     };
 
     if (errorInfo.type === 'INTERNAL_ERROR' || !errorInfo.isOperational) {
       this.logger.error(`Internal Error: ${errorInfo.message}`, {
         ...logData,
-        originalError: error,
+        originalError: error as Error,
       });
     } else if (this.isSecurityRelevantError(errorInfo.code)) {
-      this.logger.warn(`Security-Relevant Error: ${errorInfo.message}`, logData);
+      this.logger.warn(`Security-Relevant Error!: ${errorInfo.message}`, logData);
     } else {
-      this.logger.log(`Operational Error: ${errorInfo.message}`, logData);
+      this.logger.log(`Operational Error!: ${errorInfo.message}`, logData);
     }
   }
 

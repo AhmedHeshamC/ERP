@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsBoolean, IsNumber, IsEnum, IsArray, IsDate, Min, Max, MaxLength, ValidateNested, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsEnum, IsArray, IsDate, Min, Max, MaxLength, ValidateNested, IsUUID } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -34,17 +34,17 @@ export enum ApprovalAction {
 export class PurchaseOrderItemDto {
   @ApiProperty({ description: 'Product ID' })
   @IsUUID()
-  productId: string;
+  productId!: string;
 
   @ApiProperty({ description: 'Quantity ordered' })
   @IsNumber()
   @Min(1)
-  quantity: number;
+  quantity!: number;
 
   @ApiProperty({ description: 'Unit price per item' })
   @IsNumber()
   @Min(0)
-  unitPrice: number;
+  unitPrice!: number;
 
   @ApiPropertyOptional({ description: 'Item description or notes' })
   @IsOptional()
@@ -66,12 +66,12 @@ export class PurchaseOrderItemDto {
 export class CreatePurchaseOrderDto {
   @ApiProperty({ description: 'Supplier ID' })
   @IsUUID()
-  supplierId: string;
+  supplierId!: string;
 
   @ApiProperty({ description: 'Order date' })
   @IsDate()
   @Type(() => Date)
-  orderDate: Date;
+  orderDate!: Date;
 
   @ApiPropertyOptional({ description: 'Expected delivery date for entire order' })
   @IsOptional()
@@ -83,7 +83,7 @@ export class CreatePurchaseOrderDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PurchaseOrderItemDto)
-  items: PurchaseOrderItemDto[];
+  items!: PurchaseOrderItemDto[];
 
   @ApiPropertyOptional({ description: 'Order notes for supplier' })
   @IsOptional()
@@ -99,7 +99,7 @@ export class CreatePurchaseOrderDto {
 
   @ApiProperty({ description: 'User ID who requested the order' })
   @IsUUID()
-  requestedBy: string;
+  requestedBy!: string;
 
   @ApiPropertyOptional({ description: 'Delivery address if different from supplier address' })
   @IsOptional()
@@ -176,7 +176,7 @@ export class UpdatePurchaseOrderDto {
 export class ApprovalActionDto {
   @ApiProperty({ description: 'Approval action', enum: ApprovalAction })
   @IsEnum(ApprovalAction)
-  action: ApprovalAction;
+  action!: ApprovalAction;
 
   @ApiPropertyOptional({ description: 'Approval comments or rejection reason' })
   @IsOptional()
@@ -186,7 +186,7 @@ export class ApprovalActionDto {
 
   @ApiProperty({ description: 'User ID who is approving/rejecting' })
   @IsUUID()
-  approvedBy: string;
+  approvedBy!: string;
 }
 
 /**
@@ -291,11 +291,11 @@ export class PurchaseOrderQueryDto {
  * Represents item data in API responses
  */
 export class PurchaseOrderItemResponse {
-  id: string;
-  productId: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  id!: string;
+  productId!: string;
+  quantity!: number;
+  unitPrice!: number;
+  totalPrice!: number;
   description?: string;
   expectedDeliveryDate?: Date;
   receivedQuantity?: number;
@@ -303,47 +303,62 @@ export class PurchaseOrderItemResponse {
 }
 
 /**
+ * Purchase Order Supplier DTO
+ */
+export interface PurchaseOrderSupplier {
+  id: string;
+  name: string;
+  email: string;
+  code: string;
+}
+
+/**
+ * Purchase Order Requester DTO
+ */
+export interface PurchaseOrderRequester {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+/**
+ * Purchase Order Approver DTO
+ */
+export interface PurchaseOrderApprover {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+/**
  * Purchase Order Response DTO
  * Represents purchase order data in API responses
  */
 export class PurchaseOrderResponse {
-  id: string;
-  orderNumber: string;
-  status: PurchaseOrderStatus;
-  supplierId: string;
-  supplier?: {
-    id: string;
-    name: string;
-    email: string;
-    code: string;
-  };
-  orderDate: Date;
+  id!: string;
+  orderNumber!: string;
+  status!: PurchaseOrderStatus;
+  supplierId!: string;
+  supplier?: PurchaseOrderSupplier;
+  orderDate!: Date;
   expectedDeliveryDate?: Date;
-  totalAmount: number;
-  items: PurchaseOrderItemResponse[];
+  totalAmount!: number;
+  items!: PurchaseOrderItemResponse[];
   notes?: string;
   internalNotes?: string;
-  requestedBy: string;
-  requester?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
+  requestedBy!: string;
+  requester?: PurchaseOrderRequester;
   approvedBy?: string;
-  approver?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
+  approver?: PurchaseOrderApprover;
   approvedAt?: Date;
   approvalComments?: string;
   deliveryAddress?: string;
   shippingMethod?: string;
   paymentTerms?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt!: Date;
+  updatedAt!: Date;
   sentAt?: Date;
   completedAt?: Date;
   cancelledAt?: Date;
@@ -354,10 +369,10 @@ export class PurchaseOrderResponse {
  * Represents paginated response for purchase orders list
  */
 export class PurchaseOrdersQueryResponse {
-  orders: PurchaseOrderResponse[];
-  total: number;
-  skip: number;
-  take: number;
+  orders!: PurchaseOrderResponse[];
+  total!: number;
+  skip!: number;
+  take!: number;
 }
 
 /**
@@ -365,17 +380,55 @@ export class PurchaseOrdersQueryResponse {
  * Used for dashboard and reporting
  */
 export class PurchaseOrderSummaryDto {
-  totalOrders: number;
-  draftOrders: number;
-  pendingApprovalOrders: number;
-  approvedOrders: number;
-  rejectedOrders: number;
-  sentOrders: number;
-  completedOrders: number;
-  cancelledOrders: number;
+  totalOrders!: number;
+  draftOrders!: number;
+  pendingApprovalOrders!: number;
+  approvedOrders!: number;
+  rejectedOrders!: number;
+  sentOrders!: number;
+  completedOrders!: number;
+  cancelledOrders!: number;
+  totalValue!: number;
+  pendingValue!: number;
+  averageOrderValue!: number;
+}
+
+/**
+ * Purchase Order Supplier Stats DTO
+ */
+export interface PurchaseOrderSupplierStats {
+  supplierId: string;
+  supplierName: string;
+  orderCount: number;
   totalValue: number;
-  pendingValue: number;
-  averageOrderValue: number;
+}
+
+/**
+ * Purchase Order Requester Stats DTO
+ */
+export interface PurchaseOrderRequesterStats {
+  requesterId: string;
+  requesterName: string;
+  orderCount: number;
+  totalValue: number;
+}
+
+/**
+ * Purchase Order Monthly Trend DTO
+ */
+export interface PurchaseOrderMonthlyTrend {
+  month: string;
+  orderCount: number;
+  totalValue: number;
+}
+
+/**
+ * Purchase Order Approval Metrics DTO
+ */
+export interface PurchaseOrderApprovalMetrics {
+  averageApprovalTime: number; // in hours
+  approvalRate: number; // percentage
+  rejectionRate: number; // percentage
 }
 
 /**
@@ -383,31 +436,13 @@ export class PurchaseOrderSummaryDto {
  * Used for detailed analytics and reporting
  */
 export class PurchaseOrderAnalyticsDto {
-  period: string;
-  totalOrders: number;
-  totalValue: number;
-  averageOrderValue: number;
-  ordersByStatus: Record<PurchaseOrderStatus, number>;
-  ordersBySupplier: Array<{
-    supplierId: string;
-    supplierName: string;
-    orderCount: number;
-    totalValue: number;
-  }>;
-  ordersByRequester: Array<{
-    requesterId: string;
-    requesterName: string;
-    orderCount: number;
-    totalValue: number;
-  }>;
-  monthlyTrends: Array<{
-    month: string;
-    orderCount: number;
-    totalValue: number;
-  }>;
-  approvalMetrics: {
-    averageApprovalTime: number; // in hours
-    approvalRate: number; // percentage
-    rejectionRate: number; // percentage
-  };
+  period!: string;
+  totalOrders!: number;
+  totalValue!: number;
+  averageOrderValue!: number;
+  ordersByStatus!: Record<PurchaseOrderStatus, number>;
+  ordersBySupplier!: Array<PurchaseOrderSupplierStats>;
+  ordersByRequester!: Array<PurchaseOrderRequesterStats>;
+  monthlyTrends!: Array<PurchaseOrderMonthlyTrend>;
+  approvalMetrics!: PurchaseOrderApprovalMetrics;
 }

@@ -1,5 +1,4 @@
 import { IsString, IsBoolean, IsOptional, IsEnum, IsArray, IsInt, IsEmail, IsDateString, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -70,11 +69,11 @@ export enum SubscriptionType {
 export class CreateScheduledReportDto {
   @ApiProperty({ description: 'Report definition ID' })
   @IsString()
-  reportDefinitionId: string;
+  reportDefinitionId!: string;
 
   @ApiProperty({ description: 'Scheduled report name' })
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiPropertyOptional({ description: 'Scheduled report description' })
   @IsOptional()
@@ -83,11 +82,11 @@ export class CreateScheduledReportDto {
 
   @ApiProperty({ description: 'Cron expression for scheduling' })
   @IsString()
-  schedule: string;
+  schedule!: string;
 
   @ApiProperty({ description: 'Schedule type', enum: ScheduleType })
   @IsEnum(ScheduleType)
-  scheduleType: ScheduleType;
+  scheduleType!: ScheduleType;
 
   @ApiPropertyOptional({ description: 'Is scheduled report active', default: true })
   @IsOptional()
@@ -314,15 +313,15 @@ export class ScheduledReportQueryDto {
 export class CreateDistributionListDto {
   @ApiProperty({ description: 'Scheduled report ID' })
   @IsString()
-  scheduledReportId: string;
+  scheduledReportId!: string;
 
   @ApiProperty({ description: 'User ID' })
   @IsString()
-  userId: string;
+  userId!: string;
 
   @ApiProperty({ description: 'User email address' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiPropertyOptional({ description: 'Is distribution active', default: true })
   @IsOptional()
@@ -356,11 +355,11 @@ export class CreateDistributionListDto {
 export class CreateReportSubscriptionDto {
   @ApiProperty({ description: 'Report definition ID' })
   @IsString()
-  reportDefinitionId: string;
+  reportDefinitionId!: string;
 
   @ApiProperty({ description: 'Subscription type', enum: SubscriptionType })
   @IsEnum(SubscriptionType)
-  subscriptionType: SubscriptionType;
+  subscriptionType!: SubscriptionType;
 
   @ApiPropertyOptional({ description: 'Subscription preferences' })
   @IsOptional()
@@ -424,42 +423,93 @@ export class ManualReportTriggerDto {
  * Response DTOs
  */
 
-export interface ScheduledReportResponse {
-  id: string;
-  reportDefinitionId: string;
+export class ScheduledReportResponse {
+  @ApiProperty({ description: 'Scheduled report ID' })
+  id!: string;
+
+  @ApiProperty({ description: 'Report definition ID' })
+  reportDefinitionId!: string;
+
+  @ApiPropertyOptional({ description: 'Report definition information' })
   reportDefinition?: {
     id: string;
     name: string;
     type: string;
     category: string;
   };
-  name: string;
+
+  @ApiProperty({ description: 'Scheduled report name' })
+  name!: string;
+
+  @ApiPropertyOptional({ description: 'Scheduled report description' })
   description?: string;
-  schedule: string;
-  scheduleType: ScheduleType;
-  isActive: boolean;
-  nextRunAt: Date;
+
+  @ApiProperty({ description: 'Cron expression for scheduling' })
+  schedule!: string;
+
+  @ApiProperty({ description: 'Schedule type', enum: ScheduleType })
+  scheduleType!: ScheduleType;
+
+  @ApiProperty({ description: 'Is scheduled report active' })
+  isActive!: boolean;
+
+  @ApiProperty({ description: 'Next run time' })
+  nextRunAt!: Date;
+
+  @ApiPropertyOptional({ description: 'Last run time' })
   lastRunAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Default parameters for the report' })
   parameters?: Record<string, any>;
-  format: ReportFormat;
-  timezone: string;
-  sendEmail: boolean;
-  emailRecipients: string[];
+
+  @ApiProperty({ description: 'Report format', enum: ReportFormat })
+  format!: ReportFormat;
+
+  @ApiProperty({ description: 'Timezone' })
+  timezone!: string;
+
+  @ApiProperty({ description: 'Send email notification' })
+  sendEmail!: boolean;
+
+  @ApiProperty({ description: 'Email recipients', type: [String] })
+  emailRecipients!: string[];
+
+  @ApiPropertyOptional({ description: 'Custom email subject' })
   emailSubject?: string;
+
+  @ApiPropertyOptional({ description: 'Custom email body' })
   emailBody?: string;
-  maxRetries: number;
+
+  @ApiProperty({ description: 'Maximum retry attempts' })
+  maxRetries!: number;
+
+  @ApiPropertyOptional({ description: 'Archive after N days' })
   archiveAfter?: number;
+
+  @ApiPropertyOptional({ description: 'Delete after N days' })
   deleteAfter?: number;
-  createdAt: Date;
-  updatedAt: Date;
+
+  @ApiProperty({ description: 'Creation timestamp' })
+  createdAt!: Date;
+
+  @ApiProperty({ description: 'Last update timestamp' })
+  updatedAt!: Date;
+
+  @ApiPropertyOptional({ description: 'Creator user ID' })
   createdBy?: string;
+
+  @ApiPropertyOptional({ description: 'Updater user ID' })
   updatedBy?: string;
+
+  @ApiPropertyOptional({ description: 'Creator user information' })
   creator?: {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
   };
+
+  @ApiPropertyOptional({ description: 'Updater user information' })
   updater?: {
     id: string;
     firstName: string;
@@ -468,38 +518,76 @@ export interface ScheduledReportResponse {
   };
 }
 
-export interface ScheduledReportExecutionResponse {
-  id: string;
-  scheduledReportId: string;
+export class ScheduledReportExecutionResponse {
+  @ApiProperty({ description: 'Execution record ID' })
+  id!: string;
+
+  @ApiProperty({ description: 'Scheduled report ID' })
+  scheduledReportId!: string;
+
+  @ApiPropertyOptional({ description: 'Scheduled report information' })
   scheduledReport?: {
     id: string;
     name: string;
   };
-  scheduledAt: Date;
-  startedAt: Date;
+
+  @ApiProperty({ description: 'Scheduled execution time' })
+  scheduledAt!: Date;
+
+  @ApiProperty({ description: 'Actual start time' })
+  startedAt!: Date;
+
+  @ApiPropertyOptional({ description: 'Completion time' })
   completedAt?: Date;
-  status: ExecutionStatus;
+
+  @ApiProperty({ description: 'Execution status', enum: ExecutionStatus })
+  status!: ExecutionStatus;
+
+  @ApiPropertyOptional({ description: 'Generated report ID' })
   generatedReportId?: string;
+
+  @ApiPropertyOptional({ description: 'Generated report information' })
   generatedReport?: {
     id: string;
     name: string;
     status: string;
     fileUrl?: string;
   };
+
+  @ApiPropertyOptional({ description: 'Error message if execution failed' })
   errorMessage?: string;
-  retryCount: number;
-  deliveryStatus: DeliveryStatus;
-  deliveryAttempts: number;
-  executionTimeMs: number;
-  createdAt: Date;
+
+  @ApiProperty({ description: 'Number of retry attempts' })
+  retryCount!: number;
+
+  @ApiProperty({ description: 'Delivery status', enum: DeliveryStatus })
+  deliveryStatus!: DeliveryStatus;
+
+  @ApiProperty({ description: 'Number of delivery attempts' })
+  deliveryAttempts!: number;
+
+  @ApiProperty({ description: 'Execution time in milliseconds' })
+  executionTimeMs!: number;
+
+  @ApiProperty({ description: 'Creation timestamp' })
+  createdAt!: Date;
+
+  @ApiPropertyOptional({ description: 'Creator user ID' })
   createdBy?: string;
 }
 
-export interface ScheduledReportQueryResponse {
-  scheduledReports: ScheduledReportResponse[];
-  total: number;
-  skip: number;
-  take: number;
+export class ScheduledReportQueryResponse {
+  @ApiProperty({ description: 'Array of scheduled reports', type: [ScheduledReportResponse] })
+  scheduledReports!: ScheduledReportResponse[];
+
+  @ApiProperty({ description: 'Total number of records' })
+  total!: number;
+
+  @ApiProperty({ description: 'Number of records skipped' })
+  skip!: number;
+
+  @ApiProperty({ description: 'Number of records taken' })
+  take!: number;
 }
 
 export interface ReportSubscriptionResponse {
@@ -531,29 +619,58 @@ export interface ReportSubscriptionResponse {
   updatedBy?: string;
 }
 
-export interface DistributionListResponse {
-  id: string;
-  scheduledReportId: string;
+export class DistributionListResponse {
+  @ApiProperty({ description: 'Distribution list record ID' })
+  id!: string;
+
+  @ApiProperty({ description: 'Scheduled report ID' })
+  scheduledReportId!: string;
+
+  @ApiPropertyOptional({ description: 'Scheduled report information' })
   scheduledReport?: {
     id: string;
     name: string;
   };
-  userId: string;
+
+  @ApiProperty({ description: 'User ID' })
+  userId!: string;
+
+  @ApiPropertyOptional({ description: 'User information' })
   user?: {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
   };
-  email: string;
-  isActive: boolean;
-  subscribedAt: Date;
+
+  @ApiProperty({ description: 'User email address' })
+  email!: string;
+
+  @ApiProperty({ description: 'Is distribution active' })
+  isActive!: boolean;
+
+  @ApiProperty({ description: 'Subscription timestamp' })
+  subscribedAt!: Date;
+
+  @ApiPropertyOptional({ description: 'Unsubscription timestamp' })
   unsubscribedAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Custom email subject' })
   customSubject?: string;
+
+  @ApiPropertyOptional({ description: 'Custom email body' })
   customBody?: string;
-  deliveryMethod: DeliveryMethod;
+
+  @ApiProperty({ description: 'Delivery method', enum: DeliveryMethod })
+  deliveryMethod!: DeliveryMethod;
+
+  @ApiPropertyOptional({ description: 'Preferred format', enum: ReportFormat })
   preferredFormat?: ReportFormat;
-  createdAt: Date;
+
+  @ApiProperty({ description: 'Creation timestamp' })
+  createdAt!: Date;
+
+  @ApiPropertyOptional({ description: 'Creator user ID' })
   createdBy?: string;
 }
 

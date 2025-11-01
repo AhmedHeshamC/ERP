@@ -37,7 +37,7 @@ export class CreateUserDto {
   })
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @MaxLength(255, { message: 'Email must not exceed 255 characters' })
-  email: string;
+  email!: string;
 
   @ApiProperty({
     description: 'Unique username',
@@ -51,7 +51,7 @@ export class CreateUserDto {
   @Matches(/^[a-zA-Z0-9_-]+$/, {
     message: 'Username can only contain letters, numbers, underscores, and hyphens',
   })
-  username: string;
+  username!: string;
 
   @ApiProperty({
     description: 'User first name',
@@ -65,7 +65,7 @@ export class CreateUserDto {
   @Matches(/^[a-zA-Z\s'-]+$/, {
     message: 'First name can only contain letters, spaces, hyphens, and apostrophes',
   })
-  firstName: string;
+  firstName!: string;
 
   @ApiProperty({
     description: 'User last name',
@@ -79,7 +79,7 @@ export class CreateUserDto {
   @Matches(/^[a-zA-Z\s'-]+$/, {
     message: 'Last name can only contain letters, spaces, hyphens, and apostrophes',
   })
-  lastName: string;
+  lastName!: string;
 
   @ApiProperty({
     description: 'Strong password meeting security requirements',
@@ -92,7 +92,7 @@ export class CreateUserDto {
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
     message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
   })
-  password: string;
+  password!: string;
 
   @ApiProperty({
     description: 'User role in the system',
@@ -100,7 +100,7 @@ export class CreateUserDto {
     example: UserRole.USER,
   })
   @IsEnum(UserRole, { message: 'Invalid role provided' })
-  role: UserRole;
+  role!: UserRole;
 }
 
 export class UpdateUserDto {
@@ -244,7 +244,7 @@ export class UserPasswordChangeDto {
   })
   @IsString({ message: 'Current password must be a string' })
   @MinLength(1, { message: 'Current password is required' })
-  currentPassword: string;
+  currentPassword!: string;
 
   @ApiProperty({
     description: 'New strong password',
@@ -257,14 +257,14 @@ export class UserPasswordChangeDto {
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
     message: 'New password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
   })
-  newPassword: string;
+  newPassword!: string;
 
   @ApiProperty({
     description: 'Confirm new password',
     example: 'NewSecureP@ss123!',
   })
   @IsString({ message: 'Password confirmation must be a string' })
-  confirmPassword: string;
+  confirmPassword!: string;
 }
 
 // Validation function for password confirmation

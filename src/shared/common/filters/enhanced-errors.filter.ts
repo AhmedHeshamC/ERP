@@ -76,8 +76,8 @@ export class EnhancedErrorsFilter implements ExceptionFilter {
     } catch (filterError) {
       // Fallback error handling if the filter itself fails
       this.logger.error(
-        `Error filter failed: ${filterError.message}`,
-        filterError.stack,
+        `Error filter failed: ${filterError instanceof Error ? filterError.message : 'Unknown error'}`,
+        filterError instanceof Error ? filterError.stack : undefined,
       );
 
       const fallbackResponse = ApiResponseBuilder.internalError(
@@ -180,7 +180,7 @@ export class EnhancedErrorsFilter implements ExceptionFilter {
         },
       );
     } catch (logError) {
-      this.logger.error(`Failed to log security error: ${logError.message}`, logError.stack);
+      this.logger.error(`Failed to log security error!: ${logError instanceof Error ? logError.message : 'Unknown error'}`, logError instanceof Error ? logError.stack : undefined);
     }
   }
 
@@ -311,11 +311,11 @@ export class EnhancedErrorsFilter implements ExceptionFilter {
     };
 
     if (statusCode >= 500) {
-      this.logger.error(`Server Error: ${request.method} ${request.url}`, logData);
+      this.logger.error(`Server Error!: ${request.method} ${request.url}`, logData);
     } else if (statusCode >= 400) {
-      this.logger.warn(`Client Error: ${request.method} ${request.url}`, logData);
+      this.logger.warn(`Client Error!: ${request.method} ${request.url}`, logData);
     } else {
-      this.logger.log(`Request: ${request.method} ${request.url}`, logData);
+      this.logger.log(`Request!: ${request.method} ${request.url}`, logData);
     }
   }
 }

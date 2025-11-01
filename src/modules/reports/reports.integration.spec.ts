@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -18,7 +18,6 @@ import {
   ReportType,
   ReportCategory,
   ReportFormat,
-  ReportStatus,
   KpiCategory,
   FinancialReportParamsDto,
   SalesReportParamsDto,
@@ -36,7 +35,6 @@ import 'chai/register-expect';
 describe('Reports Module Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let reportsService: ReportsService;
   let authToken: string;
 
   // Setup test environment before all tests
@@ -92,8 +90,7 @@ describe('Reports Module Integration Tests', () => {
 
     prismaService = new PrismaService(configService);
     await prismaService.$connect();
-    reportsService = moduleFixture.get<ReportsService>(ReportsService);
-
+    
     // Create test data for reporting
     await createTestDataForReports();
 
@@ -847,7 +844,7 @@ describe('Reports Module Integration Tests', () => {
       });
 
     } catch (error) {
-      console.log('Error creating test data for reports:', error.message);
+      console.log('Error creating test data for reports:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 
@@ -888,7 +885,7 @@ describe('Reports Module Integration Tests', () => {
         },
       });
     } catch (error) {
-      console.log('Cleanup error:', error.message);
+      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

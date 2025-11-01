@@ -19,16 +19,16 @@ export enum LeaveStatus {
 
 export class CreateLeaveDto {
   @IsString()
-  employeeId: string;
+  employeeId!: string;
 
   @IsEnum(LeaveType)
-  leaveType: LeaveType;
+  leaveType!: LeaveType;
 
   @IsDateString()
-  startDate: string;
+  startDate!: string;
 
   @IsDateString()
-  endDate: string;
+  endDate!: string;
 
   @IsOptional()
   @IsNumber()

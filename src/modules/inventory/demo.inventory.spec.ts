@@ -50,7 +50,6 @@ describe('Inventory Module Demonstration', () => {
       expect(statuses).to.include(ProductStatus.DISCONTINUED);
 
       // Test valid status transition
-      const currentStatus = ProductStatus.ACTIVE;
       const newStatus = ProductStatus.DISCONTINUED;
 
       expect(statuses).to.include(newStatus);

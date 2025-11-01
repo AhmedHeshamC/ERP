@@ -1,5 +1,4 @@
 import {
-  IsEmail,
   IsString,
   IsOptional,
   IsEnum,
@@ -10,8 +9,6 @@ import {
   Matches,
   IsInt,
   Min,
-  Max,
-  IsDecimal,
   IsPositive
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -59,7 +56,7 @@ export class CreateProductDto {
   @Matches(/^[a-zA-Z0-9\s\-_.,]+$/, {
     message: 'Product name can only contain letters, numbers, spaces, hyphens, underscores, dots, and commas',
   })
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: 'Stock Keeping Unit - unique identifier',
@@ -73,7 +70,7 @@ export class CreateProductDto {
   @Matches(/^[A-Z0-9\-]+$/, {
     message: 'SKU must contain only uppercase letters, numbers, and hyphens',
   })
-  sku: string;
+  sku!: string;
 
   @ApiPropertyOptional({
     description: 'Product description',
@@ -93,7 +90,7 @@ export class CreateProductDto {
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must be a number with max 2 decimal places' })
   @IsPositive({ message: 'Price must be greater than 0' })
   @Min(0, { message: 'Price cannot be negative' })
-  price: number;
+  price!: number;
 
   @ApiProperty({
     description: 'Product category ID',
@@ -101,7 +98,7 @@ export class CreateProductDto {
   })
   @IsString({ message: 'Category ID must be a string' })
   @MinLength(1, { message: 'Category ID is required' })
-  categoryId: string;
+  categoryId!: string;
 
   @ApiProperty({
     description: 'Product status',
@@ -287,7 +284,7 @@ export class StockMovementDto {
     example: 'prod-123',
   })
   @IsString({ message: 'Product ID must be a string' })
-  productId: string;
+  productId!: string;
 
   @ApiProperty({
     description: 'Movement type',
@@ -295,14 +292,14 @@ export class StockMovementDto {
     example: StockMovementType.IN,
   })
   @IsEnum(StockMovementType, { message: 'Invalid movement type' })
-  type: StockMovementType;
+  type!: StockMovementType;
 
   @ApiProperty({
     description: 'Quantity moved',
     example: 50,
   })
   @IsInt({ message: 'Quantity must be an integer' })
-  quantity: number;
+  quantity!: number;
 
   @ApiProperty({
     description: 'Reason for movement',
@@ -311,7 +308,7 @@ export class StockMovementDto {
   @IsString({ message: 'Reason must be a string' })
   @MinLength(1, { message: 'Reason is required' })
   @MaxLength(500, { message: 'Reason must not exceed 500 characters' })
-  reason: string;
+  reason!: string;
 
   @ApiPropertyOptional({
     description: 'Reference number',

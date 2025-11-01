@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { expect } from 'chai';
 import * as request from 'supertest';
-import { UserService } from './user.service';
 import { UserController } from './user.controller';
+import { UserService } from './user.service';
 import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { setupIntegrationTest, cleanupIntegrationTest } from '../../shared/testing/integration-setup';
@@ -40,7 +40,6 @@ declare var afterAll: any;
 describe('Users Module Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let userService: UserService;
   let adminToken: string;
   let managerToken: string;
   let userToken: string;
@@ -98,7 +97,6 @@ describe('Users Module Integration Tests', () => {
 
     prismaService = new PrismaService(configService);
     await prismaService.$connect();
-    userService = moduleFixture.get<UserService>(UserService);
 
     // Create test users with different roles using direct generation
     adminToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
@@ -1078,7 +1076,7 @@ describe('Users Module Integration Tests', () => {
       });
 
       if (testUsers.length > 0) {
-        const userIds = testUsers.map(user => user.id);
+        const userIds = testUsers.map((user: any) => user.id);
 
         // Clean up in correct order respecting foreign key constraints
         console.log(`Cleaning up ${testUsers.length} test users and related data...`);
@@ -1112,7 +1110,7 @@ describe('Users Module Integration Tests', () => {
           await prismaService.chartOfAccounts.deleteMany({
             where: { id: { startsWith: 'test-account-' } }
           });
-        } catch (accountingError) {
+        } catch (accountingError: any) {
           console.log('Accounting cleanup error (expected if no accounting tables):', accountingError.message);
         }
 
@@ -1124,7 +1122,7 @@ describe('Users Module Integration Tests', () => {
         console.log(`Users cleanup completed. Removed ${testUsers.length} test users.`);
       }
     } catch (error) {
-      console.log('Users cleanup error:', error.message);
+      console.log('Users cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 

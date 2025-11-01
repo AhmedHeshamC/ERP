@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthenticationModule } from '../authentication/authentication.module';
-import { PrismaModule } from '../../shared/database/prisma.module';
-import { SecurityModule } from '../../shared/security/security.module';
+import { CommonModule } from '../../shared/common/common.module';
 import { EmployeeService } from './services/employee.service';
 import { EmployeeController } from './controllers/employee.controller';
 import { PayrollController } from './controllers/payroll.controller';
@@ -17,8 +16,7 @@ import { LeaveRequestService } from './services/leave-request.service';
 @Module({
   imports: [
     AuthenticationModule,
-    PrismaModule,
-    SecurityModule,
+    CommonModule,
   ],
   controllers: [
     EmployeeController,

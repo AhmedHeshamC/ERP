@@ -229,7 +229,7 @@ export class ApiResponseBuilder {
 
     // Include stack trace in development
     if (process.env.NODE_ENV === 'development' && error?.stack) {
-      response.stack = error.stack;
+      response.stack = error instanceof Error ? error.stack : undefined;
     }
 
     return response;

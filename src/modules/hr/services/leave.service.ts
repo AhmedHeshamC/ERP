@@ -86,7 +86,7 @@ export class LeaveService {
     return leaveRequest;
   }
 
-  async approve(leaveRequestId: string, approvedBy: string, comments?: string): Promise<LeaveRequest> {
+  async approve(leaveRequestId: string, approvedBy: string): Promise<LeaveRequest> {
     const leaveRequest = await this.prismaService.leaveRequest.findUnique({
       where: { id: leaveRequestId },
       include: { employee: true },
@@ -242,7 +242,7 @@ export class LeaveService {
       const fromDate = new Date(filters.startDate);
       const toDate = new Date(filters.endDate);
       if (fromDate > toDate) {
-        throw new BadRequestException('Invalid date range: Start date must be before end date');
+        throw new BadRequestException('Invalid date range!: Start date must be before end date');
       }
     }
 

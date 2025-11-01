@@ -39,7 +39,7 @@ export enum KpiCategory {
 export class CreateReportDefinitionDto {
   @IsString()
   @MaxLength(200)
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -47,13 +47,13 @@ export class CreateReportDefinitionDto {
   description?: string;
 
   @IsEnum(ReportType)
-  type: ReportType;
+  type!: ReportType;
 
   @IsEnum(ReportCategory)
-  category: ReportCategory;
+  category!: ReportCategory;
 
   @IsString()
-  query: string;
+  query!: string;
 
   @IsOptional()
   @IsObject()
@@ -98,7 +98,7 @@ export class UpdateReportDefinitionDto {
 
 export class GenerateReportDto {
   @IsString()
-  reportDefinitionId: string;
+  reportDefinitionId!: string;
 
   @IsOptional()
   @IsObject()
@@ -211,7 +211,7 @@ export class SalesReportParamsDto {
 export class CreateDashboardDto {
   @IsString()
   @MaxLength(200)
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -219,10 +219,10 @@ export class CreateDashboardDto {
   description?: string;
 
   @IsObject()
-  layout: Record<string, any>;
+  layout!: Record<string, any>;
 
   @IsArray()
-  widgets: Array<Record<string, any>>;
+  widgets!: Array<Record<string, any>>;
 
   @IsOptional()
   @IsBoolean()
@@ -236,7 +236,7 @@ export class CreateDashboardDto {
 export class CreateKpiDefinitionDto {
   @IsString()
   @MaxLength(200)
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -244,10 +244,10 @@ export class CreateKpiDefinitionDto {
   description?: string;
 
   @IsEnum(KpiCategory)
-  category: KpiCategory;
+  category!: KpiCategory;
 
   @IsString()
-  formula: string;
+  formula!: string;
 
   @IsOptional()
   @IsString()

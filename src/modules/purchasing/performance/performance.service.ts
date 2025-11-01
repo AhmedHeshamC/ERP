@@ -9,12 +9,8 @@ import {
   SupplierPerformanceQueryResponse,
   PerformanceAnalyticsResponse,
   SupplierTier,
-  PerformanceMetricType,
-  PerformanceLevel,
   CreateScorecardDetailDto,
   CreatePerformanceEventDto,
-  PerformanceEventType,
-  EventSeverity,
 } from './dto/performance.dto';
 
 /**
@@ -62,11 +58,11 @@ export class SupplierPerformanceService {
    */
   async createSupplierPerformance(createPerformanceDto: CreateSupplierPerformanceDto): Promise<SupplierPerformanceResponse> {
     try {
-      this.logger.log(`Creating supplier performance record for supplier: ${createPerformanceDto.supplierId}, period: ${createPerformanceDto.period}`);
+      this.logger.log(`Creating supplier performance record for supplier!: ${createPerformanceDto.supplierId}, period: ${createPerformanceDto.period}`);
 
       // Input validation and sanitization (OWASP A03)
       if (!this.securityService.validateInput(createPerformanceDto)) {
-        this.logger.warn(`Invalid input data for performance creation: ${createPerformanceDto.supplierId}`);
+        this.logger.warn(`Invalid input data for performance creation!: ${createPerformanceDto.supplierId}`);
         throw new BadRequestException('Invalid performance data');
       }
 
@@ -79,12 +75,12 @@ export class SupplierPerformanceService {
       });
 
       if (!supplier) {
-        this.logger.warn(`Supplier not found for performance creation: ${sanitizedData.supplierId}`);
+        this.logger.warn(`Supplier not found for performance creation!: ${sanitizedData.supplierId}`);
         throw new NotFoundException(`Supplier with ID ${sanitizedData.supplierId} not found`);
       }
 
       if (!supplier.isActive) {
-        this.logger.warn(`Inactive supplier attempted for performance creation: ${sanitizedData.supplierId}`);
+        this.logger.warn(`Inactive supplier attempted for performance creation!: ${sanitizedData.supplierId}`);
         throw new BadRequestException(`Supplier ${supplier.name} is not active`);
       }
 
@@ -99,7 +95,7 @@ export class SupplierPerformanceService {
       });
 
       if (existingPerformance) {
-        this.logger.warn(`Duplicate performance record attempted: supplier ${sanitizedData.supplierId}, period ${sanitizedData.period}`);
+        this.logger.warn(`Duplicate performance record attempted!: supplier ${sanitizedData.supplierId}, period ${sanitizedData.period}`);
         throw new ConflictException(`Performance record for supplier ${sanitizedData.supplierId} in period ${sanitizedData.period} already exists`);
       }
 
@@ -112,7 +108,7 @@ export class SupplierPerformanceService {
         });
 
         if (!calculator) {
-          this.logger.warn(`Calculator not found: ${sanitizedData.calculatedBy}`);
+          this.logger.warn(`Calculator not found!: ${sanitizedData.calculatedBy}`);
           throw new NotFoundException(`User with ID ${sanitizedData.calculatedBy} not found`);
         }
       }
@@ -162,7 +158,7 @@ export class SupplierPerformanceService {
         },
       });
 
-      // Convert Decimal to number for response
+      // Convert Decimal to number for response and handle null/undefined conversion
       const performanceResponse: SupplierPerformanceResponse = {
         ...performance,
         qualityScore: parseFloat(performance.qualityScore.toString()),
@@ -177,9 +173,15 @@ export class SupplierPerformanceService {
         priceVarianceRate: parseFloat(performance.priceVarianceRate.toString()),
         responseTimeHours: parseFloat(performance.responseTimeHours.toString()),
         totalValue: parseFloat(performance.totalValue.toString()),
+        notes: performance.notes || undefined,
+        calculatedBy: performance.calculatedBy || undefined,
+        calculator: performance.calculator || undefined,
+        reviewedBy: performance.reviewedBy || undefined,
+        reviewedAt: performance.reviewedAt || undefined,
+        reviewer: performance.calculator || undefined,
       };
 
-      this.logger.log(`Successfully created performance record: ${performance.id} for supplier: ${supplier.name}`);
+      this.logger.log(`Successfully created performance record!: ${performance.id} for supplier: ${supplier.name}`);
       return performanceResponse;
 
     } catch (error) {
@@ -187,7 +189,7 @@ export class SupplierPerformanceService {
         throw error;
       }
 
-      this.logger.error(`Failed to create supplier performance: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create supplier performance: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to create supplier performance');
     }
   }
@@ -198,7 +200,7 @@ export class SupplierPerformanceService {
    */
   async getSupplierPerformance(queryDto: SupplierPerformanceQueryDto): Promise<SupplierPerformanceQueryResponse> {
     try {
-      this.logger.log(`Fetching supplier performance with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching supplier performance with query!: ${JSON.stringify(queryDto)}`);
 
       const {
         supplierId,
@@ -253,7 +255,7 @@ export class SupplierPerformanceService {
           where,
           skip,
           take,
-          orderBy: { [sortBy]: sortOrder },
+          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
           include: {
             supplier: {
               select: {
@@ -299,6 +301,12 @@ export class SupplierPerformanceService {
         priceVarianceRate: parseFloat(performance.priceVarianceRate.toString()),
         responseTimeHours: parseFloat(performance.responseTimeHours.toString()),
         totalValue: parseFloat(performance.totalValue.toString()),
+        notes: performance.notes || undefined,
+        calculatedBy: performance.calculatedBy || undefined,
+        calculator: performance.calculator || undefined,
+        reviewedBy: performance.reviewedBy || undefined,
+        reviewedAt: performance.reviewedAt || undefined,
+        reviewer: performance.calculator || undefined,
       }));
 
       this.logger.log(`Retrieved ${performances.length} performance records out of ${total} total`);
@@ -306,12 +314,12 @@ export class SupplierPerformanceService {
       return {
         performances: performancesWithNumbers,
         total,
-        skip,
-        take,
+        skip: skip || 0,
+        take: take || 10,
       };
 
     } catch (error) {
-      this.logger.error(`Failed to fetch supplier performance: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch supplier performance: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch supplier performance');
     }
   }
@@ -321,7 +329,7 @@ export class SupplierPerformanceService {
    */
   async getSupplierPerformanceById(id: string): Promise<SupplierPerformanceResponse | null> {
     try {
-      this.logger.log(`Fetching supplier performance by ID: ${id}`);
+      this.logger.log(`Fetching supplier performance by ID!: ${id}`);
 
       const performance = await this.prismaService.supplierPerformance.findUnique({
         where: { id },
@@ -354,11 +362,11 @@ export class SupplierPerformanceService {
       });
 
       if (!performance) {
-        this.logger.warn(`Supplier performance not found: ${id}`);
+        this.logger.warn(`Supplier performance not found!: ${id}`);
         return null;
       }
 
-      // Convert Decimal to number for response
+      // Convert Decimal to number for response and handle null/undefined conversion
       const performanceResponse: SupplierPerformanceResponse = {
         ...performance,
         qualityScore: parseFloat(performance.qualityScore.toString()),
@@ -373,13 +381,19 @@ export class SupplierPerformanceService {
         priceVarianceRate: parseFloat(performance.priceVarianceRate.toString()),
         responseTimeHours: parseFloat(performance.responseTimeHours.toString()),
         totalValue: parseFloat(performance.totalValue.toString()),
+        notes: performance.notes || undefined,
+        calculatedBy: performance.calculatedBy || undefined,
+        calculator: performance.calculator || undefined,
+        reviewedBy: performance.reviewedBy || undefined,
+        reviewedAt: performance.reviewedAt || undefined,
+        reviewer: performance.calculator || undefined,
       };
 
-      this.logger.log(`Successfully retrieved supplier performance: ${id}`);
+      this.logger.log(`Successfully retrieved supplier performance!: ${id}`);
       return performanceResponse;
 
     } catch (error) {
-      this.logger.error(`Failed to fetch supplier performance by ID ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch supplier performance by ID ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch supplier performance');
     }
   }
@@ -389,7 +403,7 @@ export class SupplierPerformanceService {
    */
   async updateSupplierPerformance(id: string, updatePerformanceDto: UpdateSupplierPerformanceDto): Promise<SupplierPerformanceResponse> {
     try {
-      this.logger.log(`Updating supplier performance ${id} with data: ${JSON.stringify(updatePerformanceDto)}`);
+      this.logger.log(`Updating supplier performance ${id} with data!: ${JSON.stringify(updatePerformanceDto)}`);
 
       // Check if performance record exists
       const existingPerformance = await this.prismaService.supplierPerformance.findUnique({
@@ -397,13 +411,13 @@ export class SupplierPerformanceService {
       });
 
       if (!existingPerformance) {
-        this.logger.warn(`Performance update attempted for non-existent ID: ${id}`);
+        this.logger.warn(`Performance update attempted for non-existent ID!: ${id}`);
         throw new NotFoundException(`Supplier performance with ID ${id} not found`);
       }
 
       // Input validation and sanitization
       if (!this.securityService.validateInput(updatePerformanceDto)) {
-        this.logger.warn(`Invalid input data for performance update: ${id}`);
+        this.logger.warn(`Invalid input data for performance update!: ${id}`);
         throw new BadRequestException('Invalid performance data');
       }
 
@@ -418,7 +432,7 @@ export class SupplierPerformanceService {
         });
 
         if (!reviewer) {
-          this.logger.warn(`Reviewer not found: ${sanitizedData.reviewedBy}`);
+          this.logger.warn(`Reviewer not found!: ${sanitizedData.reviewedBy}`);
           throw new NotFoundException(`User with ID ${sanitizedData.reviewedBy} not found`);
         }
       }
@@ -496,9 +510,15 @@ export class SupplierPerformanceService {
         priceVarianceRate: parseFloat(updatedPerformance.priceVarianceRate.toString()),
         responseTimeHours: parseFloat(updatedPerformance.responseTimeHours.toString()),
         totalValue: parseFloat(updatedPerformance.totalValue.toString()),
+        notes: updatedPerformance.notes || undefined,
+        calculatedBy: updatedPerformance.calculatedBy || undefined,
+        calculator: updatedPerformance.calculator || undefined,
+        reviewedBy: updatedPerformance.reviewedBy || undefined,
+        reviewedAt: updatedPerformance.reviewedAt || undefined,
+        reviewer: updatedPerformance.calculator || undefined,
       };
 
-      this.logger.log(`Successfully updated supplier performance: ${updatedPerformance.id}`);
+      this.logger.log(`Successfully updated supplier performance!: ${updatedPerformance.id}`);
       return performanceResponse;
 
     } catch (error) {
@@ -506,7 +526,7 @@ export class SupplierPerformanceService {
         throw error;
       }
 
-      this.logger.error(`Failed to update supplier performance ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update supplier performance ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to update supplier performance');
     }
   }
@@ -653,7 +673,7 @@ export class SupplierPerformanceService {
       return analytics;
 
     } catch (error) {
-      this.logger.error(`Failed to calculate performance analytics: ${error.message}`, error.stack);
+      this.logger.error(`Failed to calculate performance analytics: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to calculate performance analytics');
     }
   }
@@ -679,7 +699,7 @@ export class SupplierPerformanceService {
       });
 
       if (!existingPerformance) {
-        this.logger.warn(`Performance record not found for scorecard detail: ${sanitizedData.performanceId}`);
+        this.logger.warn(`Performance record not found for scorecard detail!: ${sanitizedData.performanceId}`);
         throw new NotFoundException('Performance record not found');
       }
 
@@ -688,7 +708,7 @@ export class SupplierPerformanceService {
         data: sanitizedData,
       });
 
-      this.logger.log(`Successfully created scorecard detail: ${detail.id}`);
+      this.logger.log(`Successfully created scorecard detail!: ${detail.id}`);
       return detail;
 
     } catch (error) {
@@ -696,7 +716,7 @@ export class SupplierPerformanceService {
         throw error;
       }
 
-      this.logger.error(`Failed to add scorecard detail: ${error.message}`, error.stack);
+      this.logger.error(`Failed to add scorecard detail: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to add scorecard detail');
     }
   }
@@ -706,11 +726,11 @@ export class SupplierPerformanceService {
    */
   async recordPerformanceEvent(eventDto: CreatePerformanceEventDto): Promise<any> {
     try {
-      this.logger.log(`Recording performance event for supplier: ${eventDto.supplierId}`);
+      this.logger.log(`Recording performance event for supplier!: ${eventDto.supplierId}`);
 
       // Input validation and sanitization
       if (!this.securityService.validateInput(eventDto)) {
-        this.logger.warn(`Invalid input data for performance event: ${eventDto.supplierId}`);
+        this.logger.warn(`Invalid input data for performance event!: ${eventDto.supplierId}`);
         throw new BadRequestException('Invalid performance event data');
       }
 
@@ -723,7 +743,7 @@ export class SupplierPerformanceService {
       });
 
       if (!supplier) {
-        this.logger.warn(`Supplier not found for performance event: ${sanitizedData.supplierId}`);
+        this.logger.warn(`Supplier not found for performance event!: ${sanitizedData.supplierId}`);
         throw new NotFoundException('Supplier not found');
       }
 
@@ -732,7 +752,7 @@ export class SupplierPerformanceService {
         data: sanitizedData,
       });
 
-      this.logger.log(`Successfully recorded performance event: ${event.id} for supplier: ${supplier.name}`);
+      this.logger.log(`Successfully recorded performance event!: ${event.id} for supplier: ${supplier.name}`);
       return event;
 
     } catch (error) {
@@ -740,7 +760,7 @@ export class SupplierPerformanceService {
         throw error;
       }
 
-      this.logger.error(`Failed to record performance event: ${error.message}`, error.stack);
+      this.logger.error(`Failed to record performance event: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to record performance event');
     }
   }

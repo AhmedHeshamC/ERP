@@ -36,23 +36,23 @@ export interface CustomerData {
 
 export class Customer {
   public readonly id?: string;
-  public readonly code: string;
-  public name: string;
-  public email: string;
-  public readonly phone: string;
-  public readonly address: string;
-  public readonly city: string;
-  public readonly country: string;
-  public creditLimit: number;
-  public status: CustomerStatus;
-  public isActive: boolean;
+  public readonly code!: string;
+  public name!: string;
+  public email!: string;
+  public readonly phone!: string;
+  public readonly address!: string;
+  public readonly city!: string;
+  public readonly country!: string;
+  public creditLimit!: number;
+  public status!: CustomerStatus;
+  public isActive!: boolean;
   public readonly state?: string;
   public readonly postalCode?: string;
   public readonly website?: string;
   public readonly taxId?: string;
   public notes?: string;
-  public readonly createdAt: Date;
-  public updatedAt: Date;
+  public readonly createdAt!: Date;
+  public updatedAt!: Date;
 
   constructor(data: CustomerData) {
     // Validate input data

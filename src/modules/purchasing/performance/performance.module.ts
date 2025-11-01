@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SupplierPerformanceController } from './performance.controller';
 import { SupplierPerformanceService } from './performance.service';
-import { PrismaService } from '../../../shared/database/prisma.service';
-import { SecurityModule } from '../../../shared/security/security.module';
+import { CommonModule } from '../../../shared/common/common.module';
 
 /**
  * Supplier Performance Module
@@ -10,11 +9,10 @@ import { SecurityModule } from '../../../shared/security/security.module';
  * Follows SOLID principles with clean separation of concerns
  */
 @Module({
-  imports: [SecurityModule],
+  imports: [CommonModule],
   controllers: [SupplierPerformanceController],
   providers: [
     SupplierPerformanceService,
-    PrismaService,
   ],
   exports: [SupplierPerformanceService],
 })

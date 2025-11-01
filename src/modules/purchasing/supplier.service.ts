@@ -31,11 +31,11 @@ export class SupplierService {
    */
   async createSupplier(createSupplierDto: CreateSupplierDto): Promise<SupplierResponse> {
     try {
-      this.logger.log(`Creating new supplier: ${createSupplierDto.name} (${createSupplierDto.code})`);
+      this.logger.log(`Creating new supplier!: ${createSupplierDto.name} (${createSupplierDto.code})`);
 
       // Input validation and sanitization (OWASP A03)
       if (!this.securityService.validateInput(createSupplierDto)) {
-        this.logger.warn(`Invalid input data for supplier creation: ${createSupplierDto.code}`);
+        this.logger.warn(`Invalid input data for supplier creation!: ${createSupplierDto.code}`);
         throw new BadRequestException('Invalid supplier data');
       }
 
@@ -47,7 +47,7 @@ export class SupplierService {
       });
 
       if (existingSupplier) {
-        this.logger.warn(`Duplicate supplier code attempted: ${sanitizedData.code}`);
+        this.logger.warn(`Duplicate supplier code attempted!: ${sanitizedData.code}`);
         throw new ConflictException(`Supplier with code ${sanitizedData.code} already exists`);
       }
 
@@ -57,7 +57,7 @@ export class SupplierService {
       });
 
       if (existingEmail) {
-        this.logger.warn(`Duplicate supplier email attempted: ${sanitizedData.email}`);
+        this.logger.warn(`Duplicate supplier email attempted!: ${sanitizedData.email}`);
         throw new ConflictException(`Supplier with email ${sanitizedData.email} already exists`);
       }
 
@@ -70,9 +70,16 @@ export class SupplierService {
       const supplierResponse: SupplierResponse = {
         ...supplier,
         creditLimit: parseFloat(supplier.creditLimit.toString()),
+        phone: supplier.phone || undefined,
+        address: supplier.address || undefined,
+        city: supplier.city || undefined,
+        state: supplier.state || undefined,
+        postalCode: supplier.postalCode || undefined,
+        country: supplier.country || undefined,
+        taxId: supplier.taxId || undefined,
       };
 
-      this.logger.log(`Successfully created supplier: ${supplier.name} (ID: ${supplier.id})`);
+      this.logger.log(`Successfully created supplier!: ${supplier.name} (ID: ${supplier.id})`);
       return supplierResponse;
 
     } catch (error) {
@@ -80,7 +87,7 @@ export class SupplierService {
         throw error;
       }
 
-      this.logger.error(`Failed to create supplier: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create supplier: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to create supplier');
     }
   }
@@ -91,7 +98,7 @@ export class SupplierService {
    */
   async getSuppliers(queryDto: SupplierQueryDto): Promise<SuppliersQueryResponse> {
     try {
-      this.logger.log(`Fetching suppliers with query: ${JSON.stringify(queryDto)}`);
+      this.logger.log(`Fetching suppliers with query!: ${JSON.stringify(queryDto)}`);
 
       const { search, status, skip, take, sortBy, sortOrder } = queryDto;
 
@@ -116,7 +123,11 @@ export class SupplierService {
           where,
           skip,
           take,
-          orderBy: { [sortBy]: sortOrder },
+          orderBy: (() => {
+        const orderBy: any = {};
+        orderBy[sortBy || 'name'] = sortOrder;
+        return orderBy;
+      })(),
           select: {
             id: true,
             code: true,
@@ -143,19 +154,26 @@ export class SupplierService {
       const suppliersWithNumbers = suppliers.map(supplier => ({
         ...supplier,
         creditLimit: parseFloat(supplier.creditLimit.toString()),
+        phone: supplier.phone || undefined,
+        address: supplier.address || undefined,
+        city: supplier.city || undefined,
+        state: supplier.state || undefined,
+        postalCode: supplier.postalCode || undefined,
+        country: supplier.country || undefined,
+        taxId: supplier.taxId || undefined,
       }));
 
       this.logger.log(`Retrieved ${suppliers.length} suppliers out of ${total} total`);
 
       return {
         suppliers: suppliersWithNumbers,
-        total,
-        skip,
-        take,
+        total: total || 0,
+        skip: skip || 0,
+        take: take || 10,
       };
 
     } catch (error) {
-      this.logger.error(`Failed to fetch suppliers: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch suppliers: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch suppliers');
     }
   }
@@ -165,7 +183,7 @@ export class SupplierService {
    */
   async getSupplierById(id: string): Promise<SupplierResponse | null> {
     try {
-      this.logger.log(`Fetching supplier by ID: ${id}`);
+      this.logger.log(`Fetching supplier by ID!: ${id}`);
 
       const supplier = await this.prismaService.supplier.findUnique({
         where: { id },
@@ -190,7 +208,7 @@ export class SupplierService {
       });
 
       if (!supplier) {
-        this.logger.warn(`Supplier not found: ${id}`);
+        this.logger.warn(`Supplier not found!: ${id}`);
         return null;
       }
 
@@ -198,13 +216,20 @@ export class SupplierService {
       const supplierResponse: SupplierResponse = {
         ...supplier,
         creditLimit: parseFloat(supplier.creditLimit.toString()),
+        phone: supplier.phone || undefined,
+        address: supplier.address || undefined,
+        city: supplier.city || undefined,
+        state: supplier.state || undefined,
+        postalCode: supplier.postalCode || undefined,
+        country: supplier.country || undefined,
+        taxId: supplier.taxId || undefined,
       };
 
-      this.logger.log(`Successfully retrieved supplier: ${supplier.name} (ID: ${id})`);
+      this.logger.log(`Successfully retrieved supplier!: ${supplier.name} (ID: ${id})`);
       return supplierResponse;
 
     } catch (error) {
-      this.logger.error(`Failed to fetch supplier by ID ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to fetch supplier by ID ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to fetch supplier');
     }
   }
@@ -214,7 +239,7 @@ export class SupplierService {
    */
   async updateSupplier(id: string, updateSupplierDto: UpdateSupplierDto): Promise<SupplierResponse> {
     try {
-      this.logger.log(`Updating supplier ${id} with data: ${JSON.stringify(updateSupplierDto)}`);
+      this.logger.log(`Updating supplier ${id} with data!: ${JSON.stringify(updateSupplierDto)}`);
 
       // Check if supplier exists
       const existingSupplier = await this.prismaService.supplier.findUnique({
@@ -222,13 +247,13 @@ export class SupplierService {
       });
 
       if (!existingSupplier) {
-        this.logger.warn(`Supplier update attempted for non-existent ID: ${id}`);
+        this.logger.warn(`Supplier update attempted for non-existent ID!: ${id}`);
         throw new NotFoundException(`Supplier with ID ${id} not found`);
       }
 
       // Input validation and sanitization
       if (!this.securityService.validateInput(updateSupplierDto)) {
-        this.logger.warn(`Invalid input data for supplier update: ${id}`);
+        this.logger.warn(`Invalid input data for supplier update!: ${id}`);
         throw new BadRequestException('Invalid supplier data');
       }
 
@@ -262,13 +287,27 @@ export class SupplierService {
         data: sanitizedData,
       });
 
-      // Convert Decimal to number for response
+      // Convert Decimal to number for response and handle null to undefined conversion
       const supplierResponse: SupplierResponse = {
-        ...updatedSupplier,
+        id: updatedSupplier.id,
+        code: updatedSupplier.code,
+        name: updatedSupplier.name,
+        email: updatedSupplier.email,
+        phone: updatedSupplier.phone || undefined,
+        address: updatedSupplier.address || undefined,
+        city: updatedSupplier.city || undefined,
+        state: updatedSupplier.state || undefined,
+        postalCode: updatedSupplier.postalCode || undefined,
+        country: updatedSupplier.country || undefined,
+        taxId: updatedSupplier.taxId || undefined,
+        isActive: updatedSupplier.isActive,
         creditLimit: parseFloat(updatedSupplier.creditLimit.toString()),
+        paymentTerms: updatedSupplier.paymentTerms,
+        createdAt: updatedSupplier.createdAt,
+        updatedAt: updatedSupplier.updatedAt,
       };
 
-      this.logger.log(`Successfully updated supplier: ${updatedSupplier.name} (ID: ${id})`);
+      this.logger.log(`Successfully updated supplier!: ${updatedSupplier.name} (ID: ${id})`);
       return supplierResponse;
 
     } catch (error) {
@@ -276,7 +315,7 @@ export class SupplierService {
         throw error;
       }
 
-      this.logger.error(`Failed to update supplier ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to update supplier ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to update supplier');
     }
   }
@@ -286,7 +325,7 @@ export class SupplierService {
    */
   async deleteSupplier(id: string): Promise<void> {
     try {
-      this.logger.log(`Soft deleting supplier: ${id}`);
+      this.logger.log(`Soft deleting supplier!: ${id}`);
 
       // Check if supplier exists
       const existingSupplier = await this.prismaService.supplier.findUnique({
@@ -294,7 +333,7 @@ export class SupplierService {
       });
 
       if (!existingSupplier) {
-        this.logger.warn(`Supplier deletion attempted for non-existent ID: ${id}`);
+        this.logger.warn(`Supplier deletion attempted for non-existent ID!: ${id}`);
         throw new NotFoundException(`Supplier with ID ${id} not found`);
       }
 
@@ -304,14 +343,14 @@ export class SupplierService {
         data: { isActive: false },
       });
 
-      this.logger.log(`Successfully soft deleted supplier: ${existingSupplier.name} (ID: ${id})`);
+      this.logger.log(`Successfully soft deleted supplier!: ${existingSupplier.name} (ID: ${id})`);
 
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
 
-      this.logger.error(`Failed to delete supplier ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to delete supplier ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to delete supplier');
     }
   }
@@ -321,7 +360,7 @@ export class SupplierService {
    */
   async reactivateSupplier(id: string): Promise<SupplierResponse> {
     try {
-      this.logger.log(`Reactivating supplier: ${id}`);
+      this.logger.log(`Reactivating supplier!: ${id}`);
 
       const existingSupplier = await this.prismaService.supplier.findUnique({
         where: { id },
@@ -340,13 +379,27 @@ export class SupplierService {
         data: { isActive: true },
       });
 
-      // Convert Decimal to number for response
+      // Convert Decimal to number for response and handle null to undefined conversion
       const supplierResponse: SupplierResponse = {
-        ...reactivatedSupplier,
+        id: reactivatedSupplier.id,
+        code: reactivatedSupplier.code,
+        name: reactivatedSupplier.name,
+        email: reactivatedSupplier.email,
+        phone: reactivatedSupplier.phone || undefined,
+        address: reactivatedSupplier.address || undefined,
+        city: reactivatedSupplier.city || undefined,
+        state: reactivatedSupplier.state || undefined,
+        postalCode: reactivatedSupplier.postalCode || undefined,
+        country: reactivatedSupplier.country || undefined,
+        taxId: reactivatedSupplier.taxId || undefined,
+        isActive: reactivatedSupplier.isActive,
         creditLimit: parseFloat(reactivatedSupplier.creditLimit.toString()),
+        paymentTerms: reactivatedSupplier.paymentTerms,
+        createdAt: reactivatedSupplier.createdAt,
+        updatedAt: reactivatedSupplier.updatedAt,
       };
 
-      this.logger.log(`Successfully reactivated supplier: ${reactivatedSupplier.name} (ID: ${id})`);
+      this.logger.log(`Successfully reactivated supplier!: ${reactivatedSupplier.name} (ID: ${id})`);
       return supplierResponse;
 
     } catch (error) {
@@ -354,7 +407,7 @@ export class SupplierService {
         throw error;
       }
 
-      this.logger.error(`Failed to reactivate supplier ${id}: ${error.message}`, error.stack);
+      this.logger.error(`Failed to reactivate supplier ${id}: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to reactivate supplier');
     }
   }

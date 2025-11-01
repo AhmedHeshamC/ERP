@@ -1,11 +1,9 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { expect } from 'chai';
 import * as request from 'supertest';
-import { SupplierService } from './supplier.service';
-import { PurchaseOrderService } from './purchase-order.service';
 import { SupplierController } from './supplier.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { PrismaModule } from '../../shared/database/prisma.module';
@@ -29,9 +27,6 @@ import 'chai/register-expect';
 describe('Purchasing Module Integration Tests', () => {
   let app: INestApplication;
   let prismaService: any;
-  let supplierService: SupplierService;
-  let purchaseOrderService: PurchaseOrderService;
-  let authToken: string;
 
   // Setup test environment before all tests
   before(async () => {
@@ -66,7 +61,7 @@ describe('Purchasing Module Integration Tests', () => {
         }),
       ],
       controllers: [SupplierController, PurchaseOrderController],
-      providers: [SupplierService, PurchaseOrderService, AuthService, JwtStrategy, LocalStrategy],
+      providers: [AuthService, JwtStrategy, LocalStrategy],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -86,11 +81,9 @@ describe('Purchasing Module Integration Tests', () => {
 
     prismaService = new PrismaService(configService);
     await prismaService.$connect();
-    supplierService = moduleFixture.get<SupplierService>(SupplierService);
-    purchaseOrderService = moduleFixture.get<PurchaseOrderService>(PurchaseOrderService);
 
     // Create a test user and get auth token using direct generation
-    authToken = AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
+    AuthHelpers.createTestTokenDirect(UserRole.ADMIN);
   });
 
   // Cleanup after all tests
@@ -341,7 +334,6 @@ describe('Purchasing Module Integration Tests', () => {
     it('should reject purchase order creation with duplicate order number', async () => {
       // Arrange - Create first purchase order
       const timestamp = Date.now();
-      const duplicateOrderNumber = `DUP-PO-${timestamp}`;
 
       const createPurchaseOrderDto: CreatePurchaseOrderDto = {
         supplierId: testSupplier.id,
@@ -542,7 +534,6 @@ describe('Purchasing Module Integration Tests', () => {
 
     it('should filter purchase orders by status', async () => {
       // Arrange - Create purchase orders with different statuses
-      const draftPO = await createTestPurchaseOrder(testSupplier.id);
       const submittedPO = await createTestPurchaseOrder(testSupplier.id);
 
       await request(app.getHttpServer())
@@ -623,7 +614,7 @@ describe('Purchasing Module Integration Tests', () => {
       const purchaseOrder = await createTestPurchaseOrder(supplier.id);
 
       // Act - Update supplier
-      const updatedSupplier = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .put(`/suppliers/${supplier.id}`)
         .send({
           name: 'Updated Supplier Name',
@@ -966,7 +957,7 @@ describe('Purchasing Module Integration Tests', () => {
         },
       });
     } catch (error) {
-      console.log('Cleanup error:', error.message);
+      console.log('Cleanup error:', error instanceof Error ? error.message : "Unknown error");
     }
   }
 });

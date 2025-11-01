@@ -6,8 +6,7 @@ import {
   Matches,
   IsOptional,
   IsBoolean,
-  IsDateString,
-  IsNotEmpty,
+    IsNotEmpty,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
@@ -15,28 +14,30 @@ import { Transform } from 'class-transformer';
 /**
  * Base authentication response DTO
  */
+export interface AuthResponseUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  isActive: boolean;
+  isEmailVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export class AuthResponseDto {
   @ApiProperty({ description: 'User information' })
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    username: string;
-    isActive: boolean;
-    isEmailVerified: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  };
+  user!: AuthResponseUser;
 
   @ApiProperty({ description: 'JWT access token' })
-  accessToken: string;
+  accessToken!: string;
 
   @ApiProperty({ description: 'JWT refresh token' })
-  refreshToken: string;
+  refreshToken!: string;
 
   @ApiProperty({ description: 'Token expiration in seconds' })
-  expiresIn: number;
+  expiresIn!: number;
 }
 
 /**
@@ -49,7 +50,7 @@ export class RegisterDto {
   })
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 
   @ApiProperty({
     description: 'User password',
@@ -67,7 +68,7 @@ export class RegisterDto {
         'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
     },
   )
-  password: string;
+  password!: string;
 
   @ApiProperty({
     description: 'User first name',
@@ -82,7 +83,7 @@ export class RegisterDto {
     message: 'First name can only contain letters, spaces, hyphens, and apostrophes',
   })
   @Transform(({ value }) => value?.trim())
-  firstName: string;
+  firstName!: string;
 
   @ApiProperty({
     description: 'User last name',
@@ -97,7 +98,7 @@ export class RegisterDto {
     message: 'Last name can only contain letters, spaces, hyphens, and apostrophes',
   })
   @Transform(({ value }) => value?.trim())
-  lastName: string;
+  lastName!: string;
 
   @ApiProperty({
     description: 'Unique username',
@@ -112,7 +113,7 @@ export class RegisterDto {
     message: 'Username can only contain letters, numbers, underscores, and hyphens',
   })
   @Transform(({ value }) => value?.toLowerCase().trim())
-  username: string;
+  username!: string;
 
   @ApiPropertyOptional({
     description: 'User phone number',
@@ -145,7 +146,7 @@ export class LoginDto {
   @IsNotEmpty({ message: 'Email or username is required' })
   @IsString({ message: 'Email/username must be a string' })
   @Transform(({ value }) => value?.trim())
-  email: string; // Can be email or username
+  email!: string; // Can be email or username
 
   @ApiProperty({
     description: 'User password',
@@ -153,7 +154,7 @@ export class LoginDto {
   })
   @IsNotEmpty({ message: 'Password is required' })
   @IsString({ message: 'Password must be a string' })
-  password: string;
+  password!: string;
 
   @ApiPropertyOptional({
     description: 'Remember me flag',
@@ -176,7 +177,7 @@ export class RefreshTokenDto {
   })
   @IsNotEmpty({ message: 'Refresh token is required' })
   @IsString({ message: 'Refresh token must be a string' })
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 /**
@@ -189,7 +190,7 @@ export class ChangePasswordDto {
   })
   @IsNotEmpty({ message: 'Current password is required' })
   @IsString({ message: 'Current password must be a string' })
-  currentPassword: string;
+  currentPassword!: string;
 
   @ApiProperty({
     description: 'New password',
@@ -207,7 +208,7 @@ export class ChangePasswordDto {
         'New password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
     },
   )
-  newPassword: string;
+  newPassword!: string;
 
   @ApiProperty({
     description: 'Confirm new password',
@@ -215,7 +216,7 @@ export class ChangePasswordDto {
   })
   @IsNotEmpty({ message: 'Password confirmation is required' })
   @IsString({ message: 'Password confirmation must be a string' })
-  confirmPassword: string;
+  confirmPassword!: string;
 }
 
 /**
@@ -228,7 +229,7 @@ export class ForgotPasswordDto {
   })
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 }
 
 /**
@@ -241,7 +242,7 @@ export class ResetPasswordDto {
   })
   @IsNotEmpty({ message: 'Reset token is required' })
   @IsString({ message: 'Reset token must be a string' })
-  token: string;
+  token!: string;
 
   @ApiProperty({
     description: 'New password',
@@ -259,7 +260,7 @@ export class ResetPasswordDto {
         'New password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
     },
   )
-  newPassword: string;
+  newPassword!: string;
 
   @ApiProperty({
     description: 'Confirm new password',
@@ -267,23 +268,25 @@ export class ResetPasswordDto {
   })
   @IsNotEmpty({ message: 'Password confirmation is required' })
   @IsString({ message: 'Password confirmation must be a string' })
-  confirmPassword: string;
+  confirmPassword!: string;
 }
 
 /**
  * Token validation response DTO
  */
-export class TokenValidationDto {
-  @ApiProperty({ description: 'Token validity status' })
-  valid: boolean;
-
-  @ApiPropertyOptional({ description: 'User information if token is valid' })
-  user?: {
+export interface TokenValidationUser {
     id: string;
     email: string;
     isActive: boolean;
     isEmailVerified: boolean;
-  };
+  }
+
+export class TokenValidationDto {
+  @ApiProperty({ description: 'Token validity status' })
+  valid!: boolean;
+
+  @ApiPropertyOptional({ description: 'User information if token is valid' })
+  user?: TokenValidationUser;
 
   @ApiPropertyOptional({ description: 'Token expiration date' })
   expiresAt?: Date;
@@ -294,7 +297,7 @@ export class TokenValidationDto {
  */
 export class LogoutResponseDto {
   @ApiProperty({ description: 'Logout success status' })
-  success: boolean;
+  success!: boolean;
 
   @ApiPropertyOptional({ description: 'Logout message' })
   message?: string;
@@ -305,7 +308,7 @@ export class LogoutResponseDto {
  */
 export class PasswordChangeResponseDto {
   @ApiProperty({ description: 'Password change success status' })
-  success: boolean;
+  success!: boolean;
 
   @ApiPropertyOptional({ description: 'Password change message' })
   message?: string;
@@ -316,10 +319,10 @@ export class PasswordChangeResponseDto {
  */
 export class ForgotPasswordResponseDto {
   @ApiProperty({ description: 'Operation success status' })
-  success: boolean;
+  success!: boolean;
 
   @ApiProperty({ description: 'Response message' })
-  message: string;
+  message!: string;
 }
 
 /**
@@ -327,7 +330,7 @@ export class ForgotPasswordResponseDto {
  */
 export class ResetPasswordResponseDto {
   @ApiProperty({ description: 'Password reset success status' })
-  success: boolean;
+  success!: boolean;
 
   @ApiPropertyOptional({ description: 'Password reset message' })
   message?: string;
