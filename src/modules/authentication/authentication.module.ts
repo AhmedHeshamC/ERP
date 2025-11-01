@@ -8,6 +8,10 @@ import { PrismaModule } from '../../shared/database/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+// Guards
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
+
 @Module({
   imports: [
     ConfigModule,
@@ -29,7 +33,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     AuthService,
     JwtStrategy,
     LocalStrategy,
+    JwtAuthGuard,
+    RolesGuard,
   ],
-  exports: [AuthService],
+  exports: [AuthService, JwtAuthGuard, RolesGuard],
 })
 export class AuthenticationModule {}

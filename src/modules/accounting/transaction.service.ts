@@ -11,15 +11,6 @@ export class TransactionService {
   async create(createTransactionDto: CreateTransactionDto, createdBy: string) {
     const { reference, description, amount, type, entries, date, currency } = createTransactionDto;
 
-    // Check if reference already exists
-    const existingTransaction = await this.prisma.transaction.findUnique({
-      where: { reference },
-    });
-
-    if (existingTransaction) {
-      throw new BadRequestException('Transaction reference already exists');
-    }
-
     // Validate accounts exist
     const accountIds = entries.map(entry => entry.accountId);
     const accounts = await this.prisma.chartOfAccounts.findMany({
@@ -71,6 +62,12 @@ export class TransactionService {
         ...transaction,
         entries: journalEntries,
       };
+    }).catch((error) => {
+      // Handle unique constraint violation
+      if (error.code === 'P2002' && error.meta?.target?.includes('reference')) {
+        throw new BadRequestException('Transaction reference already exists');
+      }
+      throw error;
     });
 
     return result;

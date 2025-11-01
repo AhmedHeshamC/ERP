@@ -12,6 +12,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { PurchasingModule } from './modules/purchasing/purchasing.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { HrModule } from './modules/hr/hr.module';
 import { CommonModule } from './shared/common/common.module';
 import { configuration } from './config/configuration';
 import { validationSchema } from './config/validation';
@@ -77,6 +78,7 @@ import { validationSchema } from './config/validation';
     SalesModule,
     PurchasingModule,
     ReportsModule,
+    HrModule,
   ],
   controllers: [],
   providers: [],

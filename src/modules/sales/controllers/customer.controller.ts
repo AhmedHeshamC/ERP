@@ -9,19 +9,26 @@ import {
   Query,
   HttpStatus,
   HttpCode,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CustomerService } from '../services/customer.service';
 import { CreateCustomerDto } from '../dto/create-customer.dto';
 import { UpdateCustomerDto } from '../dto/update-customer.dto';
 import { CustomerQueryDto } from '../dto/customer-query.dto';
+import { JwtAuthGuard } from '../../authentication/guards/jwt-auth.guard';
+import { RolesGuard } from '../../authentication/guards/roles.guard';
+import { Roles } from '../../authentication/decorators/roles.decorator';
+import { UserRole } from '../../users/dto/user.dto';
 
 @ApiTags('customers')
 @Controller('sales/customers')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Create a new customer' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Customer created successfully' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
@@ -29,11 +36,7 @@ export class CustomerController {
   async create(@Body() createCustomerDto: CreateCustomerDto) {
     try {
       const customer = await this.customerService.create(createCustomerDto);
-      return {
-        success: true,
-        message: 'Customer created successfully',
-        data: customer,
-      };
+      return customer; // Return data directly for test compatibility
     } catch (error) {
       throw error;
     }
@@ -45,10 +48,10 @@ export class CustomerController {
   async findAll(@Query() query: CustomerQueryDto) {
     try {
       const result = await this.customerService.findAll(query);
+      // Return in the format expected by tests
       return {
-        success: true,
-        message: 'Customers retrieved successfully',
-        ...result,
+        data: result.data,
+        pagination: result.pagination,
       };
     } catch (error) {
       throw error;
@@ -62,17 +65,14 @@ export class CustomerController {
   async findOne(@Param('id') id: string) {
     try {
       const customer = await this.customerService.findOne(id);
-      return {
-        success: true,
-        message: 'Customer retrieved successfully',
-        data: customer,
-      };
+      return customer; // Return data directly for test compatibility
     } catch (error) {
       throw error;
     }
   }
 
   @Patch(':id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Update customer' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Customer updated successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Customer not found' })
@@ -80,17 +80,14 @@ export class CustomerController {
   async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
     try {
       const customer = await this.customerService.update(id, updateCustomerDto);
-      return {
-        success: true,
-        message: 'Customer updated successfully',
-        data: customer,
-      };
+      return customer; // Return data directly for test compatibility
     } catch (error) {
       throw error;
     }
   }
 
   @Patch(':id/status')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Update customer active status' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Customer status updated successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Customer not found' })
@@ -100,11 +97,7 @@ export class CustomerController {
   ) {
     try {
       const customer = await this.customerService.updateStatus(id, updateStatusDto.isActive);
-      return {
-        success: true,
-        message: `Customer ${updateStatusDto.isActive ? 'activated' : 'deactivated'} successfully`,
-        data: customer,
-      };
+      return customer; // Return data directly for test compatibility
     } catch (error) {
       throw error;
     }

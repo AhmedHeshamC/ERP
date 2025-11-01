@@ -5,19 +5,25 @@ import {
   Param,
   Body,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { InvoiceService } from '../services/invoice.service';
 import { CreateInvoiceDto } from '../dto/create-invoice.dto';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
+import { JwtAuthGuard } from '../../authentication/guards/jwt-auth.guard';
+import { RolesGuard } from '../../authentication/guards/roles.guard';
+import { Roles } from '../../authentication/decorators/roles.decorator';
+import { UserRole } from '../../users/dto/user.dto';
 
 @ApiTags('invoices')
 @Controller('sales')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class InvoiceController {
   constructor(private readonly invoiceService: InvoiceService) {}
 
   @Post('orders/:orderId/invoices')
-  
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Generate invoice for order' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Invoice generated successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Order not found' })
@@ -28,11 +34,7 @@ export class InvoiceController {
   ) {
     try {
       const invoice = await this.invoiceService.createFromOrder(orderId, createInvoiceDto);
-      return {
-        success: true,
-        message: 'Invoice generated successfully',
-        data: invoice,
-      };
+      return invoice; // Return data directly for test compatibility
     } catch (error) {
       throw error;
     }
@@ -45,18 +47,14 @@ export class InvoiceController {
   async findOne(@Param('id') id: string) {
     try {
       const invoice = await this.invoiceService.findOne(id);
-      return {
-        success: true,
-        message: 'Invoice retrieved successfully',
-        data: invoice,
-      };
+      return invoice; // Return data directly for test compatibility
     } catch (error) {
       throw error;
     }
   }
 
   @Post('invoices/:invoiceId/payments')
-  
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Record payment for invoice' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Payment recorded successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Invoice not found' })
@@ -67,11 +65,7 @@ export class InvoiceController {
   ) {
     try {
       const payment = await this.invoiceService.createPayment(invoiceId, createPaymentDto);
-      return {
-        success: true,
-        message: 'Payment recorded successfully',
-        data: payment,
-      };
+      return payment; // Return data directly for test compatibility
     } catch (error) {
       throw error;
     }

@@ -212,12 +212,8 @@ export class UserController {
       };
 
       return {
-        success: true,
-        message: 'Users retrieved successfully',
-        data: {
-          users: result.users,
-          pagination,
-        },
+        data: result.users,
+        pagination,
       };
     } catch (error) {
       this.logger.error(`Failed to retrieve users: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
