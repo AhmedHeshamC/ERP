@@ -1,0 +1,467 @@
+import { expect } from 'chai';
+import { PerformanceService, PerformanceMetrics } from '../../shared/monitoring/performance.service';
+import { ConfigService } from '@nestjs/config';
+import { createSandbox, SinonSandbox } from 'sinon';
+
+describe('PerformanceService', () => {
+  let performanceService: PerformanceService;
+  let configService: ConfigService;
+  let sandbox: SinonSandbox;
+
+  beforeEach(() => {
+    sandbox = createSandbox();
+
+    configService = {
+      get: sandbox.stub(),
+    } as any;
+
+    performanceService = new PerformanceService(configService);
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe('recordMetrics', () => {
+    it('should record performance metrics', () => {
+      const metrics: PerformanceMetrics = {
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 150,
+        timestamp: new Date(),
+        statusCode: 200,
+        cacheHit: true,
+      };
+
+      performanceService.recordMetrics(metrics);
+
+      const stats = performanceService.getStats();
+      expect(stats.totalRequests).to.equal(1);
+      expect(stats.averageResponseTime).to.equal(150);
+      expect(stats.fastestRequest).to.equal(150);
+      expect(stats.slowestRequest).to.equal(150);
+    });
+
+    it('should calculate hit rate correctly', () => {
+      const metrics1: PerformanceMetrics = {
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 100,
+        timestamp: new Date(),
+        statusCode: 200,
+        cacheHit: true,
+      };
+
+      const metrics2: PerformanceMetrics = {
+        endpoint: 'GET /api/v1/products',
+        method: 'GET',
+        duration: 200,
+        timestamp: new Date(),
+        statusCode: 200,
+        cacheHit: false,
+      };
+
+      performanceService.recordMetrics(metrics1);
+      performanceService.recordMetrics(metrics2);
+
+      const stats = performanceService.getStats();
+      expect(stats.cacheHitRate).to.equal(50);
+    });
+
+    it('should trim metrics when exceeding max size', () => {
+      // Simulate max size limit
+      performanceService['maxMetrics'] = 2;
+
+      for (let i = 0; i < 5; i++) {
+        performanceService.recordMetrics({
+          endpoint: `GET /api/v1/test${i}`,
+          method: 'GET',
+          duration: 100 + i,
+          timestamp: new Date(),
+          statusCode: 200,
+        });
+      }
+
+      const stats = performanceService.getStats();
+      // Should only have last 2 metrics
+      expect(stats.totalRequests).to.equal(2);
+    });
+  });
+
+  describe('getStats', () => {
+    beforeEach(() => {
+      // Add some test metrics
+      const metrics: PerformanceMetrics[] = [
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 100,
+          timestamp: new Date(Date.now() - 1000),
+          statusCode: 200,
+          cacheHit: true,
+        },
+        {
+          endpoint: 'POST /api/v1/customers',
+          method: 'POST',
+          duration: 300,
+          timestamp: new Date(Date.now() - 2000),
+          statusCode: 201,
+          cacheHit: false,
+        },
+        {
+          endpoint: 'GET /api/v1/products',
+          method: 'GET',
+          duration: 500,
+          timestamp: new Date(Date.now() - 3000),
+          statusCode: 500,
+          cacheHit: false,
+        },
+      ];
+
+      metrics.forEach(metric => performanceService.recordMetrics(metric));
+    });
+
+    it('should calculate correct statistics', () => {
+      const stats = performanceService.getStats();
+
+      expect(stats.totalRequests).to.equal(3);
+      expect(stats.averageResponseTime).to.equal(300); // (100 + 300 + 500) / 3
+      expect(stats.fastestRequest).to.equal(100);
+      expect(stats.slowestRequest).to.equal(500);
+      expect(stats.errorRate).to.equal(33.333333333333336); // 1 error out of 3 requests
+      expect(stats.cacheHitRate).to.equal(33.333333333333336); // 1 cache hit out of 3 requests
+    });
+
+    it('should respect time window', () => {
+      // Test with 2 second window - should only include last 2 requests
+      const stats = performanceService.getStats(2);
+
+      expect(stats.totalRequests).to.equal(2);
+      expect(stats.averageResponseTime).to.equal(200); // (100 + 300) / 2
+      expect(stats.errorRate).to.equal(0); // No errors in last 2 seconds
+    });
+  });
+
+  describe('getEndpointStats', () => {
+    beforeEach(() => {
+      const metrics: PerformanceMetrics[] = [
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 100,
+          timestamp: new Date(),
+          statusCode: 200,
+          cacheHit: true,
+        },
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 150,
+          timestamp: new Date(),
+          statusCode: 200,
+          cacheHit: true,
+        },
+        {
+          endpoint: 'POST /api/v1/products',
+          method: 'POST',
+          duration: 300,
+          timestamp: new Date(),
+          statusCode: 201,
+          cacheHit: false,
+        },
+      ];
+
+      metrics.forEach(metric => performanceService.recordMetrics(metric));
+    });
+
+    it('should return stats for specific endpoint', () => {
+      const stats = performanceService.getEndpointStats('GET /api/v1/customers');
+
+      expect(stats.totalRequests).to.equal(2);
+      expect(stats.averageResponseTime).to.equal(125); // (100 + 150) / 2
+      expect(stats.cacheHitRate).to.equal(100); // Both requests were cache hits
+    });
+
+    it('should return empty stats for non-existent endpoint', () => {
+      const stats = performanceService.getEndpointStats('GET /api/v1/nonexistent');
+
+      expect(stats.totalRequests).to.equal(0);
+      expect(stats.averageResponseTime).to.equal(0);
+    });
+  });
+
+  describe('getSlowestEndpoints', () => {
+    beforeEach(() => {
+      const metrics: PerformanceMetrics[] = [
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 100,
+          timestamp: new Date(),
+          statusCode: 200,
+        },
+        {
+          endpoint: 'POST /api/v1/products',
+          method: 'POST',
+          duration: 500,
+          timestamp: new Date(),
+          statusCode: 201,
+        },
+        {
+          endpoint: 'GET /api/v1/orders',
+          method: 'GET',
+          duration: 300,
+          timestamp: new Date(),
+          statusCode: 200,
+        },
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 150,
+          timestamp: new Date(),
+          statusCode: 200,
+        },
+      ];
+
+      metrics.forEach(metric => performanceService.recordMetrics(metric));
+    });
+
+    it('should return slowest endpoints ordered by average response time', () => {
+      const slowest = performanceService.getSlowestEndpoints(3);
+
+      expect(slowest).to.have.length(3);
+      expect(slowest[0].endpoint).to.equal('POST /api/v1/products');
+      expect(slowest[0].averageResponseTime).to.equal(500);
+      expect(slowest[1].endpoint).to.equal('GET /api/v1/orders');
+      expect(slowest[1].averageResponseTime).to.equal(300);
+      expect(slowest[2].endpoint).to.equal('GET /api/v1/customers');
+      expect(slowest[2].averageResponseTime).to.equal(125); // (100 + 150) / 2
+    });
+  });
+
+  describe('getMostActiveEndpoints', () => {
+    beforeEach(() => {
+      const metrics: PerformanceMetrics[] = [
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 100,
+          timestamp: new Date(),
+          statusCode: 200,
+        },
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 150,
+          timestamp: new Date(),
+          statusCode: 200,
+        },
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 120,
+          timestamp: new Date(),
+          statusCode: 200,
+        },
+        {
+          endpoint: 'POST /api/v1/products',
+          method: 'POST',
+          duration: 300,
+          timestamp: new Date(),
+          statusCode: 201,
+        },
+      ];
+
+      metrics.forEach(metric => performanceService.recordMetrics(metric));
+    });
+
+    it('should return most active endpoints ordered by request count', () => {
+      const mostActive = performanceService.getMostActiveEndpoints(2);
+
+      expect(mostActive).to.have.length(2);
+      expect(mostActive[0].endpoint).to.equal('GET /api/v1/customers');
+      expect(mostActive[0].requestCount).to.equal(3);
+      expect(mostActive[1].endpoint).to.equal('POST /api/v1/products');
+      expect(mostActive[1].requestCount).to.equal(1);
+    });
+  });
+
+  describe('getErrorStats', () => {
+    beforeEach(() => {
+      const metrics: PerformanceMetrics[] = [
+        {
+          endpoint: 'GET /api/v1/customers',
+          method: 'GET',
+          duration: 100,
+          timestamp: new Date(),
+          statusCode: 200,
+        },
+        {
+          endpoint: 'POST /api/v1/products',
+          method: 'POST',
+          duration: 200,
+          timestamp: new Date(),
+          statusCode: 400,
+        },
+        {
+          endpoint: 'GET /api/v1/orders',
+          method: 'GET',
+          duration: 300,
+          timestamp: new Date(),
+          statusCode: 500,
+        },
+        {
+          endpoint: 'PUT /api/v1/customers',
+          method: 'PUT',
+          duration: 150,
+          timestamp: new Date(),
+          statusCode: 500,
+        },
+      ];
+
+      metrics.forEach(metric => performanceService.recordMetrics(metric));
+    });
+
+    it('should return error statistics', () => {
+      const errorStats = performanceService.getErrorStats();
+
+      expect(errorStats.totalErrors).to.equal(3);
+      expect(errorStats.errorRate).to.equal(75); // 3 errors out of 4 total requests
+      expect(errorStats.commonErrors).to.have.length(2);
+      expect(errorStats.commonErrors[0].statusCode).to.equal(500);
+      expect(errorStats.commonErrors[0].count).to.equal(2);
+      expect(errorStats.commonErrors[1].statusCode).to.equal(400);
+      expect(errorStats.commonErrors[1].count).to.equal(1);
+    });
+  });
+
+  describe('checkPerformanceTargets', () => {
+    beforeEach(() => {
+      // Set some metrics
+      performanceService['alertThresholds'] = {
+        responseTime: 200,
+        errorRate: 5,
+        memoryUsage: 1024,
+        requestsPerMinute: 1000,
+      };
+    });
+
+    it('should pass when all targets are met', () => {
+      performanceService.recordMetrics({
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 100,
+        timestamp: new Date(),
+        statusCode: 200,
+        cacheHit: true,
+      });
+
+      const targets = performanceService.checkPerformanceTargets();
+
+      expect(targets.meetsTargets).to.be.true;
+      expect(targets.issues).to.be.empty;
+    });
+
+    it('should fail when response time target is not met', () => {
+      performanceService.recordMetrics({
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 300, // Above threshold
+        timestamp: new Date(),
+        statusCode: 200,
+      });
+
+      const targets = performanceService.checkPerformanceTargets();
+
+      expect(targets.meetsTargets).to.be.false;
+      expect(targets.issues).to.include('Average response time (300ms) exceeds threshold (200ms)');
+    });
+
+    it('should fail when error rate target is not met', () => {
+      performanceService.recordMetrics({
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 100,
+        timestamp: new Date(),
+        statusCode: 500,
+      });
+
+      const targets = performanceService.checkPerformanceTargets();
+
+      expect(targets.meetsTargets).to.be.false;
+      expect(targets.issues).to.include('Error rate (100.00%) exceeds threshold (5%)');
+    });
+
+    it('should provide recommendations when targets are not met', () => {
+      performanceService.recordMetrics({
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 300,
+        timestamp: new Date(),
+        statusCode: 500,
+      });
+
+      const targets = performanceService.checkPerformanceTargets();
+
+      expect(targets.recommendations).to.include('Consider optimizing database queries or implementing caching');
+      expect(targets.recommendations).to.include('Review error logs and improve error handling');
+    });
+  });
+
+  describe('clearMetrics', () => {
+    it('should clear all metrics', () => {
+      performanceService.recordMetrics({
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 100,
+        timestamp: new Date(),
+        statusCode: 200,
+      });
+
+      expect(performanceService.getStats().totalRequests).to.equal(1);
+
+      performanceService.clearMetrics();
+
+      const stats = performanceService.getStats();
+      expect(stats.totalRequests).to.equal(0);
+      expect(stats.averageResponseTime).to.equal(0);
+    });
+  });
+
+  describe('updateAlertThresholds', () => {
+    it('should update alert thresholds', () => {
+      const newThresholds = {
+        responseTime: 500,
+        errorRate: 10,
+      };
+
+      performanceService.updateAlertThresholds(newThresholds);
+
+      const thresholds = performanceService.getAlertThresholds();
+      expect(thresholds.responseTime).to.equal(500);
+      expect(thresholds.errorRate).to.equal(10);
+      expect(thresholds.memoryUsage).to.equal(1024); // Should retain existing value
+    });
+  });
+
+  describe('exportData', () => {
+    it('should export performance data', () => {
+      performanceService.recordMetrics({
+        endpoint: 'GET /api/v1/customers',
+        method: 'GET',
+        duration: 100,
+        timestamp: new Date(),
+        statusCode: 200,
+      });
+
+      const exportedData = performanceService.exportData();
+
+      expect(exportedData).to.have.property('stats');
+      expect(exportedData).to.have.property('metrics');
+      expect(exportedData).to.have.property('slowestEndpoints');
+      expect(exportedData).to.have.property('errorStats');
+      expect(exportedData).to.have.property('generatedAt');
+      expect(exportedData.metrics).to.have.length(1);
+    });
+  });
+});

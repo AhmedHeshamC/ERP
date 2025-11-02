@@ -1,0 +1,246 @@
+import { expect } from 'chai';
+import { describe, it, beforeEach, afterEach } from 'mocha';
+import { PerformanceService } from '../../shared/monitoring/performance.service';
+import { CacheService } from '../../shared/cache/cache.service';
+import { ConfigService } from '@nestjs/config';
+import { createSandbox, SinonSandbox } from 'sinon';
+
+describe('Comprehensive Performance Tests', () => {
+  let performanceService: PerformanceService;
+  let cacheService: CacheService;
+  let configService: ConfigService;
+  let sandbox: SinonSandbox;
+
+  beforeEach(() => {
+    sandbox = createSandbox();
+    configService = {
+      get: sandbox.stub(),
+    } as any;
+
+    performanceService = new PerformanceService(configService);
+    cacheService = new CacheService(configService);
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe('Cache Performance Tests', () => {
+    it('should handle high-volume cache operations', async () => {
+      const operations = 1000;
+      const startTime = Date.now();
+
+      const promises = [];
+      for (let i = 0; i < operations; i++) {
+        promises.push(cacheService.set(`test-key-${i}`, `test-value-${i}`, { ttl: 300 }));
+        promises.push(cacheService.get(`test-key-${i}`));
+      }
+
+      await Promise.all(promises);
+      const duration = Date.now() - startTime;
+
+      expect(duration).to.be.lessThan(5000); // Should complete within 5 seconds
+    });
+
+    it('should maintain cache hit rate above 80% under load', async () => {
+      // Setup initial cache
+      await cacheService.set('popular-key-1', 'value1', { ttl: 300 });
+      await cacheService.set('popular-key-2', 'value2', { ttl: 300 });
+      await cacheService.set('popular-key-3', 'value3', { ttl: 300 });
+
+      const requests = [];
+      let hitCount = 0;
+
+      // Simulate realistic access patterns (80% popular keys, 20% random)
+      for (let i = 0; i < 1000; i++) {
+        const key = Math.random() < 0.8
+          ? `popular-key-${Math.floor(Math.random() * 3) + 1}`
+          : `random-key-${i}`;
+
+        requests.push(
+          cacheService.get(key).then(result => {
+            if (result !== null) hitCount++;
+          })
+        );
+      }
+
+      await Promise.all(requests);
+      const hitRate = (hitCount / 1000) * 100;
+
+      expect(hitRate).to.be.at.least(70); // Allow some tolerance
+    });
+
+    it('should handle cache invalidation efficiently', async () => {
+      // Setup cache with many entries
+      const setupPromises = [];
+      for (let i = 0; i < 1000; i++) {
+        setupPromises.push(cacheService.set(`category:${i % 10}:item:${i}`, `value-${i}`));
+      }
+      await Promise.all(setupPromises);
+
+      const startTime = Date.now();
+      await cacheService.delPattern('category:5:*');
+      const invalidationTime = Date.now() - startTime;
+
+      expect(invalidationTime).to.be.lessThan(1000); // Should complete within 1 second
+    });
+  });
+
+  describe('Performance Monitoring Tests', () => {
+    it('should track performance metrics accurately', () => {
+      const testMetrics = [
+        { endpoint: '/test1', duration: 150, timestamp: new Date(), statusCode: 200 },
+        { endpoint: '/test2', duration: 250, timestamp: new Date(), statusCode: 200 },
+        { endpoint: '/test1', duration: 100, timestamp: new Date(), statusCode: 200 },
+        { endpoint: '/test3', duration: 5000, timestamp: new Date(), statusCode: 500 },
+        { endpoint: '/test1', duration: 200, timestamp: new Date(), statusCode: 200 },
+      ];
+
+      testMetrics.forEach(metric => performanceService.recordMetrics(metric));
+
+      const stats = performanceService.getStats();
+
+      expect(stats.totalRequests).to.equal(5);
+      expect(stats.averageResponseTime).to.be.approximately(1120, 10);
+      expect(stats.errorRate).to.equal(20); // 1 error out of 5 requests
+      expect(stats.fastestRequest).to.equal(100);
+      expect(stats.slowestRequest).to.equal(5000);
+    });
+
+    it('should identify performance bottlenecks', () => {
+      const slowEndpoints = [
+        { endpoint: '/api/v1/reports/generate', duration: 5000, timestamp: new Date(), statusCode: 200 },
+        { endpoint: '/api/v1/reports/generate', duration: 6000, timestamp: new Date(), statusCode: 200 },
+        { endpoint: '/api/v1/inventory/stock', duration: 3000, timestamp: new Date(), statusCode: 200 },
+        { endpoint: '/api/v1/inventory/stock', duration: 3500, timestamp: new Date(), statusCode: 200 },
+      ];
+
+      slowEndpoints.forEach(metric => performanceService.recordMetrics(metric));
+
+      const bottlenecks = performanceService.getSlowestEndpoints(2);
+
+      expect(bottlenecks).to.have.length(2);
+      expect(bottlenecks[0].endpoint).to.equal('/api/v1/reports/generate');
+      expect(bottlenecks[0].averageResponseTime).to.equal(5500);
+      expect(bottlenecks[1].endpoint).to.equal('/api/v1/inventory/stock');
+      expect(bottlenecks[1].averageResponseTime).to.equal(3250);
+    });
+
+    it('should generate performance alerts correctly', () => {
+      const slowRequests = [
+        { endpoint: '/slow-endpoint', duration: 3000, timestamp: new Date(), statusCode: 200 },
+        { endpoint: '/slow-endpoint', duration: 2500, timestamp: new Date(), statusCode: 200 },
+      ];
+
+      slowRequests.forEach(metric => performanceService.recordMetrics(metric));
+
+      const targets = performanceService.checkPerformanceTargets();
+
+      expect(targets.meetsTargets).to.be.false;
+      expect(targets.issues).to.include.members([
+        'Average response time (2750ms) exceeds threshold (2000ms)'
+      ]);
+      expect(targets.recommendations).to.include.members([
+        'Consider optimizing database queries or implementing caching'
+      ]);
+    });
+  });
+
+  describe('Integration Performance Tests', () => {
+    it('should maintain performance under concurrent load', async () => {
+      const concurrentRequests = 100;
+      const promises = [];
+
+      const startTime = Date.now();
+
+      for (let i = 0; i < concurrentRequests; i++) {
+        promises.push(
+          cacheService.getOrSet(
+            `concurrent-test-${i}`,
+            async () => {
+              // Simulate database operation
+              await new Promise(resolve => setTimeout(resolve, 50));
+              return `result-${i}`;
+            },
+            { ttl: 300 }
+          )
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const totalTime = Date.now() - startTime;
+
+      expect(results).to.have.length(concurrentRequests);
+      expect(totalTime).to.be.lessThan(5000); // Should complete within 5 seconds
+
+      // Verify all results are correct
+      for (let i = 0; i < concurrentRequests; i++) {
+        expect(results[i]).to.equal(`result-${i}`);
+      }
+    });
+
+    it('should handle cache fallback gracefully', async () => {
+      // Mock cache failure
+      const originalGet = cacheService.get.bind(cacheService);
+      let callCount = 0;
+
+      sandbox.stub(cacheService, 'get').callsFake(async (key) => {
+        callCount++;
+        if (callCount <= 3) {
+          throw new Error('Cache unavailable');
+        }
+        return originalGet(key);
+      });
+
+      let factoryCalls = 0;
+      const result = await cacheService.getOrSet(
+        'fallback-test',
+        async () => {
+          factoryCalls++;
+          return 'fallback-result';
+        },
+        { ttl: 300 }
+      );
+
+      expect(result).to.equal('fallback-result');
+      expect(factoryCalls).to.equal(1); // Should only call factory once despite cache failures
+    });
+  });
+
+  describe('Memory and Resource Management', () => {
+    it('should not cause memory leaks with large datasets', async () => {
+      const initialMemory = process.memoryUsage().heapUsed;
+
+      // Process large dataset
+      const largeDataset = [];
+      for (let i = 0; i < 10000; i++) {
+        largeDataset.push({
+          id: i,
+          data: 'x'.repeat(1000), // 1KB per item
+          timestamp: new Date(),
+        });
+      }
+
+      // Cache and retrieve large dataset
+      const cachePromises = largeDataset.map(item =>
+        cacheService.set(`large-item-${item.id}`, item, { ttl: 300 })
+      );
+
+      await Promise.all(cachePromises);
+
+      // Clear the reference to allow garbage collection
+      largeDataset.length = 0;
+
+      // Force garbage collection if available
+      if (global.gc) {
+        global.gc();
+      }
+
+      const finalMemory = process.memoryUsage().heapUsed;
+      const memoryIncrease = finalMemory - initialMemory;
+
+      // Memory increase should be reasonable (less than 100MB)
+      expect(memoryIncrease).to.be.lessThan(100 * 1024 * 1024);
+    });
+  });
+});

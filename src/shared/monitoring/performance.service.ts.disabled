@@ -1,0 +1,454 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+export interface PerformanceMetrics {
+  endpoint?: string;
+  method?: string;
+  duration: number;
+  timestamp: Date;
+  userId?: string;
+  statusCode?: number;
+  cacheHit?: boolean;
+  queryTime?: number;
+  memoryUsage?: number;
+}
+
+export interface PerformanceStats {
+  totalRequests: number;
+  averageResponseTime: number;
+  slowestRequest: number;
+  fastestRequest: number;
+  errorRate: number;
+  requestsPerMinute: number;
+  cacheHitRate: number;
+  memoryUsage: number;
+  activeConnections: number;
+}
+
+export interface AlertThreshold {
+  responseTime: number; // in ms
+  errorRate: number; // percentage
+  memoryUsage: number; // in MB
+  requestsPerMinute: number;
+}
+
+@Injectable()
+export class PerformanceService implements OnModuleInit {
+  private readonly logger = new Logger(PerformanceService.name);
+  private metrics: PerformanceMetrics[] = [];
+  private maxMetrics = 10000; // Keep last 10000 metrics
+  private alertThresholds: AlertThreshold = {
+    responseTime: 2000, // 2 seconds
+    errorRate: 5, // 5%
+    memoryUsage: 1024, // 1GB
+    requestsPerMinute: 1000,
+  };
+
+  constructor(private readonly configService: ConfigService) {}
+
+  onModuleInit() {
+    // Clean up old metrics periodically
+    setInterval(() => {
+      this.cleanupOldMetrics();
+    }, 60000); // Every minute
+
+    // Log performance stats periodically
+    setInterval(() => {
+      this.logPerformanceStats();
+    }, 300000); // Every 5 minutes
+  }
+
+  /**
+   * Record performance metrics for a request
+   */
+  recordMetrics(metrics: PerformanceMetrics): void {
+    // Add to metrics array
+    this.metrics.push(metrics);
+
+    // Trim if exceeded max size
+    if (this.metrics.length > this.maxMetrics) {
+      this.metrics = this.metrics.slice(-this.maxMetrics);
+    }
+
+    // Check for performance alerts
+    this.checkAlerts(metrics);
+  }
+
+  /**
+   * Get current performance statistics
+   */
+  getStats(timeWindow?: number): PerformanceStats {
+    const now = new Date();
+    const windowStart = timeWindow
+      ? new Date(now.getTime() - timeWindow * 1000) // timeWindow in seconds
+      : new Date(now.getTime() - 3600000); // Default 1 hour
+
+    const recentMetrics = this.metrics.filter(
+      metric => metric.timestamp >= windowStart
+    );
+
+    if (recentMetrics.length === 0) {
+      return this.getEmptyStats();
+    }
+
+    const totalRequests = recentMetrics.length;
+    const durations = recentMetrics.map(m => m.duration);
+    const errors = recentMetrics.filter(m => m.statusCode && m.statusCode >= 400);
+    const cacheHits = recentMetrics.filter(m => m.cacheHit === true);
+
+    return {
+      totalRequests,
+      averageResponseTime: this.calculateAverage(durations),
+      slowestRequest: Math.max(...durations),
+      fastestRequest: Math.min(...durations),
+      errorRate: (errors.length / totalRequests) * 100,
+      requestsPerMinute: this.calculateRequestsPerMinute(recentMetrics),
+      cacheHitRate: cacheHits.length > 0
+        ? (cacheHits.length / totalRequests) * 100
+        : 0,
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // MB
+      activeConnections: 0, // Would need to track this
+    };
+  }
+
+  /**
+   * Get metrics for a specific endpoint
+   */
+  getEndpointStats(endpoint: string, timeWindow?: number): PerformanceStats {
+    const endpointMetrics = this.metrics.filter(
+      metric => metric.endpoint === endpoint
+    );
+
+    if (endpointMetrics.length === 0) {
+      return this.getEmptyStats();
+    }
+
+    const windowStart = timeWindow
+      ? new Date(Date.now() - timeWindow * 1000)
+      : new Date(Date.now() - 3600000);
+
+    const recentMetrics = endpointMetrics.filter(
+      metric => metric.timestamp >= windowStart
+    );
+
+    return this.calculateStatsFromMetrics(recentMetrics);
+  }
+
+  /**
+   * Get slowest endpoints
+   */
+  getSlowestEndpoints(limit: number = 10): Array<{
+    endpoint: string;
+    averageResponseTime: number;
+    requestCount: number;
+  }> {
+    const endpointGroups = this.groupMetricsByEndpoint();
+
+    return Object.entries(endpointGroups)
+      .map(([endpoint, metrics]) => ({
+        endpoint,
+        averageResponseTime: this.calculateAverage(metrics.map(m => m.duration)),
+        requestCount: metrics.length,
+      }))
+      .sort((a, b) => b.averageResponseTime - a.averageResponseTime)
+      .slice(0, limit);
+  }
+
+  /**
+   * Get most active endpoints
+   */
+  getMostActiveEndpoints(limit: number = 10): Array<{
+    endpoint: string;
+    requestCount: number;
+    averageResponseTime: number;
+  }> {
+    const endpointGroups = this.groupMetricsByEndpoint();
+
+    return Object.entries(endpointGroups)
+      .map(([endpoint, metrics]) => ({
+        endpoint,
+        requestCount: metrics.length,
+        averageResponseTime: this.calculateAverage(metrics.map(m => m.duration)),
+      }))
+      .sort((a, b) => b.requestCount - a.requestCount)
+      .slice(0, limit);
+  }
+
+  /**
+   * Get error statistics
+   */
+  getErrorStats(timeWindow?: number): {
+    totalErrors: number;
+    errorRate: number;
+    commonErrors: Array<{
+      statusCode: number;
+      count: number;
+      percentage: number;
+    }>;
+  } {
+    const now = new Date();
+    const windowStart = timeWindow
+      ? new Date(now.getTime() - timeWindow * 1000)
+      : new Date(now.getTime() - 3600000);
+
+    const recentMetrics = this.metrics.filter(
+      metric => metric.timestamp >= windowStart
+    );
+
+    const errors = recentMetrics.filter(m => m.statusCode && m.statusCode >= 400);
+    const totalErrors = errors.length;
+    const totalRequests = recentMetrics.length;
+
+    if (totalRequests === 0) {
+      return {
+        totalErrors: 0,
+        errorRate: 0,
+        commonErrors: [],
+      };
+    }
+
+    // Group errors by status code
+    const errorGroups = errors.reduce((acc, error) => {
+      const statusCode = error.statusCode!;
+      acc[statusCode] = (acc[statusCode] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
+    const commonErrors = Object.entries(errorGroups)
+      .map(([statusCode, count]) => ({
+        statusCode: parseInt(statusCode),
+        count,
+        percentage: (count / totalErrors) * 100,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      totalErrors,
+      errorRate: (totalErrors / totalRequests) * 100,
+      commonErrors,
+    };
+  }
+
+  /**
+   * Check if performance meets targets
+   */
+  checkPerformanceTargets(): {
+    meetsTargets: boolean;
+    issues: string[];
+    recommendations: string[];
+  } {
+    const stats = this.getStats();
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+
+    // Check response time
+    if (stats.averageResponseTime > this.alertThresholds.responseTime) {
+      issues.push(`Average response time (${stats.averageResponseTime}ms) exceeds threshold (${this.alertThresholds.responseTime}ms)`);
+      recommendations.push('Consider optimizing database queries or implementing caching');
+    }
+
+    // Check error rate
+    if (stats.errorRate > this.alertThresholds.errorRate) {
+      issues.push(`Error rate (${stats.errorRate.toFixed(2)}%) exceeds threshold (${this.alertThresholds.errorRate}%)`);
+      recommendations.push('Review error logs and improve error handling');
+    }
+
+    // Check memory usage
+    if (stats.memoryUsage > this.alertThresholds.memoryUsage) {
+      issues.push(`Memory usage (${stats.memoryUsage.toFixed(2)}MB) exceeds threshold (${this.alertThresholds.memoryUsage}MB)`);
+      recommendations.push('Check for memory leaks and optimize data structures');
+    }
+
+    // Check cache hit rate
+    if (stats.cacheHitRate < 80 && stats.totalRequests > 100) {
+      issues.push(`Cache hit rate (${stats.cacheHitRate.toFixed(2)}%) is below target (80%)`);
+      recommendations.push('Review caching strategy and cache key patterns');
+    }
+
+    return {
+      meetsTargets: issues.length === 0,
+      issues,
+      recommendations,
+    };
+  }
+
+  /**
+   * Export performance data for analysis
+   */
+  exportData(timeWindow?: number): {
+    stats: PerformanceStats;
+    metrics: PerformanceMetrics[];
+    slowestEndpoints: any[];
+    errorStats: any[];
+    generatedAt: Date;
+  } {
+    const now = new Date();
+    const windowStart = timeWindow
+      ? new Date(now.getTime() - timeWindow * 1000)
+      : new Date(now.getTime() - 3600000);
+
+    const recentMetrics = this.metrics.filter(
+      metric => metric.timestamp >= windowStart
+    );
+
+    return {
+      stats: this.getStats(timeWindow),
+      metrics: recentMetrics,
+      slowestEndpoints: this.getSlowestEndpoints(),
+      errorStats: [this.getErrorStats()],
+      generatedAt: now,
+    };
+  }
+
+  /**
+   * Clear all metrics
+   */
+  clearMetrics(): void {
+    this.metrics = [];
+    this.logger.log('Performance metrics cleared');
+  }
+
+  /**
+   * Update alert thresholds
+   */
+  updateAlertThresholds(thresholds: Partial<AlertThreshold>): void {
+    this.alertThresholds = { ...this.alertThresholds, ...thresholds };
+    this.logger.log('Alert thresholds updated', thresholds);
+  }
+
+  /**
+   * Get current alert thresholds
+   */
+  getAlertThresholds(): AlertThreshold {
+    return { ...this.alertThresholds };
+  }
+
+  /**
+   * Calculate average from array of numbers
+   */
+  private calculateAverage(numbers: number[]): number {
+    if (numbers.length === 0) return 0;
+    return numbers.reduce((sum, num) => sum + num, 0) / numbers.length;
+  }
+
+  /**
+   * Calculate requests per minute
+   */
+  private calculateRequestsPerMinute(metrics: PerformanceMetrics[]): number {
+    if (metrics.length === 0) return 0;
+
+    const timestamps = metrics.map(m => m.timestamp.getTime());
+    const minTime = Math.min(...timestamps);
+    const maxTime = Math.max(...timestamps);
+    const timeWindowMinutes = (maxTime - minTime) / (1000 * 60);
+
+    return timeWindowMinutes > 0 ? metrics.length / timeWindowMinutes : 0;
+  }
+
+  /**
+   * Group metrics by endpoint
+   */
+  private groupMetricsByEndpoint(): Record<string, PerformanceMetrics[]> {
+    return this.metrics.reduce((acc, metric) => {
+      const endpoint = metric.endpoint || 'unknown';
+      if (!acc[endpoint]) {
+        acc[endpoint] = [];
+      }
+      acc[endpoint].push(metric);
+      return acc;
+    }, {} as Record<string, PerformanceMetrics[]>);
+  }
+
+  /**
+   * Calculate stats from metrics array
+   */
+  private calculateStatsFromMetrics(metrics: PerformanceMetrics[]): PerformanceStats {
+    if (metrics.length === 0) {
+      return this.getEmptyStats();
+    }
+
+    const durations = metrics.map(m => m.duration);
+    const errors = metrics.filter(m => m.statusCode && m.statusCode >= 400);
+    const cacheHits = metrics.filter(m => m.cacheHit === true);
+
+    return {
+      totalRequests: metrics.length,
+      averageResponseTime: this.calculateAverage(durations),
+      slowestRequest: Math.max(...durations),
+      fastestRequest: Math.min(...durations),
+      errorRate: (errors.length / metrics.length) * 100,
+      requestsPerMinute: this.calculateRequestsPerMinute(metrics),
+      cacheHitRate: cacheHits.length > 0
+        ? (cacheHits.length / metrics.length) * 100
+        : 0,
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
+      activeConnections: 0,
+    };
+  }
+
+  /**
+   * Get empty stats object
+   */
+  private getEmptyStats(): PerformanceStats {
+    return {
+      totalRequests: 0,
+      averageResponseTime: 0,
+      slowestRequest: 0,
+      fastestRequest: 0,
+      errorRate: 0,
+      requestsPerMinute: 0,
+      cacheHitRate: 0,
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
+      activeConnections: 0,
+    };
+  }
+
+  /**
+   * Check for performance alerts
+   */
+  private checkAlerts(metrics: PerformanceMetrics): void {
+    if (metrics.duration > this.alertThresholds.responseTime) {
+      this.logger.warn(`Slow request detected: ${metrics.endpoint} - ${metrics.duration}ms`);
+    }
+
+    if (metrics.statusCode && metrics.statusCode >= 500) {
+      this.logger.error(`Server error: ${metrics.endpoint} - ${metrics.statusCode}`);
+    }
+  }
+
+  /**
+   * Clean up old metrics
+   */
+  private cleanupOldMetrics(): void {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+    const initialLength = this.metrics.length;
+
+    this.metrics = this.metrics.filter(metric => metric.timestamp >= cutoff);
+
+    const removed = initialLength - this.metrics.length;
+    if (removed > 0) {
+      this.logger.debug(`Cleaned up ${removed} old metrics`);
+    }
+  }
+
+  /**
+   * Log performance stats periodically
+   */
+  private logPerformanceStats(): void {
+    const stats = this.getStats();
+    const targets = this.checkPerformanceTargets();
+
+    this.logger.log('Performance Statistics:', {
+      totalRequests: stats.totalRequests,
+      avgResponseTime: `${stats.averageResponseTime.toFixed(2)}ms`,
+      errorRate: `${stats.errorRate.toFixed(2)}%`,
+      cacheHitRate: `${stats.cacheHitRate.toFixed(2)}%`,
+      memoryUsage: `${stats.memoryUsage.toFixed(2)}MB`,
+      requestsPerMinute: stats.requestsPerMinute.toFixed(2),
+    });
+
+    if (!targets.meetsTargets) {
+      this.logger.warn('Performance targets not met:', targets.issues);
+    }
+  }
+}

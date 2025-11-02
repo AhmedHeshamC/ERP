@@ -1,0 +1,409 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Body,
+  Delete,
+  Param,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../shared/security/guards/roles.guard';
+import { EnhancedLoggerService, LogQuery, LogLevel } from './enhanced-logger.service';
+
+@ApiTags('Logging')
+@Controller('logging')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
+export class LoggingController {
+  private readonly logger = new Logger(LoggingController.name);
+
+  constructor(private readonly enhancedLogger: EnhancedLoggerService) {}
+
+  @Get('search')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Search logs with filters' })
+  @ApiResponse({ status: 200, description: 'Log search completed successfully' })
+  async searchLogs(@Query() query: LogQuery) {
+    this.logger.log(`Log search requested with filters:`, query);
+
+    try {
+      const result = await this.enhancedLogger.queryLogs(query);
+      return {
+        success: true,
+        ...result,
+        query,
+      };
+    } catch (error) {
+      this.logger.error('Log search failed:', error);
+      throw error;
+    }
+  }
+
+  @Get('stats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get log statistics' })
+  @ApiResponse({ status: 200, description: 'Log statistics retrieved successfully' })
+  async getLogStats(@Query('hours') hours?: number) {
+    this.logger.log(`Log statistics requested for ${hours || 24} hours`);
+
+    try {
+      const stats = await this.enhancedLogger.getLogStats(hours ? parseInt(hours.toString()) : 24);
+      return {
+        success: true,
+        stats,
+        period: `${hours || 24} hours`,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get log statistics:', error);
+      throw error;
+    }
+  }
+
+  @Get('export')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Export logs' })
+  @ApiResponse({ status: 200, description: 'Logs exported successfully' })
+  async exportLogs(
+    @Query() query: LogQuery,
+    @Query('format') format: 'json' | 'csv' = 'json',
+  ) {
+    this.logger.log(`Log export requested in ${format} format`);
+
+    try {
+      const exportData = await this.enhancedLogger.exportLogs(query, format);
+
+      return {
+        success: true,
+        data: exportData,
+        format,
+        query,
+        exportedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Log export failed:', error);
+      throw error;
+    }
+  }
+
+  @Get('levels')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get available log levels' })
+  @ApiResponse({ status: 200, description: 'Log levels retrieved successfully' })
+  async getLogLevels() {
+    return {
+      success: true,
+      levels: Object.values(LogLevel),
+      descriptions: {
+        [LogLevel.DEBUG]: 'Detailed information for debugging purposes',
+        [LogLevel.INFO]: 'General information about application flow',
+        [LogLevel.WARN]: 'Potentially harmful situations that don\'t prevent the application from working',
+        [LogLevel.ERROR]: 'Error events that might still allow the application to continue running',
+        [LogLevel.FATAL]: 'Very severe error events that will presumably lead the application to abort',
+      },
+    };
+  }
+
+  @Get('contexts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get available log contexts' })
+  @ApiResponse({ status: 200, description: 'Log contexts retrieved successfully' })
+  async getLogContexts() {
+    // This would typically come from the actual logs
+    const commonContexts = [
+      'APP', 'HTTP', 'BUSINESS', 'SECURITY', 'DATABASE', 'CACHE',
+      'AUTH', 'USERS', 'ACCOUNTING', 'INVENTORY', 'SALES', 'PURCHASING',
+      'REPORTS', 'HR', 'PERFORMANCE', 'HEALTH'
+    ];
+
+    return {
+      success: true,
+      contexts: commonContexts,
+    };
+  }
+
+  @Get('recent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get recent logs' })
+  @ApiResponse({ status: 200, description: 'Recent logs retrieved successfully' })
+  async getRecentLogs(
+    @Query('limit') limit?: number,
+    @Query('level') level?: LogLevel,
+    @Query('context') context?: string,
+  ) {
+    this.logger.log(`Recent logs requested: limit=${limit || 100}, level=${level}, context=${context}`);
+
+    try {
+      const query: LogQuery = {
+        limit: limit ? parseInt(limit.toString()) : 100,
+        level,
+        context,
+      };
+
+      const result = await this.enhancedLogger.queryLogs(query);
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get recent logs:', error);
+      throw error;
+    }
+  }
+
+  @Get('errors')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get recent error logs' })
+  @ApiResponse({ status: 200, description: 'Error logs retrieved successfully' })
+  async getErrorLogs(
+    @Query('limit') limit?: number,
+    @Query('hours') hours?: number,
+  ) {
+    this.logger.log(`Error logs requested: limit=${limit || 50}, hours=${hours || 24}`);
+
+    try {
+      const query: LogQuery = {
+        level: LogLevel.ERROR,
+        limit: limit ? parseInt(limit.toString()) : 50,
+        startTime: hours ? new Date(Date.now() - parseInt(hours.toString()) * 60 * 60 * 1000) : undefined,
+      };
+
+      const result = await this.enhancedLogger.queryLogs(query);
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get error logs:', error);
+      throw error;
+    }
+  }
+
+  @Get('security')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get security-related logs' })
+  @ApiResponse({ status: 200, description: 'Security logs retrieved successfully' })
+  async getSecurityLogs(
+    @Query('limit') limit?: number,
+    @Query('hours') hours?: number,
+  ) {
+    this.logger.log(`Security logs requested: limit=${limit || 100}, hours=${hours || 24}`);
+
+    try {
+      const query: LogQuery = {
+        context: 'SECURITY',
+        limit: limit ? parseInt(limit.toString()) : 100,
+        startTime: hours ? new Date(Date.now() - parseInt(hours.toString()) * 60 * 60 * 1000) : undefined,
+      };
+
+      const result = await this.enhancedLogger.queryLogs(query);
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get security logs:', error);
+      throw error;
+    }
+  }
+
+  @Get('business')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get business event logs' })
+  @ApiResponse({ status: 200, description: 'Business logs retrieved successfully' })
+  async getBusinessLogs(
+    @Query('limit') limit?: number,
+    @Query('hours') hours?: number,
+    @Query('event') event?: string,
+  ) {
+    this.logger.log(`Business logs requested: limit=${limit || 100}, hours=${hours || 24}, event=${event}`);
+
+    try {
+      const query: LogQuery = {
+        context: 'BUSINESS',
+        limit: limit ? parseInt(limit.toString()) : 100,
+        startTime: hours ? new Date(Date.now() - parseInt(hours.toString()) * 60 * 60 * 1000) : undefined,
+        search: event,
+      };
+
+      const result = await this.enhancedLogger.queryLogs(query);
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get business logs:', error);
+      throw error;
+    }
+  }
+
+  @Get('performance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get performance-related logs' })
+  @ApiResponse({ status: 200, description: 'Performance logs retrieved successfully' })
+  async getPerformanceLogs(
+    @Query('limit') limit?: number,
+    @Query('hours') hours?: number,
+    @Query('minDuration') minDuration?: number,
+  ) {
+    this.logger.log(`Performance logs requested: limit=${limit || 100}, hours=${hours || 24}, minDuration=${minDuration}`);
+
+    try {
+      const query: LogQuery = {
+        context: 'HTTP',
+        limit: limit ? parseInt(limit.toString()) : 100,
+        startTime: hours ? new Date(Date.now() - parseInt(hours.toString()) * 60 * 60 * 1000) : undefined,
+      };
+
+      const result = await this.enhancedLogger.queryLogs(query);
+
+      // Filter logs by duration if specified
+      if (minDuration) {
+        result.logs = result.logs.filter(log =>
+          log.duration && log.duration >= parseInt(minDuration.toString())
+        );
+        result.total = result.logs.length;
+      }
+
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get performance logs:', error);
+      throw error;
+    }
+  }
+
+  @Get('correlation/:correlationId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get logs by correlation ID' })
+  @ApiResponse({ status: 200, description: 'Logs by correlation ID retrieved successfully' })
+  async getLogsByCorrelationId(@Param('correlationId') correlationId: string) {
+    this.logger.log(`Logs requested for correlation ID: ${correlationId}`);
+
+    try {
+      const query: LogQuery = {
+        correlationId,
+        limit: 1000, // High limit for correlation tracking
+      };
+
+      const result = await this.enhancedLogger.queryLogs(query);
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get logs by correlation ID:', error);
+      throw error;
+    }
+  }
+
+  @Get('user/:userId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get logs by user ID' })
+  @ApiResponse({ status: 200, description: 'Logs by user ID retrieved successfully' })
+  async getLogsByUserId(
+    @Param('userId') userId: string,
+    @Query('hours') hours?: number,
+    @Query('limit') limit?: number,
+  ) {
+    this.logger.log(`Logs requested for user ID: ${userId}`);
+
+    try {
+      const query: LogQuery = {
+        userId,
+        limit: limit ? parseInt(limit.toString()) : 100,
+        startTime: hours ? new Date(Date.now() - parseInt(hours.toString()) * 60 * 60 * 1000) : undefined,
+      };
+
+      const result = await this.enhancedLogger.queryLogs(query);
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get logs by user ID:', error);
+      throw error;
+    }
+  }
+
+  @Post('test')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create a test log entry' })
+  @ApiResponse({ status: 200, description: 'Test log entry created successfully' })
+  async createTestLog(@Body() testData: {
+    level: LogLevel;
+    message: string;
+    context?: string;
+    metadata?: Record<string, any>;
+  }) {
+    this.logger.log(`Test log creation requested:`, testData);
+
+    try {
+      const entry = this.enhancedLogger.createLogEntry(
+        testData.level,
+        `TEST: ${testData.message}`,
+        testData.context || 'TEST',
+        testData.metadata,
+      );
+
+      this.enhancedLogger.log(entry);
+
+      return {
+        success: true,
+        message: 'Test log entry created successfully',
+        logId: entry.id,
+        entry,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create test log:', error);
+      throw error;
+    }
+  }
+
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get logging service health' })
+  @ApiResponse({ status: 200, description: 'Logging service health retrieved successfully' })
+  async getLoggingHealth() {
+    try {
+      const stats = await this.enhancedLogger.getLogStats(1); // Last hour
+      const totalLogs = stats.totalLogs;
+      const errorLogs = stats.logsByLevel[LogLevel.ERROR] + stats.logsByLevel[LogLevel.FATAL];
+      const errorRate = totalLogs > 0 ? (errorLogs / totalLogs) * 100 : 0;
+
+      let status = 'HEALTHY';
+      if (errorRate > 10) status = 'UNHEALTHY';
+      else if (errorRate > 5) status = 'DEGRADED';
+
+      return {
+        success: true,
+        status,
+        metrics: {
+          totalLogs,
+          errorLogs,
+          errorRate: errorRate.toFixed(2),
+          activeUsers: stats.activeUsers,
+          uniqueIps: stats.uniqueIps,
+          averageResponseTime: stats.averageResponseTime,
+        },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get logging health:', error);
+      return {
+        success: false,
+        status: 'UNHEALTHY',
+        error: error.message,
+        timestamp: new Date(),
+      };
+    }
+  }
+}

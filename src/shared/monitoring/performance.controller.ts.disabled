@@ -1,0 +1,240 @@
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Delete,
+  Post,
+  Body,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/security/guards/roles.guard';
+import { PerformanceService, PerformanceStats, AlertThreshold } from './performance.service';
+import { CacheService } from '../cache/cache.service';
+
+@ApiTags('Performance Monitoring')
+@Controller('performance')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
+export class PerformanceController {
+  private readonly logger = new Logger(PerformanceController.name);
+
+  constructor(
+    private readonly performanceService: PerformanceService,
+    private readonly cacheService: CacheService,
+  ) {}
+
+  @Get('stats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get current performance statistics' })
+  @ApiResponse({ status: 200, description: 'Performance statistics retrieved successfully' })
+  async getStats(
+    @Query('timeWindow') timeWindow?: number,
+  ): Promise<{
+    stats: PerformanceStats;
+    meetsTargets: boolean;
+    issues: string[];
+    recommendations: string[];
+  }> {
+    this.logger.log(`Performance stats requested for time window: ${timeWindow || 'default'}`);
+
+    const stats = this.performanceService.getStats(timeWindow);
+    const targets = this.performanceService.checkPerformanceTargets();
+
+    return {
+      stats,
+      meetsTargets: targets.meetsTargets,
+      issues: targets.issues,
+      recommendations: targets.recommendations,
+    };
+  }
+
+  @Get('cache/stats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get cache statistics' })
+  @ApiResponse({ status: 200, description: 'Cache statistics retrieved successfully' })
+  async getCacheStats() {
+    this.logger.log('Cache stats requested');
+
+    const cacheStats = this.cacheService.getStats();
+    const memoryUsage = await this.cacheService.getMemoryUsage();
+    const isConnected = this.cacheService.isRedisConnected();
+
+    return {
+      cache: cacheStats,
+      memoryUsage: memoryUsage / 1024 / 1024, // Convert to MB
+      isConnected,
+    };
+  }
+
+  @Get('endpoints/slowest')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get slowest endpoints' })
+  @ApiResponse({ status: 200, description: 'Slowest endpoints retrieved successfully' })
+  async getSlowestEndpoints(@Query('limit') limit?: number) {
+    this.logger.log(`Slowest endpoints requested, limit: ${limit || 10}`);
+
+    return this.performanceService.getSlowestEndpoints(limit ? parseInt(limit.toString()) : 10);
+  }
+
+  @Get('endpoints/most-active')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get most active endpoints' })
+  @ApiResponse({ status: 200, description: 'Most active endpoints retrieved successfully' })
+  async getMostActiveEndpoints(@Query('limit') limit?: number) {
+    this.logger.log(`Most active endpoints requested, limit: ${limit || 10}`);
+
+    return this.performanceService.getMostActiveEndpoints(limit ? parseInt(limit.toString()) : 10);
+  }
+
+  @Get('errors')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get error statistics' })
+  @ApiResponse({ status: 200, description: 'Error statistics retrieved successfully' })
+  async getErrorStats(@Query('timeWindow') timeWindow?: number) {
+    this.logger.log(`Error stats requested for time window: ${timeWindow || 'default'}`);
+
+    return this.performanceService.getErrorStats(timeWindow);
+  }
+
+  @Get('export')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Export performance data' })
+  @ApiResponse({ status: 200, description: 'Performance data exported successfully' })
+  async exportData(@Query('timeWindow') timeWindow?: number) {
+    this.logger.log(`Performance data export requested for time window: ${timeWindow || 'default'}`);
+
+    return this.performanceService.exportData(timeWindow);
+  }
+
+  @Get('alerts/thresholds')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get current alert thresholds' })
+  @ApiResponse({ status: 200, description: 'Alert thresholds retrieved successfully' })
+  async getAlertThresholds(): Promise<AlertThreshold> {
+    this.logger.log('Alert thresholds requested');
+
+    return this.performanceService.getAlertThresholds();
+  }
+
+  @Post('alerts/thresholds')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update alert thresholds' })
+  @ApiResponse({ status: 200, description: 'Alert thresholds updated successfully' })
+  async updateAlertThresholds(@Body() thresholds: Partial<AlertThreshold>) {
+    this.logger.log('Alert thresholds update requested', thresholds);
+
+    this.performanceService.updateAlertThresholds(thresholds);
+
+    return { message: 'Alert thresholds updated successfully', thresholds };
+  }
+
+  @Delete('metrics')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear all performance metrics' })
+  @ApiResponse({ status: 200, description: 'Performance metrics cleared successfully' })
+  async clearMetrics() {
+    this.logger.log('Performance metrics clear requested');
+
+    this.performanceService.clearMetrics();
+
+    return { message: 'Performance metrics cleared successfully' };
+  }
+
+  @Delete('cache')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear all cache' })
+  @ApiResponse({ status: 200, description: 'Cache cleared successfully' })
+  async clearCache() {
+    this.logger.log('Cache clear requested');
+
+    const success = await this.cacheService.flushAll();
+
+    if (success) {
+      return { message: 'Cache cleared successfully' };
+    } else {
+      return { message: 'Failed to clear cache - Redis not connected' };
+    }
+  }
+
+  @Post('cache/warmup')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Warm up cache with common data' })
+  @ApiResponse({ status: 200, description: 'Cache warmup completed successfully' })
+  async warmUpCache(@Body() warmupData?: Array<{ key: string; value: any; ttl?: number }>) {
+    this.logger.log(`Cache warmup requested with ${warmupData?.length || 0} entries`);
+
+    if (warmupData) {
+      await this.cacheService.warmUp(warmupData);
+    } else {
+      // Default warmup data
+      const defaultWarmupData = [
+        { key: 'system:health', value: { status: 'healthy', timestamp: new Date() }, ttl: 60 },
+        { key: 'metrics:dashboard', value: { requests: 0, errors: 0, cacheHits: 0 }, ttl: 30 },
+      ];
+      await this.cacheService.warmUp(defaultWarmupData);
+    }
+
+    return { message: 'Cache warmup completed successfully' };
+  }
+
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get performance health status' })
+  @ApiResponse({ status: 200, description: 'Performance health status retrieved successfully' })
+  async getHealthStatus() {
+    this.logger.log('Performance health status requested');
+
+    const stats = this.performanceService.getStats(300); // Last 5 minutes
+    const targets = this.performanceService.checkPerformanceTargets();
+    const cacheStats = this.cacheService.getStats();
+    const redisConnected = this.cacheService.isRedisConnected();
+
+    // Calculate overall health score (0-100)
+    let healthScore = 100;
+
+    // Penalize for slow response times
+    if (stats.averageResponseTime > 200) healthScore -= 20;
+    if (stats.averageResponseTime > 500) healthScore -= 30;
+    if (stats.averageResponseTime > 1000) healthScore -= 50;
+
+    // Penalize for high error rate
+    if (stats.errorRate > 1) healthScore -= 10;
+    if (stats.errorRate > 5) healthScore -= 20;
+    if (stats.errorRate > 10) healthScore -= 40;
+
+    // Penalize for low cache hit rate
+    if (stats.cacheHitRate < 50 && stats.totalRequests > 100) healthScore -= 10;
+    if (stats.cacheHitRate < 30 && stats.totalRequests > 100) healthScore -= 20;
+
+    // Penalize for Redis not connected
+    if (!redisConnected) healthScore -= 15;
+
+    let status = 'HEALTHY';
+    if (healthScore < 50) status = 'UNHEALTHY';
+    else if (healthScore < 75) status = 'DEGRADED';
+
+    return {
+      status,
+      healthScore: Math.max(0, healthScore),
+      metrics: {
+        responseTime: stats.averageResponseTime,
+        errorRate: stats.errorRate,
+        cacheHitRate: stats.cacheHitRate,
+        totalRequests: stats.totalRequests,
+        memoryUsage: stats.memoryUsage,
+      },
+      services: {
+        redis: redisConnected ? 'CONNECTED' : 'DISCONNECTED',
+        cache: cacheStats.hits > 0 ? 'ACTIVE' : 'INACTIVE',
+      },
+      meetsTargets: targets.meetsTargets,
+      issues: targets.issues,
+      recommendations: targets.recommendations,
+    };
+  }
+}

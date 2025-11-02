@@ -3,6 +3,7 @@ import { PrismaService } from '../../shared/database/prisma.service';
 import { AuditService } from '../../shared/audit/services/audit.service';
 import { SecurityService } from '../../shared/security/security.service';
 import { TransactionService } from './transaction.service';
+import { CacheService } from '../../shared/cache/cache.service';
 import { CreateChartOfAccountsDto } from './dto/create-chart-of-accounts.dto';
 import { UpdateChartOfAccountsDto } from './dto/update-chart-of-accounts.dto';
 import { ChartOfAccountsQueryDto } from './dto/chart-of-accounts-query.dto';
@@ -17,6 +18,7 @@ export class ChartOfAccountsService {
     private readonly auditService: AuditService,
     private readonly securityService: SecurityService,
     private readonly transactionService: TransactionService,
+    private readonly cacheService: CacheService,
   ) {}
 
   async create(createChartOfAccountsDto: CreateChartOfAccountsDto, createdBy: string) {
@@ -105,6 +107,10 @@ export class ChartOfAccountsService {
       );
 
       this.logger.log(`Successfully created chart of accounts: ${account.code} (ID: ${account.id})`);
+
+      // Invalidate relevant caches
+      await this.invalidateAccountCaches();
+
       return account;
 
     } catch (error) {
@@ -135,54 +141,107 @@ export class ChartOfAccountsService {
   async findAll(params: ChartOfAccountsQueryDto) {
     const { skip = 0, take = 10, type, search } = params;
 
-    const where: {
-      isActive: boolean;
-      type?: string;
-      OR?: Array<{
-        name?: { contains: string; mode: 'insensitive' };
-        description?: { contains: string; mode: 'insensitive' };
-        code?: { contains: string; mode: 'insensitive' };
-      }>;
-      category?: string;
-      subcategory?: string;
-      parentId?: string;
-    } = { isActive: true };
+    // Enforce maximum page size for performance
+    const pageSize = Math.min(take, 100);
 
-    if (type) {
-      where.type = type;
-    }
+    // Create cache key based on query parameters
+    const cacheKey = `accounts:list:${JSON.stringify({ skip, take: pageSize, type, search })}`;
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const where: {
+          isActive: boolean;
+          type?: string;
+          OR?: Array<{
+            name?: { contains: string; mode: 'insensitive' };
+            description?: { contains: string; mode: 'insensitive' };
+            code?: { contains: string; mode: 'insensitive' };
+          }>;
+          category?: string;
+          subcategory?: string;
+          parentId?: string;
+        } = { isActive: true };
 
-    const [accounts, total] = await Promise.all([
-      this.prisma.chartOfAccounts.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { code: 'asc' },
-      }),
-      this.prisma.chartOfAccounts.count({ where }),
-    ]);
+        if (type) {
+          where.type = type;
+        }
 
-    return {
-      accounts,
-      total,
-    };
+        if (search) {
+          where.OR = [
+            { name: { contains: search, mode: 'insensitive' } },
+            { code: { contains: search, mode: 'insensitive' } },
+          ];
+        }
+
+        const [accounts, total] = await Promise.all([
+          this.prisma.chartOfAccounts.findMany({
+            where,
+            skip,
+            take: pageSize,
+            orderBy: { code: 'asc' },
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              description: true,
+              type: true,
+              category: true,
+              subcategory: true,
+              parentId: true,
+              level: true,
+              isActive: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+          this.prisma.chartOfAccounts.count({ where }),
+        ]);
+
+        return {
+          accounts,
+          total,
+        };
+      },
+      { ttl: 300 } // 5 minutes for list data
+    );
   }
 
   async findOne(id: string) {
-    const account = await this.prisma.chartOfAccounts.findUnique({
-      where: { id, isActive: true },
-    });
+    const cacheKey = `account:${id}`;
 
-    if (!account) {
-      throw new NotFoundException(`Account with ID ${id} not found`);
-    }
+    const account = await this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const accountData = await this.prisma.chartOfAccounts.findUnique({
+          where: { id, isActive: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            description: true,
+            type: true,
+            category: true,
+            subcategory: true,
+            parentId: true,
+            level: true,
+            isActive: true,
+            isSystem: true,
+            createdBy: true,
+            updatedBy: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        if (!accountData) {
+          throw new NotFoundException(`Account with ID ${id} not found`);
+        }
+
+        return accountData;
+      },
+      { ttl: 600 } // 10 minutes for individual accounts
+    );
 
     return account;
   }
@@ -261,6 +320,10 @@ export class ChartOfAccountsService {
       );
 
       this.logger.log(`Successfully updated chart of accounts: ${updatedAccount.code} (ID: ${id})`);
+
+      // Invalidate relevant caches
+      await this.invalidateAccountCaches();
+
       return updatedAccount;
 
     } catch (error) {
@@ -349,6 +412,10 @@ export class ChartOfAccountsService {
       );
 
       this.logger.log(`Successfully removed chart of accounts: ${deletedAccount.code} (ID: ${id})`);
+
+      // Invalidate relevant caches
+      await this.invalidateAccountCaches();
+
       return deletedAccount;
 
     } catch (error) {
@@ -376,16 +443,59 @@ export class ChartOfAccountsService {
   }
 
   async findByCode(code: string) {
-    return this.prisma.chartOfAccounts.findUnique({
-      where: { code, isActive: true },
-    });
+    const cacheKey = `account:code:${code}`;
+
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const account = await this.prisma.chartOfAccounts.findUnique({
+          where: { code, isActive: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            description: true,
+            type: true,
+            category: true,
+            subcategory: true,
+            parentId: true,
+            level: true,
+            isActive: true,
+          },
+        });
+
+        return account;
+      },
+      { ttl: 600 } // 10 minutes for account by code
+    );
   }
 
   async findChildren(parentId: string) {
-    return this.prisma.chartOfAccounts.findMany({
-      where: { parentId, isActive: true },
-      orderBy: { code: 'asc' },
-    });
+    const cacheKey = `accounts:children:${parentId}`;
+
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const children = await this.prisma.chartOfAccounts.findMany({
+          where: { parentId, isActive: true },
+          orderBy: { code: 'asc' },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            description: true,
+            type: true,
+            category: true,
+            subcategory: true,
+            level: true,
+            isActive: true,
+          },
+        });
+
+        return children;
+      },
+      { ttl: 300 } // 5 minutes for children list
+    );
   }
 
   /**
@@ -526,5 +636,23 @@ export class ChartOfAccountsService {
   private isDebitAccount(accountType: string): boolean {
     const debitAccountTypes = ['ASSET', 'EXPENSE'];
     return debitAccountTypes.includes(accountType);
+  }
+
+  /**
+   * Invalidate all account-related caches
+   */
+  private async invalidateAccountCaches(): Promise<void> {
+    try {
+      // Invalidate all account caches
+      await Promise.all([
+        this.cacheService.delPattern('accounts:*'),
+        this.cacheService.delPattern('account:*'),
+      ]);
+
+      this.logger.debug('Account caches invalidated');
+    } catch (error) {
+      this.logger.warn(`Failed to invalidate account caches: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Don't throw error - cache invalidation failure shouldn't break the operation
+    }
   }
 }

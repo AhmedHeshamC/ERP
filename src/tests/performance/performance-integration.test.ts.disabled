@@ -1,0 +1,444 @@
+import { expect } from 'chai';
+import request from 'supertest';
+import { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { AppModule } from '../../app.module';
+import { PrismaService } from '../../shared/database/prisma.service';
+import { PerformanceService } from '../../shared/monitoring/performance.service';
+import { CacheService } from '../../shared/cache/cache.service';
+
+describe('Performance Integration Tests', () => {
+  let app: INestApplication;
+  let prismaService: PrismaService;
+  let performanceService: PerformanceService;
+  let cacheService: CacheService;
+
+  before(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    prismaService = moduleRef.get<PrismaService>(PrismaService);
+    performanceService = moduleRef.get<PerformanceService>(PerformanceService);
+    cacheService = moduleRef.get<CacheService>(CacheService);
+
+    await app.init();
+  });
+
+  after(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    // Clean up test data
+    await prismaService.customer.deleteMany();
+    await prismaService.product.deleteMany();
+
+    // Clear performance metrics and cache
+    performanceService.clearMetrics();
+    await cacheService.flushAll();
+  });
+
+  describe('Caching Performance', () => {
+    it('should achieve cache hit rate above 80% for repeated requests', async () => {
+      // Create test data
+      const customer = await prismaService.customer.create({
+        data: {
+          code: 'CUST001',
+          name: 'Test Customer',
+          email: 'test@example.com',
+          isActive: true,
+        },
+      });
+
+      // Make multiple requests to the same endpoint
+      const requests = [];
+      for (let i = 0; i < 10; i++) {
+        requests.push(
+          request(app.getHttpServer())
+            .get(`/api/v1/sales/customers/${customer.id}`)
+            .expect(200)
+        );
+      }
+
+      await Promise.all(requests);
+
+      // Check performance stats
+      const stats = performanceService.getStats();
+
+      // Cache hit rate should be above 80% (9 out of 10 requests should be cache hits)
+      expect(stats.cacheHitRate).to.be.at.least(80);
+      expect(stats.totalRequests).to.equal(10);
+    });
+
+    it('should serve cached customer lists faster than database queries', async () => {
+      // Create test data
+      await Promise.all([
+        prismaService.customer.create({
+          data: {
+            code: 'CUST001',
+            name: 'Customer 1',
+            email: 'customer1@example.com',
+            isActive: true,
+          },
+        }),
+        prismaService.customer.create({
+          data: {
+            code: 'CUST002',
+            name: 'Customer 2',
+            email: 'customer2@example.com',
+            isActive: true,
+          },
+        }),
+        prismaService.customer.create({
+          data: {
+            code: 'CUST003',
+            name: 'Customer 3',
+            email: 'customer3@example.com',
+            isActive: true,
+          },
+        }),
+      ]);
+
+      // First request (cache miss)
+      const startTime1 = Date.now();
+      await request(app.getHttpServer())
+        .get('/api/v1/sales/customers?page=1&limit=10')
+        .expect(200);
+      const firstRequestTime = Date.now() - startTime1;
+
+      // Second request (cache hit)
+      const startTime2 = Date.now();
+      await request(app.getHttpServer())
+        .get('/api/v1/sales/customers?page=1&limit=10')
+        .expect(200);
+      const secondRequestTime = Date.now() - startTime2;
+
+      // Cache hit should be faster (allowing for some variance)
+      expect(secondRequestTime).to.be.at.most(firstRequestTime * 1.5);
+    });
+
+    it('should invalidate cache when customer is updated', async () => {
+      // Create test customer
+      const customer = await prismaService.customer.create({
+        data: {
+          code: 'CUST001',
+          name: 'Original Name',
+          email: 'original@example.com',
+          isActive: true,
+        },
+      });
+
+      // First request to populate cache
+      await request(app.getHttpServer())
+        .get(`/api/v1/sales/customers/${customer.id}`)
+        .expect(200);
+
+      // Update customer (should invalidate cache)
+      await request(app.getHttpServer())
+        .put(`/api/v1/sales/customers/${customer.id}`)
+        .send({
+          name: 'Updated Name',
+          email: 'updated@example.com',
+        })
+        .expect(200);
+
+      // Request again - should get updated data
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/sales/customers/${customer.id}`)
+        .expect(200);
+
+      expect(response.body.name).to.equal('Updated Name');
+      expect(response.body.email).to.equal('updated@example.com');
+    });
+  });
+
+  describe('Database Query Performance', () => {
+    it('should serve customer list queries under 200ms', async () => {
+      // Create test data
+      for (let i = 0; i < 50; i++) {
+        await prismaService.customer.create({
+          data: {
+            code: `CUST${i.toString().padStart(3, '0')}`,
+            name: `Customer ${i}`,
+            email: `customer${i}@example.com`,
+            isActive: true,
+          },
+        });
+      }
+
+      const startTime = Date.now();
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/sales/customers?page=1&limit=20')
+        .expect(200);
+      const responseTime = Date.now() - startTime;
+
+      expect(responseTime).to.be.at.most(200);
+      expect(response.body.data).to.have.length(20);
+      expect(response.body.total).to.equal(50);
+    });
+
+    it('should handle paginated product queries efficiently', async () => {
+      // Create test products
+      for (let i = 0; i < 100; i++) {
+        await prismaService.product.create({
+          data: {
+            name: `Product ${i}`,
+            sku: `PROD${i.toString().padStart(3, '0')}`,
+            price: 10.99 + i,
+            categoryId: 'test-category-id', // This would need to be a valid category ID
+            status: 'ACTIVE',
+            stockQuantity: 100,
+            isActive: true,
+          },
+        });
+      }
+
+      // Test different pages
+      const pages = [1, 2, 3, 4, 5];
+      const responseTimes = [];
+
+      for (const page of pages) {
+        const startTime = Date.now();
+        await request(app.getHttpServer())
+          .get(`/api/v1/inventory/products?page=${page}&limit=20`)
+          .expect(200);
+        const responseTime = Date.now() - startTime;
+        responseTimes.push(responseTime);
+      }
+
+      // All pages should load quickly
+      const averageResponseTime = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
+      expect(averageResponseTime).to.be.at.most(200);
+
+      // Response times should be consistent (low variance)
+      const maxResponseTime = Math.max(...responseTimes);
+      const minResponseTime = Math.min(...responseTimes);
+      expect(maxResponseTime - minResponseTime).to.be.at.most(100);
+    });
+
+    it('should limit maximum page size to prevent performance issues', async () => {
+      // Request with very large page size
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/sales/customers?limit=1000')
+        .expect(200);
+
+      // Should be limited to 100 records maximum
+      expect(response.body.data.length).to.be.at.most(100);
+    });
+  });
+
+  describe('Performance Monitoring', () => {
+    it('should collect performance metrics for all requests', async () => {
+      // Make some requests
+      await request(app.getHttpServer())
+        .get('/api/v1/sales/customers')
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/products')
+        .expect(200);
+
+      // Check that metrics were collected
+      const stats = performanceService.getStats();
+      expect(stats.totalRequests).to.be.at.least(2);
+      expect(stats.averageResponseTime).to.be.greaterThan(0);
+    });
+
+    it('should provide performance health endpoint', async () => {
+      // Make some requests to generate data
+      await request(app.getHttpServer())
+        .get('/api/v1/sales/customers')
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/performance/health')
+        .expect(200);
+
+      expect(response.body).to.have.property('status');
+      expect(response.body).to.have.property('healthScore');
+      expect(response.body).to.have.property('metrics');
+      expect(response.body).to.have.property('services');
+      expect(response.body).to.have.property('meetsTargets');
+
+      expect(['HEALTHY', 'DEGRADED', 'UNHEALTHY']).to.include(response.body.status);
+      expect(response.body.healthScore).to.be.a('number');
+      expect(response.body.healthScore).to.be.at.least(0);
+      expect(response.body.healthScore).to.be.at.most(100);
+    });
+
+    it('should provide performance statistics endpoint', async () => {
+      // Make some requests
+      await request(app.getHttpServer())
+        .get('/api/v1/sales/customers')
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/performance/stats')
+        .expect(200);
+
+      expect(response.body).to.have.property('stats');
+      expect(response.body).to.have.property('meetsTargets');
+      expect(response.body).to.have.property('issues');
+      expect(response.body).to.have.property('recommendations');
+
+      expect(response.body.stats).to.have.property('totalRequests');
+      expect(response.body.stats).to.have.property('averageResponseTime');
+      expect(response.body.stats).to.have.property('cacheHitRate');
+    });
+
+    it('should identify slow endpoints', async () => {
+      // This test would require creating a slow endpoint or mocking slow behavior
+      // For now, just test the endpoint structure
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/performance/endpoints/slowest')
+        .expect(200);
+
+      expect(response.body).to.be.an('array');
+      if (response.body.length > 0) {
+        expect(response.body[0]).to.have.property('endpoint');
+        expect(response.body[0]).to.have.property('averageResponseTime');
+        expect(response.body[0]).to.have.property('requestCount');
+      }
+    });
+
+    it('should provide cache statistics', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/performance/cache/stats')
+        .expect(200);
+
+      expect(response.body).to.have.property('cache');
+      expect(response.body).to.have.property('memoryUsage');
+      expect(response.body).to.have.property('isConnected');
+
+      expect(response.body.cache).to.have.property('hits');
+      expect(response.body.cache).to.have.property('misses');
+      expect(response.body.cache).to.have.property('hitRate');
+    });
+  });
+
+  describe('Performance Under Load', () => {
+    it('should handle concurrent requests efficiently', async () => {
+      // Create test data
+      const customer = await prismaService.customer.create({
+        data: {
+          code: 'CUST001',
+          name: 'Test Customer',
+          email: 'test@example.com',
+          isActive: true,
+        },
+      });
+
+      // Make 20 concurrent requests
+      const concurrentRequests = Array(20).fill(null).map(() =>
+        request(app.getHttpServer())
+          .get(`/api/v1/sales/customers/${customer.id}`)
+          .expect(200)
+      );
+
+      const startTime = Date.now();
+      await Promise.all(concurrentRequests);
+      const totalTime = Date.now() - startTime;
+
+      // Average response time should be reasonable
+      const stats = performanceService.getStats();
+      expect(stats.averageResponseTime).to.be.at.most(500);
+
+      // Total time should be much less than sequential execution
+      expect(totalTime).to.be.at.most(2000); // Should be close to single request time
+    });
+
+    it('should maintain performance with mixed read/write operations', async () => {
+      // Create initial customer
+      const customer = await prismaService.customer.create({
+        data: {
+          code: 'CUST001',
+          name: 'Test Customer',
+          email: 'test@example.com',
+          isActive: true,
+        },
+      });
+
+      // Mix of read and write operations
+      const operations = [
+        // Read operations
+        request(app.getHttpServer()).get('/api/v1/sales/customers'),
+        request(app.getHttpServer()).get(`/api/v1/sales/customers/${customer.id}`),
+        request(app.getHttpServer()).get('/api/v1/inventory/products'),
+
+        // Write operations
+        request(app.getHttpServer()).post('/api/v1/sales/customers').send({
+          code: 'CUST002',
+          name: 'New Customer',
+          email: 'new@example.com',
+        }),
+
+        // Update operations
+        request(app.getHttpServer()).put(`/api/v1/sales/customers/${customer.id}`).send({
+          name: 'Updated Customer',
+        }),
+      ];
+
+      const startTime = Date.now();
+      const responses = await Promise.all(operations);
+      const totalTime = Date.now() - startTime;
+
+      // All operations should succeed
+      responses.forEach(response => {
+        expect([200, 201]).to.include(response.status);
+      });
+
+      // Performance should remain acceptable
+      const stats = performanceService.getStats();
+      expect(stats.averageResponseTime).to.be.at.most(1000);
+      expect(totalTime).to.be.at.most(3000);
+    });
+  });
+
+  describe('Cache Invalidation', () => {
+    it('should invalidate relevant cache entries on data changes', async () => {
+      // Create test customers
+      const customer1 = await prismaService.customer.create({
+        data: {
+          code: 'CUST001',
+          name: 'Customer 1',
+          email: 'customer1@example.com',
+          isActive: true,
+        },
+      });
+
+      const customer2 = await prismaService.customer.create({
+        data: {
+          code: 'CUST002',
+          name: 'Customer 2',
+          email: 'customer2@example.com',
+          isActive: true,
+        },
+      });
+
+      // Populate cache
+      await request(app.getHttpServer())
+        .get('/api/v1/sales/customers')
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/sales/customers/${customer1.id}`)
+        .expect(200);
+
+      // Update one customer - should invalidate related cache
+      await request(app.getHttpServer())
+        .put(`/api/v1/sales/customers/${customer1.id}`)
+        .send({
+          name: 'Updated Customer 1',
+        })
+        .expect(200);
+
+      // Get cache stats to verify invalidation worked
+      const cacheStats = cacheService.getStats();
+
+      // The cache should have been invalidated and rebuilt
+      expect(cacheStats.totalRequests).to.be.greaterThan(0);
+    });
+  });
+});

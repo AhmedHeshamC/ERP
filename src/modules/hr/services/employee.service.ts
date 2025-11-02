@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
+import { CacheService } from '../../../shared/cache/cache.service';
 // import { Employee, Department, User } from '@prisma/client';
 import {
   // EmployeeResponse,
@@ -15,9 +16,12 @@ import {
 
 @Injectable()
 export class EmployeeService {
+  private readonly logger = new Logger(EmployeeService.name);
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly securityService: SecurityService,
+    private readonly cacheService: CacheService,
   ) {}
 
   async create(createEmployeeData: CreateEmployeeData, createdBy: string): Promise<EmployeeWithDepartment> {
@@ -84,14 +88,29 @@ export class EmployeeService {
       },
     });
 
-    return employee;
+    return employee as EmployeeWithDepartment;
   }
 
   async findById(id: string): Promise<EmployeeWithDepartment> {
+    // Try cache first
+    const cacheKey = `employee:${id}`;
+    const cachedEmployee = await this.cacheService.get<EmployeeWithDepartment>(cacheKey);
+
+    if (cachedEmployee) {
+      this.logger.debug(`Cache HIT for employee: ${id}`);
+      return cachedEmployee;
+    }
+
     const employee = await this.prismaService.employee.findUnique({
       where: { id },
       include: {
-        department: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
       },
     });
 
@@ -99,7 +118,11 @@ export class EmployeeService {
       throw new NotFoundException('Employee not found');
     }
 
-    return employee;
+    // Cache the result for 15 minutes
+    await this.cacheService.set(cacheKey, employee, { ttl: 900 });
+    this.logger.debug(`Cached employee: ${id}`);
+
+    return employee as EmployeeWithDepartment;
   }
 
   async findByEmployeeId(employeeId: string): Promise<EmployeeWithDepartment> {
@@ -114,14 +137,27 @@ export class EmployeeService {
       throw new NotFoundException('Employee not found');
     }
 
-    return employee;
+    return employee as EmployeeWithDepartment;
   }
 
   async findAll(filters: EmployeeFilters = {}): Promise<EmployeeListResponse> {
+    // Create cache key based on filters
+    const cacheKey = `employees:list:${JSON.stringify(filters)}`;
+
+    // Try cache first for non-search queries (search results are too dynamic)
+    if (!filters.search) {
+      const cachedResult = await this.cacheService.get<EmployeeListResponse>(cacheKey);
+      if (cachedResult) {
+        this.logger.debug(`Cache HIT for employee list with filters`);
+        return cachedResult;
+      }
+    }
+
     // Validate department if provided
     if (filters.departmentId) {
       const department = await this.prismaService.department.findUnique({
         where: { id: filters.departmentId },
+        select: { id: true, name: true }, // Only select needed fields
       });
       if (!department) {
         throw new NotFoundException('Department not found');
@@ -133,7 +169,7 @@ export class EmployeeService {
       const fromDate = new Date(filters.hireDateFrom);
       const toDate = new Date(filters.hireDateTo);
       if (fromDate > toDate) {
-        throw new BadRequestException('Invalid date range!: Start date must be before end date');
+        throw new BadRequestException('Invalid date range: Start date must be before end date');
       }
     }
 
@@ -199,12 +235,34 @@ export class EmployeeService {
       }
     }
 
-    // Execute query
+    // Execute optimized query with parallel execution
     const [employees, total] = await Promise.all([
       this.prismaService.employee.findMany({
         where,
-        include: {
-          department: true,
+        select: {
+          id: true,
+          employeeId: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          position: true,
+          departmentId: true,
+          salary: true,
+          employmentType: true,
+          status: true,
+          isActive: true,
+          hireDate: true,
+          dateOfBirth: true,
+          createdAt: true,
+          updatedAt: true,
+          department: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+            },
+          },
         },
         skip,
         take,
@@ -215,12 +273,20 @@ export class EmployeeService {
       this.prismaService.employee.count({ where }),
     ]);
 
-    return {
+    const result = {
       employees,
       total,
       skip,
       take,
     };
+
+    // Cache the result for non-search queries (5 minutes)
+    if (!filters.search) {
+      await this.cacheService.set(cacheKey, result, { ttl: 300 });
+      this.logger.debug(`Cached employee list with filters`);
+    }
+
+    return result as EmployeeListResponse;
   }
 
   async update(id: string, updateEmployeeData: UpdateEmployeeData, updatedBy: string): Promise<EmployeeWithDepartment> {
@@ -283,11 +349,20 @@ export class EmployeeService {
         }),
       },
       include: {
-        department: true,
+        department: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
+        },
       },
     });
 
-    return updatedEmployee;
+    // Invalidate cache
+    await this.invalidateEmployeeCache(id);
+
+    return updatedEmployee as EmployeeWithDepartment;
   }
 
   async softDelete(id: string, deletedBy: string): Promise<EmployeeWithDepartment> {
@@ -394,5 +469,23 @@ export class EmployeeService {
       statusBreakdown: byStatus,
       departmentBreakdown: byDepartment,
     };
+  }
+
+  /**
+   * Invalidate employee-related cache entries
+   */
+  private async invalidateEmployeeCache(employeeId: string): Promise<void> {
+    try {
+      // Invalidate specific employee cache
+      await this.cacheService.del(`employee:${employeeId}`);
+
+      // Invalidate employee list caches (all variations)
+      await this.cacheService.delPattern('employees:list:*');
+
+      this.logger.debug(`Invalidated cache for employee: ${employeeId}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error invalidating employee cache: ${errorMessage}`);
+    }
   }
 }

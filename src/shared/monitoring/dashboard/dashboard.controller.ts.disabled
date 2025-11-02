@@ -1,0 +1,444 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Body,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../shared/security/guards/roles.guard';
+import { DashboardService, DashboardData } from './dashboard.service';
+
+@ApiTags('Monitoring Dashboard')
+@Controller('dashboard')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
+export class DashboardController {
+  private readonly logger = new Logger(DashboardController.name);
+
+  constructor(private readonly dashboardService: DashboardService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get complete dashboard data' })
+  @ApiResponse({ status: 200, description: 'Dashboard data retrieved successfully' })
+  async getDashboard(@Query('refresh') refresh?: string) {
+    this.logger.log(`Dashboard data requested (refresh: ${refresh || 'false'})`);
+
+    try {
+      const forceRefresh = refresh === 'true';
+      const data = await this.dashboardService.getDashboardData(forceRefresh);
+
+      return {
+        success: true,
+        data,
+        generatedAt: new Date(),
+        cacheStatus: forceRefresh ? 'refreshed' : 'cached',
+      };
+    } catch (error) {
+      this.logger.error('Failed to get dashboard data:', error);
+      throw error;
+    }
+  }
+
+  @Get('overview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get system overview widget data' })
+  @ApiResponse({ status: 200, description: 'System overview retrieved successfully' })
+  async getOverview() {
+    this.logger.log('System overview requested');
+
+    try {
+      const overview = await this.dashboardService.getWidgetData('overview');
+      return {
+        success: true,
+        data: overview,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get system overview:', error);
+      throw error;
+    }
+  }
+
+  @Get('performance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get performance metrics widget data' })
+  @ApiResponse({ status: 200, description: 'Performance metrics retrieved successfully' })
+  async getPerformance() {
+    this.logger.log('Performance metrics requested');
+
+    try {
+      const performance = await this.dashboardService.getWidgetData('performance');
+      return {
+        success: true,
+        data: performance,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get performance metrics:', error);
+      throw error;
+    }
+  }
+
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get health metrics widget data' })
+  @ApiResponse({ status: 200, description: 'Health metrics retrieved successfully' })
+  async getHealth() {
+    this.logger.log('Health metrics requested');
+
+    try {
+      const health = await this.dashboardService.getWidgetData('health');
+      return {
+        success: true,
+        data: health,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get health metrics:', error);
+      throw error;
+    }
+  }
+
+  @Get('alerts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get alert metrics widget data' })
+  @ApiResponse({ status: 200, description: 'Alert metrics retrieved successfully' })
+  async getAlerts() {
+    this.logger.log('Alert metrics requested');
+
+    try {
+      const alerts = await this.dashboardService.getWidgetData('alerts');
+      return {
+        success: true,
+        data: alerts,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get alert metrics:', error);
+      throw error;
+    }
+  }
+
+  @Get('logs')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get log metrics widget data' })
+  @ApiResponse({ status: 200, description: 'Log metrics retrieved successfully' })
+  async getLogs() {
+    this.logger.log('Log metrics requested');
+
+    try {
+      const logs = await this.dashboardService.getWidgetData('logs');
+      return {
+        success: true,
+        data: logs,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get log metrics:', error);
+      throw error;
+    }
+  }
+
+  @Get('business')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get business metrics widget data' })
+  @ApiResponse({ status: 200, description: 'Business metrics retrieved successfully' })
+  async getBusiness() {
+    this.logger.log('Business metrics requested');
+
+    try {
+      const business = await this.dashboardService.getWidgetData('business');
+      return {
+        success: true,
+        data: business,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get business metrics:', error);
+      throw error;
+    }
+  }
+
+  @Get('infrastructure')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get infrastructure metrics widget data' })
+  @ApiResponse({ status: 200, description: 'Infrastructure metrics retrieved successfully' })
+  async getInfrastructure() {
+    this.logger.log('Infrastructure metrics requested');
+
+    try {
+      const infrastructure = await this.dashboardService.getWidgetData('infrastructure');
+      return {
+        success: true,
+        data: infrastructure,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get infrastructure metrics:', error);
+      throw error;
+    }
+  }
+
+  @Get('trends')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get trend data for charts' })
+  @ApiResponse({ status: 200, description: 'Trend data retrieved successfully' })
+  async getTrends(@Query('period') period?: string) {
+    this.logger.log(`Trend data requested for period: ${period || '24h'}`);
+
+    try {
+      const trends = await this.dashboardService.getWidgetData('trends');
+
+      // Filter trends based on period if specified
+      let filteredTrends = trends;
+      if (period) {
+        const hours = this.parsePeriodToHours(period);
+        // In a real implementation, you'd filter the trend data
+        filteredTrends = trends; // Placeholder
+      }
+
+      return {
+        success: true,
+        data: filteredTrends,
+        period: period || '24h',
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get trend data:', error);
+      throw error;
+    }
+  }
+
+  @Get('widgets/:widgetType')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get specific widget data' })
+  @ApiResponse({ status: 200, description: 'Widget data retrieved successfully' })
+  async getWidget(
+    @Query('widgetType') widgetType: string,
+    @Query() params?: any,
+  ) {
+    this.logger.log(`Widget data requested: ${widgetType}`);
+
+    try {
+      const data = await this.dashboardService.getWidgetData(widgetType, params);
+      return {
+        success: true,
+        widgetType,
+        data,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get widget data for ${widgetType}:`, error);
+      throw error;
+    }
+  }
+
+  @Get('summary')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get dashboard summary for quick overview' })
+  @ApiResponse({ status: 200, description: 'Dashboard summary retrieved successfully' })
+  async getDashboardSummary() {
+    this.logger.log('Dashboard summary requested');
+
+    try {
+      const dashboardData = await this.dashboardService.getDashboardData();
+
+      const summary = {
+        status: dashboardData.overview.status,
+        healthScore: dashboardData.overview.healthScore,
+        activeUsers: dashboardData.overview.activeUsers,
+        errorRate: dashboardData.overview.errorRate,
+        responseTime: dashboardData.overview.responseTime,
+        criticalAlerts: dashboardData.overview.criticalAlerts,
+        uptime: dashboardData.overview.uptime,
+        lastUpdated: dashboardData.timestamp,
+      };
+
+      return {
+        success: true,
+        summary,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get dashboard summary:', error);
+      throw error;
+    }
+  }
+
+  @Get('metrics/:metricType')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get specific type of metrics' })
+  @ApiResponse({ status: 200, description: 'Metrics retrieved successfully' })
+  async getMetrics(
+    @Query('metricType') metricType: string,
+    @Query('timeRange') timeRange?: string,
+    @Query('granularity') granularity?: string,
+  ) {
+    this.logger.log(`Metrics requested: ${metricType} (${timeRange || 'default'}, ${granularity || 'default'})`);
+
+    try {
+      // Map metric types to widget data
+      const metricMapping: Record<string, string> = {
+        'system': 'overview',
+        'performance': 'performance',
+        'health': 'health',
+        'alerts': 'alerts',
+        'logs': 'logs',
+        'business': 'business',
+        'infrastructure': 'infrastructure',
+      };
+
+      const widgetType = metricMapping[metricType];
+      if (!widgetType) {
+        throw new Error(`Unknown metric type: ${metricType}`);
+      }
+
+      const data = await this.dashboardService.getWidgetData(widgetType);
+
+      return {
+        success: true,
+        metricType,
+        timeRange: timeRange || 'default',
+        granularity: granularity || 'default',
+        data,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get metrics for ${metricType}:`, error);
+      throw error;
+    }
+  }
+
+  @Post('export')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Export dashboard data' })
+  @ApiResponse({ status: 200, description: 'Dashboard data exported successfully' })
+  async exportDashboard(@Body() body: {
+    format?: 'json' | 'csv';
+    includeTrends?: boolean;
+    timeRange?: string;
+  }) {
+    this.logger.log(`Dashboard export requested: ${body.format || 'json'}`);
+
+    try {
+      const exportData = await this.dashboardService.exportDashboardData(body.format || 'json');
+
+      return {
+        success: true,
+        format: body.format || 'json',
+        data: exportData,
+        exportedAt: new Date(),
+        size: exportData.length,
+      };
+    } catch (error) {
+      this.logger.error('Failed to export dashboard data:', error);
+      throw error;
+    }
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Force refresh dashboard cache' })
+  @ApiResponse({ status: 200, description: 'Dashboard cache refreshed successfully' })
+  async refreshDashboard() {
+    this.logger.log('Dashboard cache refresh requested');
+
+    try {
+      // Clear cache and get fresh data
+      this.dashboardService.clearCache();
+      const data = await this.dashboardService.getDashboardData(true);
+
+      return {
+        success: true,
+        message: 'Dashboard cache refreshed successfully',
+        data,
+        refreshedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to refresh dashboard:', error);
+      throw error;
+    }
+  }
+
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get dashboard service health' })
+  @ApiResponse({ status: 200, description: 'Dashboard service health retrieved successfully' })
+  async getDashboardHealth() {
+    try {
+      // Check if we can get dashboard data
+      const startTime = Date.now();
+      const overview = await this.dashboardService.getWidgetData('overview');
+      const responseTime = Date.now() - startTime;
+
+      const isHealthy = responseTime < 5000; // Should respond within 5 seconds
+
+      return {
+        success: true,
+        status: isHealthy ? 'HEALTHY' : 'DEGRADED',
+        metrics: {
+          responseTime,
+          cacheStatus: 'active',
+          lastUpdate: new Date(),
+        },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Dashboard health check failed:', error);
+      return {
+        success: false,
+        status: 'UNHEALTHY',
+        error: error.message,
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  @Get('config')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get dashboard configuration' })
+  @ApiResponse({ status: 200, description: 'Dashboard configuration retrieved successfully' })
+  async getDashboardConfig() {
+    return {
+      success: true,
+      config: {
+        refreshInterval: 30000, // 30 seconds
+        cacheExpiry: 30000, // 30 seconds
+        widgets: [
+          { id: 'overview', name: 'System Overview', refreshInterval: 30000 },
+          { id: 'performance', name: 'Performance Metrics', refreshInterval: 30000 },
+          { id: 'health', name: 'Health Status', refreshInterval: 60000 },
+          { id: 'alerts', name: 'Active Alerts', refreshInterval: 15000 },
+          { id: 'logs', name: 'Recent Logs', refreshInterval: 30000 },
+          { id: 'business', name: 'Business Metrics', refreshInterval: 300000 },
+          { id: 'infrastructure', name: 'Infrastructure', refreshInterval: 60000 },
+          { id: 'trends', name: 'Trends', refreshInterval: 300000 },
+        ],
+        defaultTimeRange: '24h',
+        maxDataPoints: 1000,
+        exportFormats: ['json', 'csv'],
+      },
+      timestamp: new Date(),
+    };
+  }
+
+  private parsePeriodToHours(period: string): number {
+    const periodMap: Record<string, number> = {
+      '1h': 1,
+      '6h': 6,
+      '12h': 12,
+      '24h': 24,
+      '7d': 168,
+      '30d': 720,
+    };
+
+    return periodMap[period] || 24;
+  }
+}

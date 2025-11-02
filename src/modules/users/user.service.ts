@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SecurityService } from '../../shared/security/security.service';
+import { CacheService } from '../../shared/cache/cache.service';
 import { CreateUserDto, UpdateUserDto, UserResponse, UserQueryDto, UserPasswordChangeDto, validatePasswordConfirmation } from './dto/user.dto';
 import { Logger } from '@nestjs/common';
 
@@ -15,6 +16,7 @@ export class UserService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly securityService: SecurityService,
+    private readonly cacheService: CacheService,
   ) {}
 
   /**
@@ -109,6 +111,10 @@ export class UserService {
       );
 
       this.logger.log(`User created successfully!: ${newUser.email} (${newUser.id})`);
+
+      // Invalidate user caches
+      await this.invalidateUserCaches();
+
       return newUser;
 
     } catch (error) {
@@ -153,30 +159,38 @@ export class UserService {
    */
   async findById(id: string): Promise<UserResponse> {
     try {
-      const user = await this.prismaService.user.findUnique({
-        where: { id, isActive: true },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          isActive: true,
-          isEmailVerified: true,
-          createdAt: true,
-          updatedAt: true,
-          lastLoginAt: true,
-          // Explicitly exclude sensitive fields
-          password: false,
+      const cacheKey = `user:${id}`;
+
+      return this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          const user = await this.prismaService.user.findUnique({
+            where: { id, isActive: true },
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              role: true,
+              isActive: true,
+              isEmailVerified: true,
+              createdAt: true,
+              updatedAt: true,
+              lastLoginAt: true,
+              // Explicitly exclude sensitive fields
+              password: false,
+            },
+          });
+
+          if (!user) {
+            throw new NotFoundException(`User with id ${id} not found`);
+          }
+
+          return user as UserResponse;
         },
-      });
-
-      if (!user) {
-        throw new NotFoundException(`User with id ${id} not found`);
-      }
-
-      return user as UserResponse;
+        { ttl: 300 } // 5 minutes for user data
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -266,6 +280,10 @@ export class UserService {
       );
 
       this.logger.log(`User updated successfully!: ${updatedUser.email} (${id})`);
+
+      // Invalidate user caches
+      await this.invalidateUserCaches();
+
       return updatedUser as UserResponse;
 
     } catch (error) {
@@ -361,59 +379,71 @@ export class UserService {
     try {
       const { role, isActive, search, skip = '0', take = '10', sortBy, sortOrder } = query;
 
-      const where: Record<string, unknown> = {};
+      // Enforce maximum page size for performance
+      const pageSize = Math.min(parseInt(take), 100);
 
-      if (role) {
-        where.role = role;
-      }
+      // Create cache key based on query parameters
+      const cacheKey = `users:list:${JSON.stringify({ role, isActive, search, skip, take: pageSize, sortBy, sortOrder })}`;
 
-      if (isActive !== undefined) {
-        where.isActive = isActive;
-      }
+      return this.cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          const where: Record<string, unknown> = {};
 
-      if (search) {
-        where.OR = [
-          { email: { contains: search, mode: 'insensitive' } },
-          { username: { contains: search, mode: 'insensitive' } },
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-        ];
-      }
+          if (role) {
+            where.role = role;
+          }
 
-      // Build sort order
-      let orderBy: Record<string, 'asc' | 'desc'> = { createdAt: 'desc' };
-      if (sortBy) {
-        const allowedSortFields = ['email', 'username', 'firstName', 'lastName', 'createdAt', 'updatedAt'];
-        if (allowedSortFields.includes(sortBy)) {
-          const direction = sortOrder === 'desc' ? 'desc' : 'asc';
-          orderBy = { [sortBy]: direction };
-        }
-      }
+          if (isActive !== undefined) {
+            where.isActive = isActive;
+          }
 
-      const [users, total] = await Promise.all([
-        this.prismaService.user.findMany({
-          where,
-          select: {
-            id: true,
-            email: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-            isActive: true,
-            isEmailVerified: true,
-            createdAt: true,
-            updatedAt: true,
-            lastLoginAt: true,
-          },
-          skip: parseInt(skip),
-          take: Math.min(parseInt(take), 100), // Limit maximum results
-          orderBy,
-        }),
-        this.prismaService.user.count({ where }),
-      ]);
+          if (search) {
+            where.OR = [
+              { email: { contains: search, mode: 'insensitive' } },
+              { username: { contains: search, mode: 'insensitive' } },
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
+            ];
+          }
 
-      return { users: users as UserResponse[], total };
+          // Build sort order
+          let orderBy: Record<string, 'asc' | 'desc'> = { createdAt: 'desc' };
+          if (sortBy) {
+            const allowedSortFields = ['email', 'username', 'firstName', 'lastName', 'createdAt', 'updatedAt'];
+            if (allowedSortFields.includes(sortBy)) {
+              const direction = sortOrder === 'desc' ? 'desc' : 'asc';
+              orderBy = { [sortBy]: direction };
+            }
+          }
+
+          const [users, total] = await Promise.all([
+            this.prismaService.user.findMany({
+              where,
+              select: {
+                id: true,
+                email: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                isActive: true,
+                isEmailVerified: true,
+                createdAt: true,
+                updatedAt: true,
+                lastLoginAt: true,
+              },
+              skip: parseInt(skip),
+              take: pageSize,
+              orderBy,
+            }),
+            this.prismaService.user.count({ where }),
+          ]);
+
+          return { users: users as UserResponse[], total };
+        },
+        { ttl: 180 } // 3 minutes for user list data
+      );
     } catch (error) {
       this.logger.error(`Failed to get users: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to retrieve users');
@@ -441,6 +471,10 @@ export class UserService {
       );
 
       this.logger.log(`User deactivated!: ${user.email} (${id})`);
+
+      // Invalidate user caches
+      await this.invalidateUserCaches();
+
       return { success: true };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -449,6 +483,24 @@ export class UserService {
 
       this.logger.error(`Failed to deactivate user: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw new InternalServerErrorException('Failed to deactivate user');
+    }
+  }
+
+  /**
+   * Invalidate all user-related caches
+   */
+  private async invalidateUserCaches(): Promise<void> {
+    try {
+      // Invalidate all user caches
+      await Promise.all([
+        this.cacheService.delPattern('users:*'),
+        this.cacheService.delPattern('user:*'),
+      ]);
+
+      this.logger.debug('User caches invalidated');
+    } catch (error) {
+      this.logger.warn(`Failed to invalidate user caches: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Don't throw error - cache invalidation failure shouldn't break the operation
     }
   }
 }

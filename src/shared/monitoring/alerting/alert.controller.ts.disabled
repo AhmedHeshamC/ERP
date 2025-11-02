@@ -1,0 +1,440 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Body,
+  Delete,
+  Param,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../shared/security/guards/roles.guard';
+import { AlertService, Alert, AlertStatistics } from './alert.service';
+
+@ApiTags('Alerting')
+@Controller('alerts')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
+export class AlertController {
+  private readonly logger = new Logger(AlertController.name);
+
+  constructor(private readonly alertService: AlertService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get alerts with optional filters' })
+  @ApiResponse({ status: 200, description: 'Alerts retrieved successfully' })
+  async getAlerts(@Query() filter: {
+    severity?: string;
+    category?: string;
+    source?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    this.logger.log(`Alerts requested with filters:`, filter);
+
+    try {
+      const result = this.alertService.getAlerts(filter);
+      return {
+        success: true,
+        ...result,
+        filters: filter,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get alerts:', error);
+      throw error;
+    }
+  }
+
+  @Get('active')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get active alerts' })
+  @ApiResponse({ status: 200, description: 'Active alerts retrieved successfully' })
+  async getActiveAlerts() {
+    this.logger.log('Active alerts requested');
+
+    try {
+      const activeAlerts = this.alertService.getActiveAlerts();
+      return {
+        success: true,
+        alerts: activeAlerts,
+        count: activeAlerts.length,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get active alerts:', error);
+      throw error;
+    }
+  }
+
+  @Get('statistics')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get alert statistics' })
+  @ApiResponse({ status: 200, description: 'Alert statistics retrieved successfully' })
+  async getAlertStatistics(@Query('hours') hours?: number) {
+    this.logger.log(`Alert statistics requested for ${hours || 24} hours`);
+
+    try {
+      const stats = this.alertService.getAlertStatistics(hours ? parseInt(hours.toString()) : 24);
+      return {
+        success: true,
+        stats,
+        period: `${hours || 24} hours`,
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get alert statistics:', error);
+      throw error;
+    }
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new alert' })
+  @ApiResponse({ status: 201, description: 'Alert created successfully' })
+  async createAlert(@Body() alertData: Partial<Alert>) {
+    this.logger.log(`Manual alert creation requested:`, alertData);
+
+    try {
+      const alert = await this.alertService.createAlert(alertData);
+      return {
+        success: true,
+        message: 'Alert created successfully',
+        alert,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create alert:', error);
+      throw error;
+    }
+  }
+
+  @Put(':alertId/resolve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resolve an alert' })
+  @ApiResponse({ status: 200, description: 'Alert resolved successfully' })
+  async resolveAlert(
+    @Param('alertId') alertId: string,
+    @Body() body: { resolvedBy?: string; notes?: string },
+  ) {
+    this.logger.log(`Alert resolution requested: ${alertId}`);
+
+    try {
+      const alert = await this.alertService.resolveAlert(alertId, body.resolvedBy, body.notes);
+      if (!alert) {
+        return {
+          success: false,
+          message: 'Alert not found',
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Alert resolved successfully',
+        alert,
+      };
+    } catch (error) {
+      this.logger.error('Failed to resolve alert:', error);
+      throw error;
+    }
+  }
+
+  @Put(':alertId/acknowledge')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Acknowledge an alert' })
+  @ApiResponse({ status: 200, description: 'Alert acknowledged successfully' })
+  async acknowledgeAlert(
+    @Param('alertId') alertId: string,
+    @Body() body: { acknowledgedBy: string; notes?: string },
+  ) {
+    this.logger.log(`Alert acknowledgment requested: ${alertId}`);
+
+    try {
+      const alert = await this.alertService.acknowledgeAlert(alertId, body.acknowledgedBy, body.notes);
+      if (!alert) {
+        return {
+          success: false,
+          message: 'Alert not found or already resolved',
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Alert acknowledged successfully',
+        alert,
+      };
+    } catch (error) {
+      this.logger.error('Failed to acknowledge alert:', error);
+      throw error;
+    }
+  }
+
+  @Put(':alertId/suppress')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Suppress an alert for a duration' })
+  @ApiResponse({ status: 200, description: 'Alert suppressed successfully' })
+  async suppressAlert(
+    @Param('alertId') alertId: string,
+    @Body() body: { duration: number; reason?: string },
+  ) {
+    this.logger.log(`Alert suppression requested: ${alertId} for ${body.duration} minutes`);
+
+    try {
+      const alert = await this.alertService.suppressAlert(alertId, body.duration, body.reason);
+      if (!alert) {
+        return {
+          success: false,
+          message: 'Alert not found',
+        };
+      }
+
+      return {
+        success: true,
+        message: `Alert suppressed for ${body.duration} minutes`,
+        alert,
+      };
+    } catch (error) {
+      this.logger.error('Failed to suppress alert:', error);
+      throw error;
+    }
+  }
+
+  @Get('summary')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get alert summary dashboard' })
+  @ApiResponse({ status: 200, description: 'Alert summary retrieved successfully' })
+  async getAlertSummary() {
+    this.logger.log('Alert summary requested');
+
+    try {
+      const activeAlerts = this.alertService.getActiveAlerts();
+      const stats = this.alertService.getAlertStatistics(24); // Last 24 hours
+
+      // Group active alerts by severity
+      const activeBySeverity: Record<string, number> = {};
+      const activeByCategory: Record<string, number> = {};
+
+      activeAlerts.forEach(alert => {
+        activeBySeverity[alert.severity] = (activeBySeverity[alert.severity] || 0) + 1;
+        activeByCategory[alert.category] = (activeByCategory[alert.category] || 0) + 1;
+      });
+
+      // Get recent critical alerts
+      const criticalAlerts = activeAlerts.filter(alert => alert.severity === 'CRITICAL').slice(0, 10);
+
+      // Get recent high alerts
+      const highAlerts = activeAlerts.filter(alert => alert.severity === 'HIGH').slice(0, 10);
+
+      return {
+        success: true,
+        summary: {
+          totalActive: activeAlerts.length,
+          activeBySeverity,
+          activeByCategory,
+          criticalAlerts,
+          highAlerts,
+          stats24h: stats,
+        },
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get alert summary:', error);
+      throw error;
+    }
+  }
+
+  @Get('trends')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get alert trends over time' })
+  @ApiResponse({ status: 200, description: 'Alert trends retrieved successfully' })
+  async getAlertTrends(@Query('hours') hours?: number) {
+    this.logger.log(`Alert trends requested for ${hours || 168} hours (1 week)`);
+
+    try {
+      const period = hours ? parseInt(hours.toString()) : 168; // Default 1 week
+      const stats = this.alertService.getAlertStatistics(period);
+
+      // Create hourly trend data
+      const trends = [];
+      for (let i = 0; i < Math.min(period, 168); i += 6) { // 6-hour intervals
+        const intervalStats = this.alertService.getAlertStatistics(6);
+        trends.push({
+          timestamp: new Date(Date.now() - i * 60 * 60 * 1000),
+          total: intervalStats.total,
+          active: intervalStats.active,
+          resolved: intervalStats.resolved,
+        });
+      }
+
+      return {
+        success: true,
+        trends: trends.reverse(), // Newest first
+        period: `${period} hours`,
+        summary: {
+          total: stats.total,
+          averagePerHour: stats.total / period,
+          peakSeverity: Object.entries(stats.bySeverity)
+            .sort(([, a], [, b]) => b - a)[0]?.[0] || 'NONE',
+          mostActiveCategory: Object.entries(stats.byCategory)
+            .sort(([, a], [, b]) => b - a)[0]?.[0] || 'NONE',
+        },
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get alert trends:', error);
+      throw error;
+    }
+  }
+
+  @Get('dashboard')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get alert dashboard data' })
+  @ApiResponse({ status: 200, description: 'Alert dashboard data retrieved successfully' })
+  async getAlertDashboard() {
+    this.logger.log('Alert dashboard data requested');
+
+    try {
+      const activeAlerts = this.alertService.getActiveAlerts();
+      const stats24h = this.alertService.getAlertStatistics(24);
+      const stats7d = this.alertService.getAlertStatistics(168); // 7 days
+      const stats30d = this.alertService.getAlertStatistics(720); // 30 days
+
+      // Critical alerts need immediate attention
+      const criticalAlerts = activeAlerts.filter(alert => alert.severity === 'CRITICAL');
+      const highAlerts = activeAlerts.filter(alert => alert.severity === 'HIGH');
+
+      // Recent alerts for timeline
+      const recentAlerts = activeAlerts.slice(0, 20);
+
+      // Top sources
+      const topSources = Object.entries(stats24h.bySource)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10)
+        .map(([source, count]) => ({ source, count }));
+
+      return {
+        success: true,
+        dashboard: {
+          // Current status
+          currentStatus: {
+            activeAlerts: activeAlerts.length,
+            criticalAlerts: criticalAlerts.length,
+            highAlerts: highAlerts.length,
+          },
+
+          // Statistics by period
+          statistics: {
+            last24h: stats24h,
+            last7d: stats7d,
+            last30d: stats30d,
+          },
+
+          // Recent activity
+          recentAlerts,
+          criticalAlerts: criticalAlerts.slice(0, 10),
+          highAlerts: highAlerts.slice(0, 10),
+
+          // Analytics
+          topSources,
+          topAlerts: stats24h.topAlerts.slice(0, 5),
+          resolutionTimes: stats24h.resolutionTimes.slice(0, 5),
+
+          // Health indicators
+          healthIndicators: {
+            overallHealth: criticalAlerts.length > 0 ? 'CRITICAL' :
+                          highAlerts.length > 5 ? 'DEGRADED' :
+                          activeAlerts.length > 20 ? 'WARNING' : 'HEALTHY',
+            alertVelocity: stats24h.total / 24, // alerts per hour
+            avgResolutionTime: stats24h.resolutionTimes.reduce((sum, cat) => sum + cat.avgTime, 0) /
+                              (stats24h.resolutionTimes.length || 1),
+          },
+        },
+        generatedAt: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get alert dashboard:', error);
+      throw error;
+    }
+  }
+
+  @Post('test')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create a test alert for notification testing' })
+  @ApiResponse({ status: 200, description: 'Test alert created successfully' })
+  async createTestAlert(@Body() testData: {
+    severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    category?: string;
+    message?: string;
+  }) {
+    this.logger.log(`Test alert creation requested:`, testData);
+
+    try {
+      const alert = await this.alertService.createAlert({
+        name: `Test Alert - ${testData.severity || 'MEDIUM'}`,
+        description: testData.message || 'This is a test alert for notification validation',
+        severity: testData.severity || 'MEDIUM',
+        category: (testData.category as any) || 'SYSTEM',
+        source: 'alert_controller',
+        tags: ['test'],
+        metadata: {
+          isTest: true,
+          createdAt: new Date().toISOString(),
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Test alert created successfully',
+        alert,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create test alert:', error);
+      throw error;
+    }
+  }
+
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get alerting system health' })
+  @ApiResponse({ status: 200, description: 'Alerting system health retrieved successfully' })
+  async getAlertingHealth() {
+    try {
+      const activeAlerts = this.alertService.getActiveAlerts();
+      const stats = this.alertService.getAlertStatistics(1); // Last hour
+
+      const criticalCount = activeAlerts.filter(a => a.severity === 'CRITICAL').length;
+      const highCount = activeAlerts.filter(a => a.severity === 'HIGH').length;
+
+      let status = 'HEALTHY';
+      if (criticalCount > 0) status = 'CRITICAL';
+      else if (highCount > 5) status = 'DEGRADED';
+      else if (activeAlerts.length > 20) status = 'WARNING';
+
+      return {
+        success: true,
+        status,
+        metrics: {
+          activeAlerts: activeAlerts.length,
+          criticalAlerts: criticalCount,
+          highAlerts: highCount,
+          alertsLastHour: stats.total,
+          systemLoad: activeAlerts.length > 50 ? 'HIGH' : activeAlerts.length > 20 ? 'MEDIUM' : 'LOW',
+        },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get alerting health:', error);
+      return {
+        success: false,
+        status: 'UNHEALTHY',
+        error: error.message,
+        timestamp: new Date(),
+      };
+    }
+  }
+}

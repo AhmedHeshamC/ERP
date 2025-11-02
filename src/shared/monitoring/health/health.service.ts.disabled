@@ -1,0 +1,632 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { CacheService } from '../../cache/cache.service';
+import { ConfigService } from '@nestjs/config';
+
+export interface HealthCheckResult {
+  status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY';
+  timestamp: Date;
+  duration: number;
+  checks: HealthCheck[];
+  overallScore: number;
+  uptime: number;
+}
+
+export interface HealthCheck {
+  name: string;
+  status: 'UP' | 'DOWN' | 'DEGRADED';
+  responseTime?: number;
+  message?: string;
+  details?: any;
+  lastChecked: Date;
+}
+
+export interface SystemMetrics {
+  cpu: {
+    usage: number;
+    loadAverage: number[];
+  };
+  memory: {
+    used: number;
+    total: number;
+    percentage: number;
+    heapUsed: number;
+    heapTotal: number;
+  };
+  disk: {
+    used: number;
+    total: number;
+    percentage: number;
+  };
+  network: {
+    connections: number;
+    bytesReceived: number;
+    bytesSent: number;
+  };
+}
+
+export interface BusinessHealthCheck {
+  name: string;
+  status: 'UP' | 'DOWN' | 'DEGRADED';
+  metric: number;
+  threshold: number;
+  message?: string;
+  lastChecked: Date;
+}
+
+@Injectable()
+export class HealthService implements OnModuleInit {
+  private readonly logger = new Logger(HealthService.name);
+  private startTime = Date.now();
+  private lastHealthCheck: HealthCheckResult | null = null;
+  private healthCheckInterval: NodeJS.Timeout | null = null;
+
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly cacheService: CacheService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  onModuleInit() {
+    // Run health checks every 30 seconds
+    this.healthCheckInterval = setInterval(() => {
+      this.performHealthCheck().catch(error => {
+        this.logger.error('Scheduled health check failed:', error);
+      });
+    }, 30000);
+
+    // Perform initial health check
+    setTimeout(() => {
+      this.performHealthCheck().catch(error => {
+        this.logger.error('Initial health check failed:', error);
+      });
+    }, 5000);
+  }
+
+  async performHealthCheck(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    this.logger.debug('Starting comprehensive health check');
+
+    const checks: HealthCheck[] = [];
+
+    try {
+      // Database Health Check
+      checks.push(await this.checkDatabase());
+
+      // Redis/Cache Health Check
+      checks.push(await this.checkCache());
+
+      // Application Health Check
+      checks.push(await this.checkApplication());
+
+      // External Services Health Check
+      checks.push(await this.checkExternalServices());
+
+      // System Resources Health Check
+      checks.push(await this.checkSystemResources());
+
+      // Business Logic Health Check
+      const businessChecks = await this.checkBusinessLogic();
+      checks.push(...businessChecks);
+
+    } catch (error) {
+      this.logger.error('Health check execution failed:', error);
+      checks.push({
+        name: 'health_check_execution',
+        status: 'DOWN',
+        message: `Health check execution failed: ${error.message}`,
+        lastChecked: new Date(),
+      });
+    }
+
+    const duration = Date.now() - startTime;
+    const result = this.calculateOverallHealth(checks, duration);
+
+    this.lastHealthCheck = result;
+    this.logger.log(`Health check completed: ${result.status} (${result.overallScore}/100) in ${duration}ms`);
+
+    return result;
+  }
+
+  async checkDatabase(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    try {
+      const isHealthy = await this.prismaService.healthCheck();
+      const responseTime = Date.now() - startTime;
+
+      if (!isHealthy) {
+        return {
+          name: 'database',
+          status: 'DOWN',
+          responseTime,
+          message: 'Database health check query failed',
+          lastChecked: new Date(),
+        };
+      }
+
+      // Additional database metrics
+      const connectionMetrics = await this.getDatabaseMetrics();
+
+      return {
+        name: 'database',
+        status: 'UP',
+        responseTime,
+        details: connectionMetrics,
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      return {
+        name: 'database',
+        status: 'DOWN',
+        responseTime: Date.now() - startTime,
+        message: `Database connection failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  async checkCache(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    try {
+      const isConnected = this.cacheService.isRedisConnected();
+      const responseTime = Date.now() - startTime;
+
+      if (!isConnected) {
+        return {
+          name: 'redis_cache',
+          status: 'DEGRADED',
+          responseTime,
+          message: 'Redis is not connected',
+          lastChecked: new Date(),
+        };
+      }
+
+      // Test cache operations
+      const testKey = 'health_check_test';
+      await this.cacheService.set(testKey, 'test_value', 10);
+      const retrievedValue = await this.cacheService.get(testKey);
+      await this.cacheService.del(testKey);
+
+      if (retrievedValue !== 'test_value') {
+        return {
+          name: 'redis_cache',
+          status: 'DEGRADED',
+          responseTime,
+          message: 'Cache operations are not working correctly',
+          lastChecked: new Date(),
+        };
+      }
+
+      const cacheStats = this.cacheService.getStats();
+
+      return {
+        name: 'redis_cache',
+        status: 'UP',
+        responseTime,
+        details: {
+          ...cacheStats,
+          memoryUsage: await this.cacheService.getMemoryUsage(),
+        },
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      return {
+        name: 'redis_cache',
+        status: 'DOWN',
+        responseTime: Date.now() - startTime,
+        message: `Cache health check failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  async checkApplication(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    try {
+      const metrics = this.getSystemMetrics();
+      const responseTime = Date.now() - startTime;
+
+      // Check memory usage
+      if (metrics.memory.percentage > 90) {
+        return {
+          name: 'application',
+          status: 'UNHEALTHY',
+          responseTime,
+          message: `High memory usage: ${metrics.memory.percentage.toFixed(2)}%`,
+          details: metrics,
+          lastChecked: new Date(),
+        };
+      }
+
+      if (metrics.memory.percentage > 75) {
+        return {
+          name: 'application',
+          status: 'DEGRADED',
+          responseTime,
+          message: `Elevated memory usage: ${metrics.memory.percentage.toFixed(2)}%`,
+          details: metrics,
+          lastChecked: new Date(),
+        };
+      }
+
+      return {
+        name: 'application',
+        status: 'UP',
+        responseTime,
+        details: metrics,
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      return {
+        name: 'application',
+        status: 'DOWN',
+        responseTime: Date.now() - startTime,
+        message: `Application health check failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  async checkExternalServices(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    const services: string[] = [];
+
+    try {
+      // Check external service dependencies
+      const externalServiceUrls = this.configService.get<string[]>('EXTERNAL_SERVICES', []);
+
+      if (externalServiceUrls.length === 0) {
+        return {
+          name: 'external_services',
+          status: 'UP',
+          responseTime: Date.now() - startTime,
+          message: 'No external services configured',
+          lastChecked: new Date(),
+        };
+      }
+
+      const results = await Promise.allSettled(
+        externalServiceUrls.map(async (url) => {
+          const response = await fetch(url, {
+            method: 'HEAD',
+            signal: AbortSignal.timeout(5000) // 5 second timeout
+          });
+          return { url, status: response.ok, responseTime: Date.now() - startTime };
+        })
+      );
+
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.status).length;
+      const total = results.length;
+
+      if (successful === 0) {
+        return {
+          name: 'external_services',
+          status: 'DOWN',
+          responseTime: Date.now() - startTime,
+          message: `All ${total} external services are unavailable`,
+          details: { services, successRate: 0 },
+          lastChecked: new Date(),
+        };
+      }
+
+      if (successful < total) {
+        return {
+          name: 'external_services',
+          status: 'DEGRADED',
+          responseTime: Date.now() - startTime,
+          message: `${successful}/${total} external services are available`,
+          details: { services, successRate: (successful / total) * 100 },
+          lastChecked: new Date(),
+        };
+      }
+
+      return {
+        name: 'external_services',
+        status: 'UP',
+        responseTime: Date.now() - startTime,
+        message: `All ${total} external services are available`,
+        details: { services, successRate: 100 },
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      return {
+        name: 'external_services',
+        status: 'DEGRADED',
+        responseTime: Date.now() - startTime,
+        message: `External services check failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  async checkSystemResources(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    try {
+      const metrics = this.getSystemMetrics();
+      const responseTime = Date.now() - startTime;
+
+      let status: 'UP' | 'DEGRADED' | 'DOWN' = 'UP';
+      const issues: string[] = [];
+
+      // Check CPU usage
+      if (metrics.cpu.usage > 90) {
+        status = 'UNHEALTHY';
+        issues.push(`High CPU usage: ${metrics.cpu.usage.toFixed(2)}%`);
+      } else if (metrics.cpu.usage > 75) {
+        status = 'DEGRADED';
+        issues.push(`Elevated CPU usage: ${metrics.cpu.usage.toFixed(2)}%`);
+      }
+
+      // Check memory usage
+      if (metrics.memory.percentage > 90) {
+        status = 'UNHEALTHY';
+        issues.push(`High memory usage: ${metrics.memory.percentage.toFixed(2)}%`);
+      } else if (metrics.memory.percentage > 75) {
+        status = status === 'UP' ? 'DEGRADED' : status;
+        issues.push(`Elevated memory usage: ${metrics.memory.percentage.toFixed(2)}%`);
+      }
+
+      // Check disk usage
+      if (metrics.disk.percentage > 90) {
+        status = 'UNHEALTHY';
+        issues.push(`High disk usage: ${metrics.disk.percentage.toFixed(2)}%`);
+      } else if (metrics.disk.percentage > 80) {
+        status = status === 'UP' ? 'DEGRADED' : status;
+        issues.push(`Elevated disk usage: ${metrics.disk.percentage.toFixed(2)}%`);
+      }
+
+      return {
+        name: 'system_resources',
+        status,
+        responseTime,
+        message: issues.length > 0 ? issues.join(', ') : 'System resources are healthy',
+        details: metrics,
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      return {
+        name: 'system_resources',
+        status: 'DOWN',
+        responseTime: Date.now() - startTime,
+        message: `System resources check failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  async checkBusinessLogic(): Promise<HealthCheck[]> {
+    const checks: HealthCheck[] = [];
+    const startTime = Date.now();
+
+    try {
+      // Check if critical business operations are working
+      const businessChecks = await Promise.allSettled([
+        this.checkUserAuthentication(),
+        this.checkDatabaseOperations(),
+        this.checkCriticalBusinessProcesses(),
+      ]);
+
+      businessChecks.forEach((result, index) => {
+        const checkNames = ['user_authentication', 'database_operations', 'business_processes'];
+
+        if (result.status === 'fulfilled') {
+          checks.push(result.value);
+        } else {
+          checks.push({
+            name: checkNames[index],
+            status: 'DOWN',
+            responseTime: Date.now() - startTime,
+            message: `Business logic check failed: ${result.reason?.message || 'Unknown error'}`,
+            lastChecked: new Date(),
+          });
+        }
+      });
+
+    } catch (error) {
+      this.logger.error('Business logic health checks failed:', error);
+    }
+
+    return checks;
+  }
+
+  async checkUserAuthentication(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    try {
+      // Simple check - can we access the users table?
+      await this.prismaService.user.findFirst({
+        select: { id: true },
+        take: 1,
+      });
+
+      return {
+        name: 'user_authentication',
+        status: 'UP',
+        responseTime: Date.now() - startTime,
+        message: 'User authentication system is operational',
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      return {
+        name: 'user_authentication',
+        status: 'DOWN',
+        responseTime: Date.now() - startTime,
+        message: `User authentication check failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  async checkDatabaseOperations(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    try {
+      // Test basic database operations
+      await this.prismaService.$queryRaw`SELECT 1 as test`;
+
+      return {
+        name: 'database_operations',
+        status: 'UP',
+        responseTime: Date.now() - startTime,
+        message: 'Database operations are working correctly',
+        lastChecked: new Date(),
+      };
+    } catch (error) {
+      return {
+        name: 'database_operations',
+        status: 'DOWN',
+        responseTime: Date.now() - startTime,
+        message: `Database operations check failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  async checkCriticalBusinessProcesses(): Promise<HealthCheck> {
+    const startTime = Date.now();
+    try {
+      // Check if critical tables are accessible
+      const criticalTables = ['users', 'accounts', 'products'];
+      const checks = await Promise.allSettled(
+        criticalTables.map(table =>
+          this.prismaService.$queryRawUnsafe(`SELECT COUNT(*) as count FROM "${table}" LIMIT 1`)
+        )
+      );
+
+      const successful = checks.filter(c => c.status === 'fulfilled').length;
+      const total = checks.length;
+
+      if (successful === total) {
+        return {
+          name: 'business_processes',
+          status: 'UP',
+          responseTime: Date.now() - startTime,
+          message: 'All critical business processes are operational',
+          lastChecked: new Date(),
+        };
+      } else if (successful > 0) {
+        return {
+          name: 'business_processes',
+          status: 'DEGRADED',
+          responseTime: Date.now() - startTime,
+          message: `${successful}/${total} business processes are operational`,
+          lastChecked: new Date(),
+        };
+      } else {
+        return {
+          name: 'business_processes',
+          status: 'DOWN',
+          responseTime: Date.now() - startTime,
+          message: 'No critical business processes are operational',
+          lastChecked: new Date(),
+        };
+      }
+    } catch (error) {
+      return {
+        name: 'business_processes',
+        status: 'DOWN',
+        responseTime: Date.now() - startTime,
+        message: `Business processes check failed: ${error.message}`,
+        lastChecked: new Date(),
+      };
+    }
+  }
+
+  getSystemMetrics(): SystemMetrics {
+    const memUsage = process.memoryUsage();
+    const cpuUsage = process.cpuUsage();
+
+    return {
+      cpu: {
+        usage: (cpuUsage.user + cpuUsage.system) / 1000000, // Convert to percentage
+        loadAverage: require('os').loadavg(),
+      },
+      memory: {
+        used: memUsage.rss,
+        total: require('os').totalmem(),
+        percentage: (memUsage.rss / require('os').totalmem()) * 100,
+        heapUsed: memUsage.heapUsed,
+        heapTotal: memUsage.heapTotal,
+      },
+      disk: {
+        used: 0, // Would need fs-stats package for real disk usage
+        total: 0,
+        percentage: 0,
+      },
+      network: {
+        connections: 0, // Would need additional tracking
+        bytesReceived: 0,
+        bytesSent: 0,
+      },
+    };
+  }
+
+  async getDatabaseMetrics(): Promise<any> {
+    try {
+      // Get connection pool metrics (PostgreSQL specific)
+      const connectionStats = await this.prismaService.$queryRaw`
+        SELECT
+          count(*) as total_connections,
+          count(*) FILTER (WHERE state = 'active') as active_connections,
+          count(*) FILTER (WHERE state = 'idle') as idle_connections
+        FROM pg_stat_activity
+      `;
+
+      return connectionStats;
+    } catch (error) {
+      this.logger.warn('Could not fetch database metrics:', error);
+      return {};
+    }
+  }
+
+  calculateOverallHealth(checks: HealthCheck[], duration: number): HealthCheckResult {
+    const upChecks = checks.filter(c => c.status === 'UP').length;
+    const downChecks = checks.filter(c => c.status === 'DOWN').length;
+    const degradedChecks = checks.filter(c => c.status === 'DEGRADED').length;
+    const totalChecks = checks.length;
+
+    let status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' = 'HEALTHY';
+    let overallScore = 100;
+
+    if (downChecks > 0) {
+      status = 'UNHEALTHY';
+      overallScore = Math.max(0, 100 - (downChecks / totalChecks) * 100);
+    } else if (degradedChecks > 0) {
+      status = 'DEGRADED';
+      overallScore = Math.max(50, 100 - (degradedChecks / totalChecks) * 30);
+    }
+
+    // Penalize for slow response times
+    const avgResponseTime = checks.reduce((sum, check) => sum + (check.responseTime || 0), 0) / totalChecks;
+    if (avgResponseTime > 1000) {
+      overallScore -= 20;
+    } else if (avgResponseTime > 500) {
+      overallScore -= 10;
+    }
+
+    overallScore = Math.max(0, Math.min(100, overallScore));
+
+    return {
+      status,
+      timestamp: new Date(),
+      duration,
+      checks,
+      overallScore,
+      uptime: Date.now() - this.startTime,
+    };
+  }
+
+  getLastHealthCheck(): HealthCheckResult | null {
+    return this.lastHealthCheck;
+  }
+
+  async getHealthHistory(hours: number = 24): Promise<HealthCheckResult[]> {
+    // In a real implementation, this would store health check results in a database
+    // For now, return the last health check
+    return this.lastHealthCheck ? [this.lastHealthCheck] : [];
+  }
+
+  onModuleDestroy() {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+    }
+  }
+}

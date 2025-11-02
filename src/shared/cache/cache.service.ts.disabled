@@ -1,0 +1,484 @@
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createClient, RedisClientType } from 'redis';
+
+export interface CacheOptions {
+  ttl?: number; // Time to live in seconds
+  keyPrefix?: string;
+  compress?: boolean;
+}
+
+export interface CacheStats {
+  hits: number;
+  misses: number;
+  hitRate: number;
+  totalRequests: number;
+  evictions: number;
+  memoryUsage: number;
+}
+
+@Injectable()
+export class CacheService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(CacheService.name);
+  private redisClient: RedisClientType;
+  private isConnected = false;
+  private stats: CacheStats = {
+    hits: 0,
+    misses: 0,
+    hitRate: 0,
+    totalRequests: 0,
+    evictions: 0,
+    memoryUsage: 0,
+  };
+  private defaultTTL = 3600; // 1 hour default
+  private keyPrefix = 'erp:cache:';
+
+  constructor(private readonly configService: ConfigService) {}
+
+  async onModuleInit() {
+    await this.connectRedis();
+  }
+
+  async onModuleDestroy() {
+    await this.disconnectRedis();
+  }
+
+  /**
+   * Connect to Redis with error handling and reconnection logic
+   */
+  private async connectRedis(): Promise<void> {
+    try {
+      const redisUrl = this.configService.get<string>('REDIS_URL', 'redis://localhost:6379');
+      this.redisClient = createClient({ url: redisUrl });
+
+      this.redisClient.on('error', (error) => {
+        this.logger.error(`Redis connection error: ${error.message}`);
+        this.isConnected = false;
+      });
+
+      this.redisClient.on('connect', () => {
+        this.logger.log('Redis client connected');
+        this.isConnected = true;
+      });
+
+      this.redisClient.on('ready', () => {
+        this.logger.log('Redis client ready');
+      });
+
+      this.redisClient.on('reconnecting', () => {
+        this.logger.log('Redis client reconnecting...');
+      });
+
+      await this.redisClient.connect();
+
+      // Test connection
+      await this.redisClient.ping();
+      this.logger.log('Redis connection established successfully');
+
+    } catch (error) {
+      this.logger.error(`Failed to connect to Redis: ${error.message}`);
+      this.isConnected = false;
+      // Continue without Redis - degrade gracefully
+    }
+  }
+
+  /**
+   * Disconnect from Redis
+   */
+  private async disconnectRedis(): Promise<void> {
+    if (this.redisClient && this.isConnected) {
+      try {
+        await this.redisClient.quit();
+        this.logger.log('Redis client disconnected');
+      } catch (error) {
+        this.logger.error(`Error disconnecting from Redis: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Get value from cache with stats tracking
+   */
+  async get<T>(key: string, options?: CacheOptions): Promise<T | null> {
+    if (!this.isConnected) {
+      return null;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+
+    try {
+      const value = await this.redisClient.get(fullKey);
+
+      this.stats.totalRequests++;
+
+      if (value !== null) {
+        this.stats.hits++;
+        this.updateHitRate();
+
+        // Deserialize JSON if needed
+        const parsedValue = this.deserialize<T>(value);
+        this.logger.debug(`Cache HIT for key: ${fullKey}`);
+        return parsedValue;
+      } else {
+        this.stats.misses++;
+        this.updateHitRate();
+        this.logger.debug(`Cache MISS for key: ${fullKey}`);
+        return null;
+      }
+    } catch (error) {
+      this.logger.error(`Cache GET error for key ${fullKey}: ${error.message}`);
+      this.stats.misses++;
+      this.updateHitRate();
+      return null;
+    }
+  }
+
+  /**
+   * Set value in cache with TTL
+   */
+  async set<T>(key: string, value: T, options?: CacheOptions): Promise<boolean> {
+    if (!this.isConnected) {
+      return false;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+    const ttl = options?.ttl || this.defaultTTL;
+
+    try {
+      const serializedValue = this.serialize(value);
+      await this.redisClient.setEx(fullKey, ttl, serializedValue);
+
+      this.logger.debug(`Cache SET for key: ${fullKey}, TTL: ${ttl}s`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Cache SET error for key ${fullKey}: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Delete value from cache
+   */
+  async del(key: string, options?: CacheOptions): Promise<boolean> {
+    if (!this.isConnected) {
+      return false;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+
+    try {
+      await this.redisClient.del(fullKey);
+      this.logger.debug(`Cache DELETE for key: ${fullKey}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Cache DELETE error for key ${fullKey}: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Delete multiple keys matching a pattern
+   */
+  async delPattern(pattern: string, options?: CacheOptions): Promise<number> {
+    if (!this.isConnected) {
+      return 0;
+    }
+
+    const fullPattern = this.buildKey(pattern, options?.keyPrefix);
+
+    try {
+      const keys = await this.redisClient.keys(fullPattern);
+      if (keys.length === 0) {
+        return 0;
+      }
+
+      const result = await this.redisClient.del(keys);
+      this.logger.debug(`Cache DELETE PATTERN ${fullPattern}: deleted ${result} keys`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Cache DELETE PATTERN error for pattern ${fullPattern}: ${error.message}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Check if key exists
+   */
+  async exists(key: string, options?: CacheOptions): Promise<boolean> {
+    if (!this.isConnected) {
+      return false;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+
+    try {
+      const result = await this.redisClient.exists(fullKey);
+      return result === 1;
+    } catch (error) {
+      this.logger.error(`Cache EXISTS error for key ${fullKey}: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Set TTL for existing key
+   */
+  async expire(key: string, ttl: number, options?: CacheOptions): Promise<boolean> {
+    if (!this.isConnected) {
+      return false;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+
+    try {
+      const result = await this.redisClient.expire(fullKey, ttl);
+      return result === 1;
+    } catch (error) {
+      this.logger.error(`Cache EXPIRE error for key ${fullKey}: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Get remaining TTL for key
+   */
+  async ttl(key: string, options?: CacheOptions): Promise<number> {
+    if (!this.isConnected) {
+      return -1;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+
+    try {
+      return await this.redisClient.ttl(fullKey);
+    } catch (error) {
+      this.logger.error(`Cache TTL error for key ${fullKey}: ${error.message}`);
+      return -1;
+    }
+  }
+
+  /**
+   * Increment numeric value
+   */
+  async incr(key: string, options?: CacheOptions): Promise<number> {
+    if (!this.isConnected) {
+      return 0;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+
+    try {
+      const result = await this.redisClient.incr(fullKey);
+
+      // Set TTL if this is a new key
+      if (result === 1 && options?.ttl) {
+        await this.redisClient.expire(fullKey, options.ttl);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(`Cache INCR error for key ${fullKey}: ${error.message}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Increment numeric value by amount
+   */
+  async incrBy(key: string, amount: number, options?: CacheOptions): Promise<number> {
+    if (!this.isConnected) {
+      return 0;
+    }
+
+    const fullKey = this.buildKey(key, options?.keyPrefix);
+
+    try {
+      const result = await this.redisClient.incrBy(fullKey, amount);
+
+      // Set TTL if this is a new key
+      if (result === amount && options?.ttl) {
+        await this.redisClient.expire(fullKey, options.ttl);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(`Cache INCRBY error for key ${fullKey}: ${error.message}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Get or set pattern - fetch from cache or execute function and cache result
+   */
+  async getOrSet<T>(
+    key: string,
+    factory: () => Promise<T>,
+    options?: CacheOptions
+  ): Promise<T> {
+    // Try to get from cache first
+    const cached = await this.get<T>(key, options);
+    if (cached !== null) {
+      return cached;
+    }
+
+    // Execute factory function
+    const result = await factory();
+
+    // Cache the result
+    await this.set(key, result, options);
+
+    return result;
+  }
+
+  /**
+   * Cache multiple values in a pipeline
+   */
+  async mset<T>(entries: Array<{ key: string; value: T; ttl?: number }>, options?: CacheOptions): Promise<boolean> {
+    if (!this.isConnected) {
+      return false;
+    }
+
+    try {
+      const pipeline = this.redisClient.multi();
+
+      for (const entry of entries) {
+        const fullKey = this.buildKey(entry.key, options?.keyPrefix);
+        const serializedValue = this.serialize(entry.value);
+        const ttl = entry.ttl || options?.ttl || this.defaultTTL;
+
+        pipeline.setEx(fullKey, ttl, serializedValue);
+      }
+
+      await pipeline.exec();
+      this.logger.debug(`Cache MSET: cached ${entries.length} entries`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Cache MSET error: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getStats(): CacheStats {
+    return { ...this.stats };
+  }
+
+  /**
+   * Reset cache statistics
+   */
+  resetStats(): void {
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      hitRate: 0,
+      totalRequests: 0,
+      evictions: 0,
+      memoryUsage: 0,
+    };
+  }
+
+  /**
+   * Get Redis memory usage
+   */
+  async getMemoryUsage(): Promise<number> {
+    if (!this.isConnected) {
+      return 0;
+    }
+
+    try {
+      const info = await this.redisClient.info('memory');
+      const match = info.match(/used_memory:(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    } catch (error) {
+      this.logger.error(`Error getting memory usage: ${error.message}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Check Redis connection status
+   */
+  isRedisConnected(): boolean {
+    return this.isConnected;
+  }
+
+  /**
+   * Build cache key with prefix
+   */
+  private buildKey(key: string, customPrefix?: string): string {
+    const prefix = customPrefix ? `${this.keyPrefix}${customPrefix}:` : this.keyPrefix;
+    return `${prefix}${key}`;
+  }
+
+  /**
+   * Serialize value for storage
+   */
+  private serialize(value: any): string {
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      this.logger.error(`Serialization error: ${error.message}`);
+      throw new Error('Failed to serialize cache value');
+    }
+  }
+
+  /**
+   * Deserialize value from storage
+   */
+  private deserialize<T>(value: string): T {
+    try {
+      return JSON.parse(value) as T;
+    } catch (error) {
+      this.logger.error(`Deserialization error: ${error.message}`);
+      throw new Error('Failed to deserialize cache value');
+    }
+  }
+
+  /**
+   * Update cache hit rate
+   */
+  private updateHitRate(): void {
+    if (this.stats.totalRequests > 0) {
+      this.stats.hitRate = (this.stats.hits / this.stats.totalRequests) * 100;
+    }
+  }
+
+  /**
+   * Warm up cache with common data
+   */
+  async warmUp(warmupData: Array<{ key: string; value: any; ttl?: number }>): Promise<void> {
+    if (!this.isConnected) {
+      this.logger.warn('Redis not connected - skipping cache warmup');
+      return;
+    }
+
+    this.logger.log(`Starting cache warmup with ${warmupData.length} entries`);
+
+    try {
+      await this.mset(warmupData);
+      this.logger.log('Cache warmup completed successfully');
+    } catch (error) {
+      this.logger.error(`Cache warmup failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Clear all cache (dangerous operation)
+   */
+  async flushAll(): Promise<boolean> {
+    if (!this.isConnected) {
+      return false;
+    }
+
+    try {
+      await this.redisClient.flushDb();
+      this.logger.warn('All cache cleared');
+      return true;
+    } catch (error) {
+      this.logger.error(`Cache FLUSHALL error: ${error.message}`);
+      return false;
+    }
+  }
+}

@@ -10,6 +10,7 @@ describe('Employee Service - Unit Tests', () => {
   let employeeService: EmployeeService;
   let prismaService: PrismaService;
   let securityService: SecurityService;
+  let cacheService: any;
 
   // Mock data
   const mockEmployee = {
@@ -112,7 +113,14 @@ describe('Employee Service - Unit Tests', () => {
       validatePersonalInfo: sinon.stub().returns(true),
     } as any;
 
-    employeeService = new EmployeeService(prismaService, securityService);
+    cacheService = {
+      get: sinon.stub(),
+      set: sinon.stub(),
+      del: sinon.stub(),
+      getStats: sinon.stub().returns({ hitRate: 85, totalRequests: 1000 }),
+    } as any;
+
+    employeeService = new EmployeeService(prismaService, securityService, cacheService);
   });
 
   describe('Employee Creation', () => {

@@ -3,6 +3,7 @@ import { PrismaModule } from '../../shared/database/prisma.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { AuditModule } from '../../shared/audit/audit.module';
 import { CommonModule } from '../../shared/common/common.module';
+import { CacheModule } from '../../shared/cache/cache.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
@@ -28,6 +29,7 @@ import { RolesGuard } from '../authentication/guards/roles.guard';
     SecurityModule,
     AuditModule,
     CommonModule,
+    CacheModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

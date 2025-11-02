@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
+// import { CacheService } from '../../../shared/cache/cache.service'; // TODO: Enable in Phase 4
 import { Audit } from '../../../shared/audit/decorators/audit.decorator';
 import {
   CreateProductDto,
@@ -10,7 +11,7 @@ import {
   ProductsQueryResponse,
   ProductStatus,
 } from '../dto/inventory.dto';
-import { Product, ProductCategory } from '@prisma/client';
+import { Product } from '@prisma/client';
 
 @Injectable()
 export class ProductService {
@@ -19,6 +20,7 @@ export class ProductService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly securityService: SecurityService,
+    // private readonly cacheService: CacheService, // TODO: Enable in Phase 4
   ) {}
 
   /**
@@ -93,6 +95,9 @@ export class ProductService {
         return product;
       });
 
+      // Invalidate product cache - TODO: Enable in Phase 4
+      // await this.invalidateProductCache();
+
       this.logger.log(`Successfully created product: ${result.name} (ID: ${result.id})`);
       return result;
 
@@ -117,6 +122,17 @@ export class ProductService {
     try {
       // Sanitize query parameters
       const sanitizedQuery = this.securityService.sanitizeInput(query);
+
+      // Generate cache key - TODO: Enable in Phase 4
+      // const cacheKey = `products:list:${JSON.stringify(sanitizedQuery)}`;
+
+      // Try to get from cache first - TODO: Enable in Phase 4
+      // const cached = await this.cacheService.get<ProductsQueryResponse>(cacheKey, { ttl: 300 }); // 5 minutes cache
+
+      // if (cached) {
+      //   this.logger.log(`Cache hit for products list: ${cached.products.length} products`);
+      //   return cached;
+      // }
 
       // Build where clause for filtering
       const where: any = {};
@@ -150,7 +166,7 @@ export class ProductService {
 
       // Pagination setup
       const page = sanitizedQuery.page || 1;
-      const limit = sanitizedQuery.limit || 20;
+      const limit = Math.min(sanitizedQuery.limit || 20, 100); // Limit max page size
       const skip = (page - 1) * limit;
 
       // Sorting setup
@@ -158,12 +174,29 @@ export class ProductService {
       const sortOrder = sanitizedQuery.sortOrder || 'desc';
       const orderBy = { [sortBy]: sortOrder };
 
-      // Execute queries in parallel for performance
+      // Execute optimized queries in parallel for performance
       const [products, total] = await Promise.all([
         this.prismaService.product.findMany({
           where,
-          include: {
-            category: true,
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            description: true,
+            price: true,
+            categoryId: true,
+            status: true,
+            stockQuantity: true,
+            lowStockThreshold: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
           orderBy,
           skip,
@@ -176,17 +209,22 @@ export class ProductService {
       const totalPages = Math.ceil(total / limit);
 
       // Transform to response format
-      const productResponses: ProductResponse[] = products.map(this.mapToProductResponse);
+      const productResponses: ProductResponse[] = products.map((product) => this.mapToProductResponse(product));
 
-      this.logger.log(`Found ${products.length} products (total: ${total})`);
-
-      return {
+      const result = {
         products: productResponses,
         total,
         page,
         limit,
         totalPages,
       };
+
+      // Cache the result - TODO: Enable in Phase 4
+      // await this.cacheService.set(cacheKey, result, { ttl: 300 });
+
+      this.logger.log(`Found ${products.length} products (total: ${total})`);
+
+      return result;
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -583,7 +621,7 @@ export class ProductService {
    * Helper method to map Product entity to ProductResponse
    * Follows DRY principle with consistent data transformation
    */
-  private mapToProductResponse(product: Product & { category?: ProductCategory }): ProductResponse {
+  private mapToProductResponse(product: any): ProductResponse {
     return {
       id: product.id,
       name: product.name,
@@ -601,4 +639,29 @@ export class ProductService {
       updatedAt: product.updatedAt,
     };
   }
+
+  /**
+   * Invalidate all product-related cache entries
+   */
+  // private async invalidateProductCache(): Promise<void> {
+  //   // TODO: Enable in Phase 4
+  //   // await this.cacheService.delPattern('products:list:*');
+  //   // await this.cacheService.delPattern('product:*');
+  // }
+
+  /**
+   * Invalidate cache for a specific product - TODO: Implement in Phase 4
+   */
+  // private async invalidateSingleProductCache(productId: string): Promise<void> {
+  //   const cacheKeys = [
+  //     `product:${productId}`,
+  //   ];
+
+  //   for (const key of cacheKeys) {
+  //     await this.cacheService.del(key);
+  //   }
+
+  //   // Also invalidate product list cache
+  //   await this.invalidateProductCache();
+  // }
 }

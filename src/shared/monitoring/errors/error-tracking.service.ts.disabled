@@ -1,0 +1,1032 @@
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EnhancedLoggerService } from '../logging/enhanced-logger.service';
+
+export interface ErrorEvent {
+  id: string;
+  name: string;
+  message: string;
+  stack?: string;
+  type: 'ERROR' | 'EXCEPTION' | 'UNHANDLED_REJECTION' | 'TIMEOUT' | 'MEMORY_LEAK';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  timestamp: Date;
+  resolved: boolean;
+  resolvedAt?: Date;
+  resolvedBy?: string;
+  occurrences: number;
+  firstSeen: Date;
+  lastSeen: Date;
+  affectedUsers: number;
+  context: ErrorContext;
+  tags: string[];
+  metadata: Record<string, any>;
+  correlationId?: string;
+  userId?: string;
+  sessionId?: string;
+  requestId?: string;
+}
+
+export interface ErrorContext {
+  url?: string;
+  method?: string;
+  userAgent?: string;
+  ip?: string;
+  os?: string;
+  browser?: string;
+  device?: string;
+  language?: string;
+  timestamp?: Date;
+  route?: string;
+  controller?: string;
+  action?: string;
+  statusCode?: number;
+  responseTime?: number;
+  memoryUsage?: number;
+  cpuUsage?: number;
+}
+
+export interface ErrorGroup {
+  id: string;
+  fingerprint: string;
+  name: string;
+  message: string;
+  type: string;
+  severity: string;
+  status: 'ACTIVE' | 'RESOLVED' | 'IGNORED' | 'SUPERSEDED';
+  totalOccurrences: number;
+  uniqueUsers: number;
+  firstSeen: Date;
+  lastSeen: Date;
+  affectedEnvironments: string[];
+  tags: string[];
+  assignee?: string;
+  notes?: string;
+  resolvedAt?: Date;
+  resolvedBy?: string;
+}
+
+export interface ErrorTrend {
+  timestamp: Date;
+  totalErrors: number;
+  criticalErrors: number;
+  uniqueErrors: number;
+  affectedUsers: number;
+  errorRate: number;
+  topErrors: Array<{ fingerprint: string; count: number; name: string }>;
+}
+
+export interface ErrorStatistics {
+  totalErrors: number;
+  uniqueErrors: number;
+  criticalErrors: number;
+  resolvedErrors: number;
+  unresolvedErrors: number;
+  affectedUsers: number;
+  errorRate: number;
+  averageResolutionTime: number;
+  errorsByType: Record<string, number>;
+  errorsBySeverity: Record<string, number>;
+  errorsByEnvironment: Record<string, number>;
+  topErrors: Array<{ fingerprint: string; count: number; name: string; lastSeen: Date }>;
+  recentErrors: ErrorEvent[];
+  trends: ErrorTrend[];
+}
+
+export interface ErrorAlert {
+  id: string;
+  errorGroupId: string;
+  threshold: number;
+  currentValue: number;
+  operator: 'gt' | 'gte' | 'eq';
+  timeWindow: number; // minutes
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  message: string;
+  triggered: boolean;
+  lastTriggered?: Date;
+  resolved: boolean;
+}
+
+@Injectable()
+export class ErrorTrackingService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(ErrorTrackingService.name);
+  private errors: ErrorEvent[] = [];
+  private errorGroups: Map<string, ErrorGroup> = new Map();
+  private errorAlerts: ErrorAlert[] = [];
+  private maxErrors = 50000;
+  private cleanupInterval: NodeJS.Timeout | null = null;
+  private groupingInterval: NodeJS.Timeout | null = null;
+  private errorPatterns: Map<string, RegExp> = new Map();
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly enhancedLogger: EnhancedLoggerService,
+  ) {}
+
+  onModuleInit() {
+    this.initializeErrorPatterns();
+    this.initializeErrorAlerts();
+
+    // Clean up old errors every hour
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupOldErrors();
+    }, 3600000); // 1 hour
+
+    // Group errors every 5 minutes
+    this.groupingInterval = setInterval(() => {
+      this.groupErrors();
+    }, 300000); // 5 minutes
+
+    this.logger.log('Error tracking service initialized');
+  }
+
+  captureError(
+    error: Error | string,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): ErrorEvent {
+    try {
+      const errorEvent = this.createErrorEvent(error, context, metadata);
+      this.processError(errorEvent);
+      return errorEvent;
+    } catch (processingError) {
+      this.logger.error('Failed to capture error:', processingError);
+      throw processingError;
+    }
+  }
+
+  captureException(
+    exception: Error,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): ErrorEvent {
+    return this.captureError(exception, context, {
+      ...metadata,
+      exceptionType: 'EXCEPTION',
+    });
+  }
+
+  captureUnhandledRejection(
+    reason: any,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): ErrorEvent {
+    return this.captureError(
+      new Error(`Unhandled Rejection: ${reason}`),
+      context,
+      {
+        ...metadata,
+        exceptionType: 'UNHANDLED_REJECTION',
+        originalReason: reason,
+      }
+    );
+  }
+
+  captureTimeout(
+    operation: string,
+    timeout: number,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): ErrorEvent {
+    return this.captureError(
+      new Error(`Operation timeout: ${operation} (${timeout}ms)`),
+      context,
+      {
+        ...metadata,
+        exceptionType: 'TIMEOUT',
+        operation,
+        timeout,
+      }
+    );
+  }
+
+  async captureMemoryLeak(
+    threshold: number,
+    currentUsage: number,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): Promise<ErrorEvent> {
+    return this.captureError(
+      new Error(`Memory leak detected: ${currentUsage}MB (threshold: ${threshold}MB)`),
+      context,
+      {
+        ...metadata,
+        exceptionType: 'MEMORY_LEAK',
+        threshold,
+        currentUsage,
+      }
+    );
+  }
+
+  private createErrorEvent(
+    error: Error | string,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): ErrorEvent {
+    const timestamp = new Date();
+    const isString = typeof error === 'string';
+    const errorObj = isString ? new Error(error) : error;
+
+    const fingerprint = this.generateFingerprint(errorObj, context, metadata);
+    const severity = this.determineSeverity(errorObj, context, metadata);
+
+    const errorEvent: ErrorEvent = {
+      id: this.generateId(),
+      name: errorObj.name || 'UnknownError',
+      message: errorObj.message || (isString ? error : 'Unknown error'),
+      stack: errorObj.stack,
+      type: this.getErrorType(metadata?.exceptionType),
+      severity,
+      timestamp,
+      resolved: false,
+      occurrences: 1,
+      firstSeen: timestamp,
+      lastSeen: timestamp,
+      affectedUsers: context?.userId ? 1 : 0,
+      context: this.buildErrorContext(context),
+      tags: this.generateErrorTags(errorObj, context, metadata),
+      metadata: metadata || {},
+      correlationId: metadata?.correlationId,
+      userId: context?.userId,
+      sessionId: metadata?.sessionId,
+      requestId: context?.requestId,
+    };
+
+    return errorEvent;
+  }
+
+  private processError(errorEvent: ErrorEvent): void {
+    // Add to errors array
+    this.errors.unshift(errorEvent);
+
+    // Trim if exceeded max size
+    if (this.errors.length > this.maxErrors) {
+      this.errors = this.errors.slice(0, this.maxErrors);
+    }
+
+    // Update or create error group
+    this.updateErrorGroup(errorEvent);
+
+    // Check for error alerts
+    this.checkErrorAlerts(errorEvent);
+
+    // Log to enhanced logger
+    this.enhancedLogger.error(
+      `Error captured: ${errorEvent.name} - ${errorEvent.message}`,
+      errorObj instanceof Error ? errorObj : new Error(errorEvent.message),
+      'ERROR_TRACKING',
+      {
+        errorId: errorEvent.id,
+        fingerprint: this.generateFingerprint(
+          errorEvent.name === 'UnknownError' ?
+          new Error(errorEvent.message) :
+          new Error(errorEvent.name),
+          errorEvent.context,
+          errorEvent.metadata
+        ),
+        severity: errorEvent.severity,
+        userId: errorEvent.userId,
+        type: errorEvent.type,
+      }
+    );
+
+    // Check for critical errors that need immediate attention
+    if (errorEvent.severity === 'CRITICAL') {
+      this.handleCriticalError(errorEvent);
+    }
+  }
+
+  private updateErrorGroup(errorEvent: ErrorEvent): void {
+    const fingerprint = this.generateFingerprint(
+      errorEvent.name === 'UnknownError' ?
+      new Error(errorEvent.message) :
+      new Error(errorEvent.name),
+      errorEvent.context,
+      errorEvent.metadata
+    );
+
+    let group = this.errorGroups.get(fingerprint);
+
+    if (!group) {
+      group = {
+        id: this.generateId(),
+        fingerprint,
+        name: errorEvent.name,
+        message: errorEvent.message,
+        type: errorEvent.type,
+        severity: errorEvent.severity,
+        status: 'ACTIVE',
+        totalOccurrences: 1,
+        uniqueUsers: errorEvent.userId ? 1 : 0,
+        firstSeen: errorEvent.timestamp,
+        lastSeen: errorEvent.timestamp,
+        affectedEnvironments: [this.configService.get<string>('NODE_ENV', 'development')],
+        tags: errorEvent.tags,
+      };
+      this.errorGroups.set(fingerprint, group);
+    } else {
+      group.totalOccurrences++;
+      group.lastSeen = errorEvent.timestamp;
+
+      if (errorEvent.userId && !this.hasUserSeenError(group, errorEvent.userId)) {
+        group.uniqueUsers++;
+      }
+
+      // Update severity if this occurrence is more severe
+      if (this.compareSeverity(errorEvent.severity, group.severity) > 0) {
+        group.severity = errorEvent.severity;
+      }
+    }
+  }
+
+  private generateFingerprint(
+    error: Error,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): string {
+    // Create a fingerprint based on error type, message pattern, and context
+    const normalizedMessage = this.normalizeErrorMessage(error.message);
+    const contextSignature = this.getContextSignature(context);
+    const typeSignature = error.name || 'UnknownError';
+
+    // Combine elements to create unique fingerprint
+    const fingerprintData = `${typeSignature}:${normalizedMessage}:${contextSignature}`;
+
+    // Simple hash function (in production, use a proper hash like SHA-256)
+    let hash = 0;
+    for (let i = 0; i < fingerprintData.length; i++) {
+      const char = fingerprintData.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+
+    return Math.abs(hash).toString(36);
+  }
+
+  private normalizeErrorMessage(message: string): string {
+    if (!message) return 'unknown_error';
+
+    let normalized = message.toLowerCase()
+      .replace(/\d+/g, 'N') // Replace numbers with N
+      .replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi, 'UUID') // Replace UUIDs
+      .replace(/\b[a-f0-9]{32}\b/gi, 'HASH') // Replace 32-char hex strings
+      .replace(/\b\d{4}-\d{2}-\d{2}\b/g, 'DATE') // Replace dates
+      .replace(/\b\d{2}:\d{2}:\d{2}\b/g, 'TIME') // Replace times
+      .replace(/\/[^\/]*\//g, '/PATH/') // Replace file paths
+      .replace(/https?:\/\/[^\/]*/g, 'DOMAIN'); // Replace domains
+
+    // Apply error patterns
+    for (const [pattern, replacement] of this.errorPatterns) {
+      normalized = normalized.replace(pattern, replacement);
+    }
+
+    return normalized;
+  }
+
+  private getContextSignature(context?: Partial<ErrorContext>): string {
+    if (!context) return 'no_context';
+
+    const signature = [
+      context.controller || 'no_controller',
+      context.action || 'no_action',
+      context.method || 'no_method',
+      context.statusCode || 'no_status',
+    ].join(':');
+
+    return signature;
+  }
+
+  private getErrorType(exceptionType?: string): ErrorEvent['type'] {
+    switch (exceptionType) {
+      case 'UNHANDLED_REJECTION':
+        return 'UNHANDLED_REJECTION';
+      case 'TIMEOUT':
+        return 'TIMEOUT';
+      case 'MEMORY_LEAK':
+        return 'MEMORY_LEAK';
+      default:
+        return 'ERROR';
+    }
+  }
+
+  private determineSeverity(
+    error: Error,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): ErrorEvent['severity'] {
+    // Determine severity based on error characteristics
+    const message = error.message.toLowerCase();
+
+    // Critical errors
+    if (
+      message.includes('database') && message.includes('connection') ||
+      message.includes('out of memory') ||
+      message.includes('stack overflow') ||
+      message.includes('system') && message.includes('crash') ||
+      context?.statusCode && context.statusCode >= 500
+    ) {
+      return 'CRITICAL';
+    }
+
+    // High severity
+    if (
+      message.includes('timeout') ||
+      message.includes('authentication') && message.includes('failed') ||
+      message.includes('authorization') && message.includes('denied') ||
+      context?.statusCode && context.statusCode >= 400
+    ) {
+      return 'HIGH';
+    }
+
+    // Medium severity
+    if (
+      message.includes('validation') ||
+      message.includes('not found') ||
+      message.includes('permission') ||
+      metadata?.exceptionType === 'UNHANDLED_REJECTION'
+    ) {
+      return 'MEDIUM';
+    }
+
+    // Default to low severity
+    return 'LOW';
+  }
+
+  private buildErrorContext(context?: Partial<ErrorContext>): ErrorContext {
+    return {
+      url: context?.url,
+      method: context?.method,
+      userAgent: context?.userAgent,
+      ip: context?.ip,
+      os: context?.os,
+      browser: context?.browser,
+      device: context?.device,
+      language: context?.language,
+      timestamp: context?.timestamp || new Date(),
+      route: context?.route,
+      controller: context?.controller,
+      action: context?.action,
+      statusCode: context?.statusCode,
+      responseTime: context?.responseTime,
+      memoryUsage: context?.memoryUsage,
+      cpuUsage: context?.cpuUsage,
+    };
+  }
+
+  private generateErrorTags(
+    error: Error,
+    context?: Partial<ErrorContext>,
+    metadata?: Record<string, any>,
+  ): string[] {
+    const tags: string[] = [];
+
+    // Add error type tag
+    tags.push(error.name.toLowerCase());
+
+    // Add context tags
+    if (context?.controller) tags.push(`controller:${context.controller.toLowerCase()}`);
+    if (context?.method) tags.push(`method:${context.method.toLowerCase()}`);
+    if (context?.statusCode) tags.push(`status:${context.statusCode}`);
+    if (context?.url) tags.push('url');
+
+    // Add metadata tags
+    if (metadata?.exceptionType) tags.push(metadata.exceptionType.toLowerCase());
+    if (metadata?.module) tags.push(`module:${metadata.module.toLowerCase()}`);
+
+    // Add environment tag
+    tags.push(this.configService.get<string>('NODE_ENV', 'development').toLowerCase());
+
+    return tags;
+  }
+
+  private checkErrorAlerts(errorEvent: ErrorEvent): void {
+    for (const alert of this.errorAlerts) {
+      if (this.shouldTriggerAlert(alert, errorEvent)) {
+        this.triggerErrorAlert(alert, errorEvent);
+      }
+    }
+  }
+
+  private shouldTriggerAlert(alert: ErrorAlert, errorEvent: ErrorEvent): boolean {
+    if (alert.resolved) return false;
+
+    const fingerprint = this.generateFingerprint(
+      errorEvent.name === 'UnknownError' ?
+      new Error(errorEvent.message) :
+      new Error(errorEvent.name),
+      errorEvent.context,
+      errorEvent.metadata
+    );
+
+    const group = this.errorGroups.get(fingerprint);
+    if (!group) return false;
+
+    const timeWindow = alert.timeWindow * 60 * 1000; // Convert to milliseconds
+    const recentOccurrences = this.countRecentOccurrences(fingerprint, timeWindow);
+
+    switch (alert.operator) {
+      case 'gt':
+        return recentOccurrences > alert.threshold;
+      case 'gte':
+        return recentOccurrences >= alert.threshold;
+      case 'eq':
+        return recentOccurrences === alert.threshold;
+      default:
+        return false;
+    }
+  }
+
+  private countRecentOccurrences(fingerprint: string, timeWindow: number): number {
+    const cutoff = new Date(Date.now() - timeWindow);
+    return this.errors.filter(error => {
+      const errorFingerprint = this.generateFingerprint(
+        error.name === 'UnknownError' ?
+        new Error(error.message) :
+        new Error(error.name),
+        error.context,
+        error.metadata
+      );
+      return errorFingerprint === fingerprint && error.timestamp >= cutoff;
+    }).length;
+  }
+
+  private triggerErrorAlert(alert: ErrorAlert, errorEvent: ErrorEvent): void {
+    alert.triggered = true;
+    alert.lastTriggered = new Date();
+    alert.currentValue = this.countRecentOccurrences(
+      this.generateFingerprint(
+        errorEvent.name === 'UnknownError' ?
+        new Error(errorEvent.message) :
+        new Error(errorEvent.name),
+        errorEvent.context,
+        errorEvent.metadata
+      ),
+      alert.timeWindow * 60 * 1000
+    );
+
+    this.enhancedLogger.error(
+      `Error alert triggered: ${alert.message}`,
+      new Error(`Error threshold exceeded: ${alert.currentValue} (threshold: ${alert.threshold})`),
+      'ERROR_ALERT',
+      {
+        alertId: alert.id,
+        errorGroupId: alert.errorGroupId,
+        threshold: alert.threshold,
+        currentValue: alert.currentValue,
+        severity: alert.severity,
+      }
+    );
+  }
+
+  private handleCriticalError(errorEvent: ErrorEvent): void {
+    // Special handling for critical errors
+    this.enhancedLogger.fatal(
+      `Critical error detected: ${errorEvent.name}`,
+      new Error(errorEvent.message),
+      'CRITICAL_ERROR',
+      {
+        errorId: errorEvent.id,
+        userId: errorEvent.userId,
+        context: errorEvent.context,
+        metadata: errorEvent.metadata,
+      }
+    );
+
+    // In a real implementation, you might:
+    // - Send immediate notifications to on-call engineers
+    // - Create incident in incident management system
+    // - Trigger automated recovery procedures
+    // - Collect additional diagnostics
+  }
+
+  private groupErrors(): void {
+    // Group similar errors and update statistics
+    const unprocessedErrors = this.errors.filter(error => !error.metadata.grouped);
+
+    for (const error of unprocessedErrors) {
+      const fingerprint = this.generateFingerprint(
+        error.name === 'UnknownError' ?
+        new Error(error.message) :
+        new Error(error.name),
+        error.context,
+        error.metadata
+      );
+
+      this.updateErrorGroup(error);
+      error.metadata.grouped = true;
+    }
+  }
+
+  private cleanupOldErrors(): void {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+    const initialLength = this.errors.length;
+
+    this.errors = this.errors.filter(error => error.timestamp >= cutoff);
+
+    const removed = initialLength - this.errors.length;
+    if (removed > 0) {
+      this.logger.debug(`Cleaned up ${removed} old error events`);
+    }
+
+    // Also clean up old error groups
+    for (const [fingerprint, group] of this.errorGroups.entries()) {
+      if (group.lastSeen < cutoff) {
+        this.errorGroups.delete(fingerprint);
+      }
+    }
+  }
+
+  private initializeErrorPatterns(): void {
+    // Common error patterns for normalization
+    this.errorPatterns.set(/cannot read property '([^']+)'/gi, 'cannot_read_property');
+    this.errorPatterns.set(/cannot access property '([^']+)'/gi, 'cannot_access_property');
+    this.errorPatterns.set(/is not a function/gi, 'not_a_function');
+    this.errorPatterns.set(/is not defined/gi, 'not_defined');
+    this.errorPatterns.set(/connection refused/gi, 'connection_refused');
+    this.errorPatterns.set(/connection timeout/gi, 'connection_timeout');
+    this.errorPatterns.set(/duplicate key/gi, 'duplicate_key');
+    this.errorPatterns.set(/foreign key constraint/gi, 'foreign_key_violation');
+    this.errorPatterns.set(/division by zero/gi, 'division_by_zero');
+  }
+
+  private initializeErrorAlerts(): void {
+    // Default error alerts
+    this.errorAlerts = [
+      {
+        id: 'high_error_rate',
+        errorGroupId: 'all_errors',
+        threshold: 50,
+        currentValue: 0,
+        operator: 'gt',
+        timeWindow: 5, // 5 minutes
+        severity: 'HIGH',
+        message: 'High error rate detected',
+        triggered: false,
+        resolved: false,
+      },
+      {
+        id: 'critical_errors',
+        errorGroupId: 'critical_errors',
+        threshold: 5,
+        currentValue: 0,
+        operator: 'gte',
+        timeWindow: 5, // 5 minutes
+        severity: 'CRITICAL',
+        message: 'Multiple critical errors detected',
+        triggered: false,
+        resolved: false,
+      },
+    ];
+  }
+
+  private compareSeverity(severity1: string, severity2: string): number {
+    const severityOrder = { 'LOW': 1, 'MEDIUM': 2, 'HIGH': 3, 'CRITICAL': 4 };
+    return severityOrder[severity1] - severityOrder[severity2];
+  }
+
+  private hasUserSeenError(group: ErrorGroup, userId: string): boolean {
+    // Check if user has previously encountered this error
+    return this.errors.some(error =>
+      this.generateFingerprint(
+        error.name === 'UnknownError' ?
+        new Error(error.message) :
+        new Error(error.name),
+        error.context,
+        error.metadata
+      ) === group.fingerprint && error.userId === userId
+    );
+  }
+
+  // Public API methods
+  getErrors(filter?: {
+    severity?: string;
+    type?: string;
+    resolved?: boolean;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+    startTime?: Date;
+    endTime?: Date;
+  }): { errors: ErrorEvent[]; total: number; hasMore: boolean } {
+    let filteredErrors = [...this.errors];
+
+    if (filter) {
+      if (filter.severity) {
+        filteredErrors = filteredErrors.filter(e => e.severity === filter.severity);
+      }
+      if (filter.type) {
+        filteredErrors = filteredErrors.filter(e => e.type === filter.type);
+      }
+      if (filter.resolved !== undefined) {
+        filteredErrors = filteredErrors.filter(e => e.resolved === filter.resolved);
+      }
+      if (filter.userId) {
+        filteredErrors = filteredErrors.filter(e => e.userId === filter.userId);
+      }
+      if (filter.startTime) {
+        filteredErrors = filteredErrors.filter(e => e.timestamp >= filter.startTime!);
+      }
+      if (filter.endTime) {
+        filteredErrors = filteredErrors.filter(e => e.timestamp <= filter.endTime!);
+      }
+    }
+
+    const total = filteredErrors.length;
+    const limit = filter?.limit || 100;
+    const offset = filter?.offset || 0;
+
+    const paginatedErrors = filteredErrors.slice(offset, offset + limit);
+
+    return {
+      errors: paginatedErrors,
+      total,
+      hasMore: offset + limit < total,
+    };
+  }
+
+  getErrorGroups(filter?: {
+    status?: string;
+    severity?: string;
+    limit?: number;
+  }): ErrorGroup[] {
+    let groups = Array.from(this.errorGroups.values());
+
+    if (filter) {
+      if (filter.status) {
+        groups = groups.filter(g => g.status === filter.status);
+      }
+      if (filter.severity) {
+        groups = groups.filter(g => g.severity === filter.severity);
+      }
+    }
+
+    // Sort by last seen (most recent first)
+    groups.sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
+
+    if (filter?.limit) {
+      groups = groups.slice(0, filter.limit);
+    }
+
+    return groups;
+  }
+
+  getErrorStatistics(hours: number = 24): ErrorStatistics {
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const recentErrors = this.errors.filter(error => error.timestamp >= cutoff);
+
+    const totalErrors = recentErrors.length;
+    const uniqueErrors = new Set(recentErrors.map(e =>
+      this.generateFingerprint(
+        e.name === 'UnknownError' ?
+        new Error(e.message) :
+        new Error(e.name),
+        e.context,
+        e.metadata
+      )
+    )).size;
+
+    const criticalErrors = recentErrors.filter(e => e.severity === 'CRITICAL').length;
+    const resolvedErrors = recentErrors.filter(e => e.resolved).length;
+    const unresolvedErrors = totalErrors - resolvedErrors;
+
+    const affectedUsers = new Set(recentErrors.filter(e => e.userId).map(e => e.userId)).size;
+    const errorRate = this.calculateErrorRate(hours);
+
+    const errorsByType: Record<string, number> = {};
+    const errorsBySeverity: Record<string, number> = {};
+    const errorsByEnvironment: Record<string, number> = {};
+
+    recentErrors.forEach(error => {
+      errorsByType[error.type] = (errorsByType[error.type] || 0) + 1;
+      errorsBySeverity[error.severity] = (errorsBySeverity[error.severity] || 0) + 1;
+      const env = error.metadata.environment || 'unknown';
+      errorsByEnvironment[env] = (errorsByEnvironment[env] || 0) + 1;
+    });
+
+    // Top errors
+    const errorCounts: Record<string, { count: number; name: string; lastSeen: Date }> = {};
+    recentErrors.forEach(error => {
+      const fingerprint = this.generateFingerprint(
+        error.name === 'UnknownError' ?
+        new Error(error.message) :
+        new Error(error.name),
+        error.context,
+        error.metadata
+      );
+
+      if (!errorCounts[fingerprint]) {
+        errorCounts[fingerprint] = { count: 0, name: error.name, lastSeen: error.timestamp };
+      }
+      errorCounts[fingerprint].count++;
+      if (error.timestamp > errorCounts[fingerprint].lastSeen) {
+        errorCounts[fingerprint].lastSeen = error.timestamp;
+      }
+    });
+
+    const topErrors = Object.entries(errorCounts)
+      .map(([fingerprint, data]) => ({ fingerprint, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Trends
+    const trends = this.generateErrorTrends(hours);
+
+    return {
+      totalErrors,
+      uniqueErrors,
+      criticalErrors,
+      resolvedErrors,
+      unresolvedErrors,
+      affectedUsers,
+      errorRate,
+      averageResolutionTime: this.calculateAverageResolutionTime(recentErrors),
+      errorsByType,
+      errorsBySeverity,
+      errorsByEnvironment,
+      topErrors,
+      recentErrors: recentErrors.slice(0, 50),
+      trends,
+    };
+  }
+
+  private calculateErrorRate(hours: number): number {
+    const totalRequests = 10000; // This would come from actual request tracking
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const errorCount = this.errors.filter(e => e.timestamp >= cutoff).length;
+
+    return totalRequests > 0 ? (errorCount / totalRequests) * 100 : 0;
+  }
+
+  private calculateAverageResolutionTime(errors: ErrorEvent[]): number {
+    const resolvedErrors = errors.filter(e => e.resolved && e.resolvedAt);
+    if (resolvedErrors.length === 0) return 0;
+
+    const totalResolutionTime = resolvedErrors.reduce((sum, error) => {
+      return sum + (error.resolvedAt!.getTime() - error.timestamp.getTime());
+    }, 0);
+
+    return totalResolutionTime / resolvedErrors.length;
+  }
+
+  private generateErrorTrends(hours: number): ErrorTrend[] {
+    const trends: ErrorTrend[] = [];
+    const interval = Math.max(1, Math.floor(hours / 24)); // Show max 24 data points
+
+    for (let i = 0; i < hours; i += interval) {
+      const startTime = new Date(Date.now() - (i + interval) * 60 * 60 * 1000);
+      const endTime = new Date(Date.now() - i * 60 * 60 * 1000);
+
+      const periodErrors = this.errors.filter(e =>
+        e.timestamp >= startTime && e.timestamp < endTime
+      );
+
+      const uniqueErrors = new Set(periodErrors.map(e =>
+        this.generateFingerprint(
+          e.name === 'UnknownError' ?
+          new Error(e.message) :
+          new Error(e.name),
+          e.context,
+          e.metadata
+        )
+      )).size;
+
+      const criticalErrors = periodErrors.filter(e => e.severity === 'CRITICAL').length;
+      const affectedUsers = new Set(periodErrors.filter(e => e.userId).map(e => e.userId)).size;
+
+      trends.unshift({
+        timestamp: startTime,
+        totalErrors: periodErrors.length,
+        criticalErrors,
+        uniqueErrors,
+        affectedUsers,
+        errorRate: this.calculateErrorRateForPeriod(periodErrors.length, interval),
+        topErrors: this.getTopErrorsForPeriod(periodErrors),
+      });
+    }
+
+    return trends;
+  }
+
+  private calculateErrorRateForPeriod(errorCount: number, hours: number): number {
+    const estimatedRequests = (10000 / 24) * hours; // Estimate based on hourly request rate
+    return estimatedRequests > 0 ? (errorCount / estimatedRequests) * 100 : 0;
+  }
+
+  private getTopErrorsForPeriod(errors: ErrorEvent[]): Array<{ fingerprint: string; count: number; name: string }> {
+    const errorCounts: Record<string, { count: number; name: string }> = {};
+
+    errors.forEach(error => {
+      const fingerprint = this.generateFingerprint(
+        error.name === 'UnknownError' ?
+        new Error(error.message) :
+        new Error(error.name),
+        error.context,
+        error.metadata
+      );
+
+      if (!errorCounts[fingerprint]) {
+        errorCounts[fingerprint] = { count: 0, name: error.name };
+      }
+      errorCounts[fingerprint].count++;
+    });
+
+    return Object.entries(errorCounts)
+      .map(([fingerprint, data]) => ({ fingerprint, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }
+
+  async resolveError(errorId: string, resolvedBy: string): Promise<boolean> {
+    const error = this.errors.find(e => e.id === errorId);
+    if (error) {
+      error.resolved = true;
+      error.resolvedAt = new Date();
+      error.resolvedBy = resolvedBy;
+
+      // Also resolve the error group if all occurrences are resolved
+      const fingerprint = this.generateFingerprint(
+        error.name === 'UnknownError' ?
+        new Error(error.message) :
+        new Error(error.name),
+        error.context,
+        error.metadata
+      );
+
+      const group = this.errorGroups.get(fingerprint);
+      if (group) {
+        const groupErrors = this.errors.filter(e =>
+          this.generateFingerprint(
+            e.name === 'UnknownError' ?
+            new Error(e.message) :
+            new Error(e.name),
+            e.context,
+            e.metadata
+          ) === fingerprint
+        );
+
+        if (groupErrors.every(e => e.resolved)) {
+          group.status = 'RESOLVED';
+          group.resolvedAt = new Date();
+          group.resolvedBy = resolvedBy;
+        }
+      }
+
+      this.enhancedLogger.info(
+        `Error resolved: ${error.name}`,
+        'ERROR_TRACKING',
+        { errorId, resolvedBy }
+      );
+
+      return true;
+    }
+    return false;
+  }
+
+  async resolveErrorGroup(groupId: string, resolvedBy: string): Promise<boolean> {
+    const group = Array.from(this.errorGroups.values()).find(g => g.id === groupId);
+    if (group) {
+      group.status = 'RESOLVED';
+      group.resolvedAt = new Date();
+      group.resolvedBy = resolvedBy;
+
+      // Resolve all errors in this group
+      const fingerprint = group.fingerprint;
+      this.errors.forEach(error => {
+        const errorFingerprint = this.generateFingerprint(
+          error.name === 'UnknownError' ?
+          new Error(error.message) :
+          new Error(error.name),
+          error.context,
+          error.metadata
+        );
+
+        if (errorFingerprint === fingerprint && !error.resolved) {
+          error.resolved = true;
+          error.resolvedAt = new Date();
+          error.resolvedBy = resolvedBy;
+        }
+      });
+
+      this.enhancedLogger.info(
+        `Error group resolved: ${group.name}`,
+        'ERROR_TRACKING',
+        { groupId, resolvedBy, totalOccurrences: group.totalOccurrences }
+      );
+
+      return true;
+    }
+    return false;
+  }
+
+  private generateId(): string {
+    return Math.random().toString(36).substr(2, 9);
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+    if (this.groupingInterval) {
+      clearInterval(this.groupingInterval);
+    }
+  }
+}

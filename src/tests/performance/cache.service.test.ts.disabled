@@ -1,0 +1,317 @@
+import { expect } from 'chai';
+import { CacheService } from '../../shared/cache/cache.service';
+import { ConfigService } from '@nestjs/config';
+import { createSandbox, SinonSandbox } from 'sinon';
+import { Logger } from '@nestjs/common';
+
+describe('CacheService', () => {
+  let cacheService: CacheService;
+  let configService: ConfigService;
+  let sandbox: SinonSandbox;
+  let mockRedisClient: any;
+
+  beforeEach(() => {
+    sandbox = createSandbox();
+
+    // Mock ConfigService
+    configService = {
+      get: sandbox.stub(),
+    } as any;
+
+    // Mock Redis client
+    mockRedisClient = {
+      connect: sandbox.stub().resolves(),
+      ping: sandbox.stub().resolves('PONG'),
+      get: sandbox.stub(),
+      setEx: sandbox.stub(),
+      del: sandbox.stub(),
+      keys: sandbox.stub(),
+      exists: sandbox.stub(),
+      expire: sandbox.stub(),
+      ttl: sandbox.stub(),
+      incr: sandbox.stub(),
+      incrBy: sandbox.stub(),
+      multi: sandbox.stub().returns({
+        exec: sandbox.stub().resolves([]),
+      }),
+      info: sandbox.stub().resolves('used_memory:123456'),
+      flushDb: sandbox.stub().resolves('OK'),
+      on: sandbox.stub(),
+      quit: sandbox.stub(),
+    };
+
+    // Mock Redis module
+    sandbox.stub(require('redis'), 'createClient').returns(mockRedisClient);
+
+    cacheService = new CacheService(configService);
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe('onModuleInit', () => {
+    it('should connect to Redis successfully', async () => {
+      (configService.get as any).withArgs('REDIS_URL').returns('redis://localhost:6379');
+
+      await cacheService.onModuleInit();
+
+      expect(mockRedisClient.connect.calledOnce).to.be.true;
+      expect(mockRedisClient.ping.calledOnce).to.be.true;
+    });
+
+    it('should handle Redis connection failure gracefully', async () => {
+      mockRedisClient.connect.rejects(new Error('Connection failed'));
+
+      await cacheService.onModuleInit();
+
+      expect(cacheService.isRedisConnected()).to.be.false;
+    });
+  });
+
+  describe('get', () => {
+    it('should return cached value when cache hit', async () => {
+      const testData = { id: 1, name: 'Test Product' };
+      mockRedisClient.get.resolves(JSON.stringify(testData));
+
+      const result = await cacheService.get('test-key');
+
+      expect(result).to.deep.equal(testData);
+      expect(mockRedisClient.get.calledWith('erp:cache:test-key')).to.be.true;
+    });
+
+    it('should return null when cache miss', async () => {
+      mockRedisClient.get.resolves(null);
+
+      const result = await cacheService.get('test-key');
+
+      expect(result).to.be.null;
+    });
+
+    it('should return null when Redis is not connected', async () => {
+      cacheService['isConnected'] = false;
+
+      const result = await cacheService.get('test-key');
+
+      expect(result).to.be.null;
+      expect(mockRedisClient.get.called).to.be.false;
+    });
+
+    it('should handle deserialization errors', async () => {
+      mockRedisClient.get.resolves('invalid json');
+
+      try {
+        await cacheService.get('test-key');
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error.message).to.include('Failed to deserialize cache value');
+      }
+    });
+  });
+
+  describe('set', () => {
+    it('should set value in cache with TTL', async () => {
+      const testData = { id: 1, name: 'Test Product' };
+      mockRedisClient.setEx.resolves('OK');
+
+      const result = await cacheService.set('test-key', testData, { ttl: 300 });
+
+      expect(result).to.be.true;
+      expect(mockRedisClient.setEx.calledWith(
+        'erp:cache:test-key',
+        300,
+        JSON.stringify(testData)
+      )).to.be.true;
+    });
+
+    it('should use default TTL when not specified', async () => {
+      const testData = { id: 1, name: 'Test Product' };
+      mockRedisClient.setEx.resolves('OK');
+
+      await cacheService.set('test-key', testData);
+
+      expect(mockRedisClient.setEx.calledWith(
+        'erp:cache:test-key',
+        3600, // default TTL
+        JSON.stringify(testData)
+      )).to.be.true;
+    });
+
+    it('should return false when Redis is not connected', async () => {
+      cacheService['isConnected'] = false;
+
+      const result = await cacheService.set('test-key', 'test-value');
+
+      expect(result).to.be.false;
+      expect(mockRedisClient.setEx.called).to.be.false;
+    });
+  });
+
+  describe('delPattern', () => {
+    it('should delete keys matching pattern', async () => {
+      mockRedisClient.keys.resolves(['erp:cache:test:1', 'erp:cache:test:2', 'erp:cache:other:3']);
+      mockRedisClient.del.resolves(2);
+
+      const result = await cacheService.delPattern('test:*');
+
+      expect(result).to.equal(2);
+      expect(mockRedisClient.keys.calledWith('erp:cache:test:*')).to.be.true;
+      expect(mockRedisClient.del.calledTwice).to.be.true;
+    });
+
+    it('should return 0 when no keys match pattern', async () => {
+      mockRedisClient.keys.resolves([]);
+
+      const result = await cacheService.delPattern('nonexistent:*');
+
+      expect(result).to.equal(0);
+      expect(mockRedisClient.del.called).to.be.false;
+    });
+  });
+
+  describe('getOrSet', () => {
+    it('should return cached value when exists', async () => {
+      const testData = { id: 1, name: 'Test Product' };
+      mockRedisClient.get.resolves(JSON.stringify(testData));
+      const factory = sandbox.stub().rejects(new Error('Should not be called'));
+
+      const result = await cacheService.getOrSet('test-key', factory);
+
+      expect(result).to.deep.equal(testData);
+      expect(factory.called).to.be.false;
+    });
+
+    it('should execute factory and cache result when cache miss', async () => {
+      const testData = { id: 1, name: 'Test Product' };
+      mockRedisClient.get.resolves(null);
+      mockRedisClient.setEx.resolves('OK');
+      const factory = sandbox.stub().resolves(testData);
+
+      const result = await cacheService.getOrSet('test-key', factory);
+
+      expect(result).to.deep.equal(testData);
+      expect(factory.calledOnce).to.be.true;
+      expect(mockRedisClient.setEx.calledOnce).to.be.true;
+    });
+  });
+
+  describe('mset', () => {
+    it('should set multiple values in pipeline', async () => {
+      const entries = [
+        { key: 'key1', value: 'value1' },
+        { key: 'key2', value: 'value2' },
+      ];
+
+      const mockPipeline = {
+        setEx: sandbox.stub(),
+        exec: sandbox.stub().resolves([]),
+      };
+      mockRedisClient.multi.returns(mockPipeline);
+
+      const result = await cacheService.mset(entries);
+
+      expect(result).to.be.true;
+      expect(mockPipeline.setEx.calledTwice).to.be.true;
+      expect(mockPipeline.exec.calledOnce).to.be.true;
+    });
+  });
+
+  describe('getStats', () => {
+    it('should return cache statistics', () => {
+      cacheService['stats'] = {
+        hits: 80,
+        misses: 20,
+        hitRate: 80,
+        totalRequests: 100,
+        evictions: 0,
+        memoryUsage: 1024,
+      };
+
+      const stats = cacheService.getStats();
+
+      expect(stats).to.deep.equal({
+        hits: 80,
+        misses: 20,
+        hitRate: 80,
+        totalRequests: 100,
+        evictions: 0,
+        memoryUsage: 1024,
+      });
+    });
+  });
+
+  describe('resetStats', () => {
+    it('should reset cache statistics', () => {
+      cacheService['stats'] = {
+        hits: 80,
+        misses: 20,
+        hitRate: 80,
+        totalRequests: 100,
+        evictions: 0,
+        memoryUsage: 1024,
+      };
+
+      cacheService.resetStats();
+
+      const stats = cacheService.getStats();
+
+      expect(stats).to.deep.equal({
+        hits: 0,
+        misses: 0,
+        hitRate: 0,
+        totalRequests: 0,
+        evictions: 0,
+        memoryUsage: 0,
+      });
+    });
+  });
+
+  describe('warmUp', () => {
+    it('should warm up cache with provided data', async () => {
+      const warmupData = [
+        { key: 'key1', value: 'value1', ttl: 300 },
+        { key: 'key2', value: 'value2', ttl: 600 },
+      ];
+
+      const mockPipeline = {
+        setEx: sandbox.stub(),
+        exec: sandbox.stub().resolves([]),
+      };
+      mockRedisClient.multi.returns(mockPipeline);
+
+      await cacheService.warmUp(warmupData);
+
+      expect(mockPipeline.setEx.calledTwice).to.be.true;
+      expect(mockPipeline.exec.calledOnce).to.be.true;
+    });
+
+    it('should skip warmup when Redis is not connected', async () => {
+      cacheService['isConnected'] = false;
+      const warmupData = [{ key: 'key1', value: 'value1' }];
+
+      await cacheService.warmUp(warmupData);
+
+      expect(mockRedisClient.multi.called).to.be.false;
+    });
+  });
+
+  describe('flushAll', () => {
+    it('should clear all cache data', async () => {
+      mockRedisClient.flushDb.resolves('OK');
+
+      const result = await cacheService.flushAll();
+
+      expect(result).to.be.true;
+      expect(mockRedisClient.flushDb.calledOnce).to.be.true;
+    });
+
+    it('should return false when Redis is not connected', async () => {
+      cacheService['isConnected'] = false;
+
+      const result = await cacheService.flushAll();
+
+      expect(result).to.be.false;
+      expect(mockRedisClient.flushDb.called).to.be.false;
+    });
+  });
+});

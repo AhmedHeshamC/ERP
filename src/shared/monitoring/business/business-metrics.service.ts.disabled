@@ -1,0 +1,869 @@
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EnhancedLoggerService } from '../logging/enhanced-logger.service';
+import { PrismaService } from '../../database/prisma.service';
+
+export interface BusinessMetric {
+  id: string;
+  name: string;
+  description: string;
+  category: 'USER' | 'TRANSACTION' | 'REVENUE' | 'OPERATION' | 'PERFORMANCE';
+  value: number;
+  unit: string;
+  previousValue?: number;
+  change?: number;
+  changePercent?: number;
+  timestamp: Date;
+  period: 'HOUR' | 'DAY' | 'WEEK' | 'MONTH';
+  target?: number;
+  status: 'ON_TRACK' | 'WARNING' | 'CRITICAL';
+  metadata?: Record<string, any>;
+}
+
+export interface KPI {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  currentValue: number;
+  targetValue: number;
+  previousValue: number;
+  unit: string;
+  trend: 'UP' | 'DOWN' | 'STABLE';
+  status: 'GOOD' | 'WARNING' | 'CRITICAL';
+  lastUpdated: Date;
+  calculation: string;
+}
+
+export interface UserMetrics {
+  totalUsers: number;
+  activeUsers: number;
+  newUsers: number;
+  returningUsers: number;
+  userRetentionRate: number;
+  averageSessionDuration: number;
+  userEngagementScore: number;
+  userSatisfactionScore: number;
+  topUserSegments: Array<{ segment: string; count: number; percentage: number }>;
+  userActivityByHour: Array<{ hour: string; activeUsers: number }>;
+  userGrowthRate: number;
+}
+
+export interface TransactionMetrics {
+  totalTransactions: number;
+  successfulTransactions: number;
+  failedTransactions: number;
+  transactionSuccessRate: number;
+  averageTransactionValue: number;
+  totalRevenue: number;
+  transactionsByType: Record<string, number>;
+  transactionVolumeByHour: Array<{ hour: string; volume: number; revenue: number }>;
+  conversionRate: number;
+  cartAbandonmentRate: number;
+  averageProcessingTime: number;
+}
+
+export interface OperationMetrics {
+  ordersProcessed: number;
+  inventoryTurnover: number;
+  fulfillmentRate: number;
+  returnRate: number;
+  customerSupportTickets: number;
+  averageResponseTime: number;
+  systemDowntime: number;
+  operationalEfficiency: number;
+  costPerTransaction: number;
+  employeeProductivity: number;
+}
+
+export interface RevenueMetrics {
+  totalRevenue: number;
+  recurringRevenue: number;
+  averageRevenuePerUser: number;
+  revenueByProduct: Array<{ product: string; revenue: number; percentage: number }>;
+  revenueByRegion: Array<{ region: string; revenue: number; percentage: number }>;
+  monthlyRecurringGrowth: number;
+  customerLifetimeValue: number;
+  profitMargin: number;
+  revenueGrowthRate: number;
+}
+
+export interface PerformanceMetrics {
+  systemAvailability: number;
+  averageResponseTime: number;
+  pageLoadTime: number;
+  errorRate: number;
+  userSatisfaction: number;
+  systemUtilization: number;
+  throughput: number;
+  scalabilityIndex: number;
+}
+
+export interface BusinessMetricsSummary {
+  timestamp: Date;
+  period: string;
+  users: UserMetrics;
+  transactions: TransactionMetrics;
+  operations: OperationMetrics;
+  revenue: RevenueMetrics;
+  performance: PerformanceMetrics;
+  overall: {
+    healthScore: number;
+    growthRate: number;
+    efficiency: number;
+    profitability: number;
+  };
+}
+
+export interface MetricAlert {
+  id: string;
+  metricName: string;
+  threshold: number;
+  currentValue: number;
+  operator: 'gt' | 'lt' | 'eq';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  message: string;
+  timestamp: Date;
+  resolved: boolean;
+}
+
+@Injectable()
+export class BusinessMetricsService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(BusinessMetricsService.name);
+  private metrics: BusinessMetric[] = [];
+  private kpis: KPI[] = [];
+  private alerts: MetricAlert[] = [];
+  private monitoringInterval: NodeJS.Timeout | null = null;
+  private maxMetrics = 10000;
+  private metricHistory: Map<string, BusinessMetric[]> = new Map();
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly enhancedLogger: EnhancedLoggerService,
+    private readonly prismaService: PrismaService,
+  ) {}
+
+  onModuleInit() {
+    this.initializeKPIs();
+
+    // Start monitoring every 5 minutes
+    this.monitoringInterval = setInterval(() => {
+      this.collectBusinessMetrics().catch(error => {
+        this.logger.error('Business metrics collection failed:', error);
+      });
+    }, 300000); // 5 minutes
+
+    // Initial collection
+    setTimeout(() => {
+      this.collectBusinessMetrics().catch(error => {
+        this.logger.error('Initial business metrics collection failed:', error);
+      });
+    }, 10000);
+
+    this.logger.log('Business metrics service initialized');
+  }
+
+  async collectBusinessMetrics(): Promise<void> {
+    try {
+      this.logger.debug('Collecting business metrics');
+
+      // Collect user metrics
+      await this.collectUserMetrics();
+
+      // Collect transaction metrics
+      await this.collectTransactionMetrics();
+
+      // Collect operation metrics
+      await this.collectOperationMetrics();
+
+      // Collect revenue metrics
+      await this.collectRevenueMetrics();
+
+      // Update KPIs
+      await this.updateKPIs();
+
+      // Check metric alerts
+      await this.checkMetricAlerts();
+
+      this.enhancedLogger.debug('Business metrics collection completed', 'BUSINESS_METRICS');
+    } catch (error) {
+      this.logger.error('Business metrics collection failed:', error);
+      this.enhancedLogger.error('Business metrics collection failed', 'BUSINESS_METRICS', { error: error.message });
+    }
+  }
+
+  private async collectUserMetrics(): Promise<void> {
+    try {
+      // Get user data from database
+      const totalUsers = await this.prismaService.user.count();
+      const activeUsersThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24 hours
+      const newUsersThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24 hours
+
+      // In a real implementation, you would have more sophisticated tracking
+      const activeUsers = await this.getEstimatedActiveUsers(activeUsersThreshold);
+      const newUsers = await this.getEstimatedNewUsers(newUsersThreshold);
+
+      const userMetrics: UserMetrics = {
+        totalUsers,
+        activeUsers,
+        newUsers,
+        returningUsers: activeUsers - newUsers,
+        userRetentionRate: this.calculateRetentionRate(activeUsers, totalUsers),
+        averageSessionDuration: this.getAverageSessionDuration(),
+        userEngagementScore: this.calculateEngagementScore(activeUsers, totalUsers),
+        userSatisfactionScore: this.getSatisfactionScore(),
+        topUserSegments: this.getUserSegments(),
+        userActivityByHour: this.getUserActivityByHour(),
+        userGrowthRate: this.calculateGrowthRate(newUsers, totalUsers),
+      };
+
+      // Store metrics
+      this.recordMetric('total_users', totalUsers, 'count', 'USER', userMetrics);
+      this.recordMetric('active_users', activeUsers, 'count', 'USER', userMetrics);
+      this.recordMetric('new_users', newUsers, 'count', 'USER', userMetrics);
+      this.recordMetric('user_retention_rate', userMetrics.userRetentionRate, '%', 'USER', userMetrics);
+    } catch (error) {
+      this.logger.error('Failed to collect user metrics:', error);
+    }
+  }
+
+  private async collectTransactionMetrics(): Promise<void> {
+    try {
+      // In a real implementation, these would come from actual transaction data
+      const totalTransactions = await this.getEstimatedTransactionCount();
+      const successfulTransactions = Math.floor(totalTransactions * 0.95);
+      const failedTransactions = totalTransactions - successfulTransactions;
+      const averageTransactionValue = 150 + Math.random() * 100;
+      const totalRevenue = successfulTransactions * averageTransactionValue;
+
+      const transactionMetrics: TransactionMetrics = {
+        totalTransactions,
+        successfulTransactions,
+        failedTransactions,
+        transactionSuccessRate: (successfulTransactions / totalTransactions) * 100,
+        averageTransactionValue,
+        totalRevenue,
+        transactionsByType: this.getTransactionBreakdown(),
+        transactionVolumeByHour: this.getTransactionVolumeByHour(),
+        conversionRate: 2.5 + Math.random() * 2,
+        cartAbandonmentRate: 45 + Math.random() * 20,
+        averageProcessingTime: 200 + Math.random() * 100,
+      };
+
+      this.recordMetric('total_transactions', totalTransactions, 'count', 'TRANSACTION', transactionMetrics);
+      this.recordMetric('transaction_success_rate', transactionMetrics.transactionSuccessRate, '%', 'TRANSACTION', transactionMetrics);
+      this.recordMetric('total_revenue', totalRevenue, 'currency', 'REVENUE', transactionMetrics);
+      this.recordMetric('conversion_rate', transactionMetrics.conversionRate, '%', 'TRANSACTION', transactionMetrics);
+    } catch (error) {
+      this.logger.error('Failed to collect transaction metrics:', error);
+    }
+  }
+
+  private async collectOperationMetrics(): Promise<void> {
+    try {
+      const operationMetrics: OperationMetrics = {
+        ordersProcessed: await this.getEstimatedOrderCount(),
+        inventoryTurnover: 8.5 + Math.random() * 2,
+        fulfillmentRate: 95 + Math.random() * 4,
+        returnRate: 2 + Math.random() * 3,
+        customerSupportTickets: Math.floor(Math.random() * 20) + 5,
+        averageResponseTime: 30 + Math.random() * 60,
+        systemDowntime: Math.random() * 60, // minutes per month
+        operationalEfficiency: 85 + Math.random() * 10,
+        costPerTransaction: 5 + Math.random() * 3,
+        employeeProductivity: 75 + Math.random() * 20,
+      };
+
+      this.recordMetric('orders_processed', operationMetrics.ordersProcessed, 'count', 'OPERATION', operationMetrics);
+      this.recordMetric('fulfillment_rate', operationMetrics.fulfillmentRate, '%', 'OPERATION', operationMetrics);
+      this.recordMetric('operational_efficiency', operationMetrics.operationalEfficiency, '%', 'OPERATION', operationMetrics);
+    } catch (error) {
+      this.logger.error('Failed to collect operation metrics:', error);
+    }
+  }
+
+  private async collectRevenueMetrics(): Promise<void> {
+    try {
+      const revenueMetrics: RevenueMetrics = {
+        totalRevenue: 50000 + Math.random() * 20000,
+        recurringRevenue: 30000 + Math.random() * 10000,
+        averageRevenuePerUser: 25 + Math.random() * 15,
+        revenueByProduct: this.getRevenueByProduct(),
+        revenueByRegion: this.getRevenueByRegion(),
+        monthlyRecurringGrowth: 5 + Math.random() * 10,
+        customerLifetimeValue: 500 + Math.random() * 200,
+        profitMargin: 15 + Math.random() * 10,
+        revenueGrowthRate: 8 + Math.random() * 7,
+      };
+
+      this.recordMetric('total_revenue', revenueMetrics.totalRevenue, 'currency', 'REVENUE', revenueMetrics);
+      this.recordMetric('recurring_revenue', revenueMetrics.recurringRevenue, 'currency', 'REVENUE', revenueMetrics);
+      this.recordMetric('revenue_growth_rate', revenueMetrics.revenueGrowthRate, '%', 'REVENUE', revenueMetrics);
+      this.recordMetric('profit_margin', revenueMetrics.profitMargin, '%', 'REVENUE', revenueMetrics);
+    } catch (error) {
+      this.logger.error('Failed to collect revenue metrics:', error);
+    }
+  }
+
+  private async updateKPIs(): Promise<void> {
+    try {
+      for (const kpi of this.kpis) {
+        const newValue = await this.calculateKPIValue(kpi);
+        const previousValue = kpi.currentValue;
+
+        kpi.previousValue = previousValue;
+        kpi.currentValue = newValue;
+        kpi.lastUpdated = new Date();
+
+        // Calculate trend
+        const change = newValue - previousValue;
+        kpi.trend = change > 0 ? 'UP' : change < 0 ? 'DOWN' : 'STABLE';
+
+        // Calculate status based on target
+        const targetAchievement = (newValue / kpi.targetValue) * 100;
+        kpi.status = targetAchievement >= 100 ? 'GOOD' :
+                     targetAchievement >= 80 ? 'WARNING' : 'CRITICAL';
+
+        this.enhancedLogger.debug(
+          `KPI updated: ${kpi.name} = ${newValue} ${kpi.unit} (${kpi.trend})`,
+          'BUSINESS_METRICS',
+          { kpiId: kpi.id, newValue, previousValue, status: kpi.status }
+        );
+      }
+    } catch (error) {
+      this.logger.error('Failed to update KPIs:', error);
+    }
+  }
+
+  private async checkMetricAlerts(): Promise<void> {
+    try {
+      // Define alert thresholds
+      const alertThresholds = [
+        { metric: 'transaction_success_rate', threshold: 95, operator: 'lt', severity: 'HIGH' },
+        { metric: 'system_availability', threshold: 99, operator: 'lt', severity: 'HIGH' },
+        { metric: 'error_rate', threshold: 5, operator: 'gt', severity: 'MEDIUM' },
+        { metric: 'user_retention_rate', threshold: 80, operator: 'lt', severity: 'MEDIUM' },
+        { metric: 'operational_efficiency', threshold: 85, operator: 'lt', severity: 'LOW' },
+      ];
+
+      for (const threshold of alertThresholds) {
+        const metric = this.metrics.find(m => m.name === threshold.metric);
+        if (metric) {
+          const isAlertTriggered = this.evaluateThreshold(
+            metric.value,
+            threshold.threshold,
+            threshold.operator
+          );
+
+          if (isAlertTriggered) {
+            await this.createMetricAlert(metric, threshold);
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to check metric alerts:', error);
+    }
+  }
+
+  private recordMetric(
+    name: string,
+    value: number,
+    unit: string,
+    category: 'USER' | 'TRANSACTION' | 'REVENUE' | 'OPERATION' | 'PERFORMANCE',
+    metadata?: any,
+  ): void {
+    const previousMetric = this.metrics.find(m => m.name === name);
+    const previousValue = previousMetric?.value;
+
+    let change: number | undefined;
+    let changePercent: number | undefined;
+
+    if (previousValue !== undefined) {
+      change = value - previousValue;
+      changePercent = previousValue !== 0 ? (change / previousValue) * 100 : 0;
+    }
+
+    const metric: BusinessMetric = {
+      id: this.generateId(),
+      name,
+      description: this.getMetricDescription(name),
+      category,
+      value,
+      unit,
+      previousValue,
+      change,
+      changePercent,
+      timestamp: new Date(),
+      period: 'DAY',
+      target: this.getMetricTarget(name),
+      status: this.calculateMetricStatus(name, value),
+      metadata,
+    };
+
+    this.metrics.unshift(metric);
+
+    // Maintain history
+    if (!this.metricHistory.has(name)) {
+      this.metricHistory.set(name, []);
+    }
+    const history = this.metricHistory.get(name)!;
+    history.unshift(metric);
+
+    // Trim history
+    if (history.length > 100) {
+      history.splice(100);
+    }
+
+    // Trim metrics array
+    if (this.metrics.length > this.maxMetrics) {
+      this.metrics = this.metrics.slice(0, this.maxMetrics);
+    }
+
+    // Log significant changes
+    if (changePercent && Math.abs(changePercent) > 10) {
+      this.enhancedLogger.warn(
+        `Significant metric change: ${name} changed by ${changePercent.toFixed(2)}%`,
+        'BUSINESS_METRICS',
+        { metricName: name, changePercent, previousValue, newValue: value }
+      );
+    }
+  }
+
+  async getBusinessMetricsSummary(): Promise<BusinessMetricsSummary> {
+    try {
+      const userMetrics = await this.getUserMetrics();
+      const transactionMetrics = await this.getTransactionMetrics();
+      const operationMetrics = await this.getOperationMetrics();
+      const revenueMetrics = await this.getRevenueMetrics();
+      const performanceMetrics = await this.getPerformanceMetrics();
+
+      const overall = {
+        healthScore: this.calculateOverallHealthScore(userMetrics, transactionMetrics, operationMetrics, revenueMetrics),
+        growthRate: revenueMetrics.revenueGrowthRate,
+        efficiency: operationMetrics.operationalEfficiency,
+        profitability: revenueMetrics.profitMargin,
+      };
+
+      return {
+        timestamp: new Date(),
+        period: '24h',
+        users: userMetrics,
+        transactions: transactionMetrics,
+        operations: operationMetrics,
+        revenue: revenueMetrics,
+        performance: performanceMetrics,
+        overall,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get business metrics summary:', error);
+      throw error;
+    }
+  }
+
+  getKPIs(): KPI[] {
+    return this.kpis;
+  }
+
+  getMetrics(filter?: {
+    category?: string;
+    period?: string;
+    limit?: number;
+  }): BusinessMetric[] {
+    let filteredMetrics = [...this.metrics];
+
+    if (filter?.category) {
+      filteredMetrics = filteredMetrics.filter(m => m.category === filter.category);
+    }
+
+    if (filter?.period) {
+      filteredMetrics = filteredMetrics.filter(m => m.period === filter.period);
+    }
+
+    if (filter?.limit) {
+      filteredMetrics = filteredMetrics.slice(0, filter.limit);
+    }
+
+    return filteredMetrics;
+  }
+
+  getMetricHistory(metricName: string, limit: number = 100): BusinessMetric[] {
+    const history = this.metricHistory.get(metricName) || [];
+    return history.slice(0, limit);
+  }
+
+  getAlerts(): MetricAlert[] {
+    return this.alerts.filter(alert => !alert.resolved);
+  }
+
+  async resolveAlert(alertId: string): Promise<boolean> {
+    const alert = this.alerts.find(a => a.id === alertId);
+    if (alert) {
+      alert.resolved = true;
+      this.enhancedLogger.info(`Metric alert resolved: ${alert.metricName}`, 'BUSINESS_METRICS');
+      return true;
+    }
+    return false;
+  }
+
+  // Helper methods (these would be implemented with actual business logic)
+  private async getEstimatedActiveUsers(since: Date): Promise<number> {
+    // In a real implementation, this would query user activity logs
+    return Math.floor(Math.random() * 100) + 20;
+  }
+
+  private async getEstimatedNewUsers(since: Date): Promise<number> {
+    // In a real implementation, this would query user creation dates
+    return Math.floor(Math.random() * 20) + 1;
+  }
+
+  private calculateRetentionRate(activeUsers: number, totalUsers: number): number {
+    return totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
+  }
+
+  private getAverageSessionDuration(): number {
+    return 15 + Math.random() * 30; // minutes
+  }
+
+  private calculateEngagementScore(activeUsers: number, totalUsers: number): number {
+    return Math.min(100, (activeUsers / Math.max(totalUsers, 1)) * 100 + Math.random() * 20);
+  }
+
+  private getSatisfactionScore(): number {
+    return 70 + Math.random() * 25;
+  }
+
+  private getUserSegments(): Array<{ segment: string; count: number; percentage: number }> {
+    return [
+      { segment: 'Premium', count: 50, percentage: 25 },
+      { segment: 'Standard', count: 120, percentage: 60 },
+      { segment: 'Basic', count: 30, percentage: 15 },
+    ];
+  }
+
+  private getUserActivityByHour(): Array<{ hour: string; activeUsers: number }> {
+    const hours = [];
+    for (let i = 0; i < 24; i++) {
+      hours.push({
+        hour: `${i}:00`,
+        activeUsers: Math.floor(Math.random() * 50) + 10,
+      });
+    }
+    return hours;
+  }
+
+  private calculateGrowthRate(newUsers: number, totalUsers: number): number {
+    return totalUsers > 0 ? (newUsers / totalUsers) * 100 : 0;
+  }
+
+  private async getEstimatedTransactionCount(): Promise<number> {
+    return Math.floor(Math.random() * 500) + 100;
+  }
+
+  private getTransactionBreakdown(): Record<string, number> {
+    return {
+      'Sales': 60,
+      'Returns': 15,
+      'Exchanges': 10,
+      'Refunds': 15,
+    };
+  }
+
+  private getTransactionVolumeByHour(): Array<{ hour: string; volume: number; revenue: number }> {
+    const hours = [];
+    for (let i = 0; i < 24; i++) {
+      const volume = Math.floor(Math.random() * 50) + 10;
+      hours.push({
+        hour: `${i}:00`,
+        volume,
+        revenue: volume * (100 + Math.random() * 200),
+      });
+    }
+    return hours;
+  }
+
+  private async getEstimatedOrderCount(): Promise<number> {
+    return Math.floor(Math.random() * 200) + 50;
+  }
+
+  private getRevenueByProduct(): Array<{ product: string; revenue: number; percentage: number }> {
+    return [
+      { product: 'Product A', revenue: 20000, percentage: 40 },
+      { product: 'Product B', revenue: 15000, percentage: 30 },
+      { product: 'Product C', revenue: 10000, percentage: 20 },
+      { product: 'Product D', revenue: 5000, percentage: 10 },
+    ];
+  }
+
+  private getRevenueByRegion(): Array<{ region: string; revenue: number; percentage: number }> {
+    return [
+      { region: 'North America', revenue: 25000, percentage: 50 },
+      { region: 'Europe', revenue: 15000, percentage: 30 },
+      { region: 'Asia', revenue: 7500, percentage: 15 },
+      { region: 'Other', revenue: 2500, percentage: 5 },
+    ];
+  }
+
+  private getMetricDescription(name: string): string {
+    const descriptions: Record<string, string> = {
+      'total_users': 'Total number of registered users',
+      'active_users': 'Number of users active in the last 24 hours',
+      'new_users': 'Number of new users registered today',
+      'user_retention_rate': 'Percentage of users who remain active',
+      'total_transactions': 'Total number of transactions processed',
+      'transaction_success_rate': 'Percentage of successful transactions',
+      'total_revenue': 'Total revenue generated',
+      'conversion_rate': 'Percentage of visitors who convert to customers',
+      'orders_processed': 'Total number of orders processed',
+      'fulfillment_rate': 'Percentage of orders successfully fulfilled',
+      'operational_efficiency': 'Overall operational efficiency score',
+      'revenue_growth_rate': 'Month-over-month revenue growth rate',
+      'profit_margin': 'Profit margin as a percentage of revenue',
+    };
+    return descriptions[name] || name;
+  }
+
+  private getMetricTarget(name: string): number | undefined {
+    const targets: Record<string, number> = {
+      'transaction_success_rate': 95,
+      'user_retention_rate': 80,
+      'conversion_rate': 3,
+      'fulfillment_rate': 95,
+      'operational_efficiency': 85,
+      'revenue_growth_rate': 10,
+      'profit_margin': 20,
+    };
+    return targets[name];
+  }
+
+  private calculateMetricStatus(name: string, value: number): 'ON_TRACK' | 'WARNING' | 'CRITICAL' {
+    const target = this.getMetricTarget(name);
+    if (!target) return 'ON_TRACK';
+
+    const achievement = (value / target) * 100;
+    if (achievement >= 100) return 'ON_TRACK';
+    if (achievement >= 80) return 'WARNING';
+    return 'CRITICAL';
+  }
+
+  private initializeKPIs(): void {
+    this.kpis = [
+      {
+        id: 'kpi_1',
+        name: 'Daily Active Users',
+        description: 'Number of active users per day',
+        category: 'User Engagement',
+        currentValue: 0,
+        targetValue: 100,
+        previousValue: 0,
+        unit: 'users',
+        trend: 'STABLE',
+        status: 'GOOD',
+        lastUpdated: new Date(),
+        calculation: 'COUNT(DISTINCT user_id) WHERE last_active > NOW() - 24h',
+      },
+      {
+        id: 'kpi_2',
+        name: 'Revenue Growth Rate',
+        description: 'Month-over-month revenue growth',
+        category: 'Financial',
+        currentValue: 0,
+        targetValue: 10,
+        previousValue: 0,
+        unit: '%',
+        trend: 'STABLE',
+        status: 'GOOD',
+        lastUpdated: new Date(),
+        calculation: '((revenue_this_month - revenue_last_month) / revenue_last_month) * 100',
+      },
+      {
+        id: 'kpi_3',
+        name: 'Transaction Success Rate',
+        description: 'Percentage of successful transactions',
+        category: 'Operational',
+        currentValue: 0,
+        targetValue: 95,
+        previousValue: 0,
+        unit: '%',
+        trend: 'STABLE',
+        status: 'GOOD',
+        lastUpdated: new Date(),
+        calculation: '(successful_transactions / total_transactions) * 100',
+      },
+      {
+        id: 'kpi_4',
+        name: 'Customer Satisfaction',
+        description: 'Customer satisfaction score',
+        category: 'Customer Service',
+        currentValue: 0,
+        targetValue: 90,
+        previousValue: 0,
+        unit: 'score',
+        trend: 'STABLE',
+        status: 'GOOD',
+        lastUpdated: new Date(),
+        calculation: 'AVG(satisfaction_score) FROM customer_feedback',
+      },
+    ];
+  }
+
+  private async calculateKPIValue(kpi: KPI): Promise<number> {
+    // In a real implementation, this would execute the calculation query
+    switch (kpi.name) {
+      case 'Daily Active Users':
+        return Math.floor(Math.random() * 100) + 50;
+      case 'Revenue Growth Rate':
+        return 5 + Math.random() * 10;
+      case 'Transaction Success Rate':
+        return 92 + Math.random() * 7;
+      case 'Customer Satisfaction':
+        return 80 + Math.random() * 15;
+      default:
+        return 0;
+    }
+  }
+
+  private evaluateThreshold(value: number, threshold: number, operator: string): boolean {
+    switch (operator) {
+      case 'gt':
+        return value > threshold;
+      case 'lt':
+        return value < threshold;
+      case 'eq':
+        return value === threshold;
+      default:
+        return false;
+    }
+  }
+
+  private async createMetricAlert(metric: BusinessMetric, threshold: any): Promise<void> {
+    const alert: MetricAlert = {
+      id: this.generateId(),
+      metricName: metric.name,
+      threshold: threshold.threshold,
+      currentValue: metric.value,
+      operator: threshold.operator,
+      severity: threshold.severity,
+      message: `${metric.name} is ${metric.value}${metric.unit} (threshold: ${threshold.threshold}${metric.unit})`,
+      timestamp: new Date(),
+      resolved: false,
+    };
+
+    // Check if we already have an unresolved alert for this metric
+    const existingAlert = this.alerts.find(a =>
+      a.metricName === metric.name && !a.resolved
+    );
+
+    if (!existingAlert) {
+      this.alerts.unshift(alert);
+
+      this.enhancedLogger.warn(
+        `Business metric alert triggered: ${alert.message}`,
+        'BUSINESS_METRICS',
+        { alertId: alert.id, metricName: metric.name, severity: alert.severity }
+      );
+    }
+  }
+
+  private calculateOverallHealthScore(
+    userMetrics: UserMetrics,
+    transactionMetrics: TransactionMetrics,
+    operationMetrics: OperationMetrics,
+    revenueMetrics: RevenueMetrics,
+  ): number {
+    const userScore = userMetrics.userRetentionRate;
+    const transactionScore = transactionMetrics.transactionSuccessRate;
+    const operationScore = operationMetrics.operationalEfficiency;
+    const revenueScore = revenueMetrics.revenueGrowthRate * 5; // Scale up growth rate
+
+    return Math.round((userScore + transactionScore + operationScore + revenueScore) / 4);
+  }
+
+  private async getUserMetrics(): Promise<UserMetrics> {
+    // In a real implementation, this would query actual data
+    return {
+      totalUsers: 200,
+      activeUsers: 85,
+      newUsers: 12,
+      returningUsers: 73,
+      userRetentionRate: 85,
+      averageSessionDuration: 25,
+      userEngagementScore: 75,
+      userSatisfactionScore: 82,
+      topUserSegments: [
+        { segment: 'Premium', count: 50, percentage: 25 },
+        { segment: 'Standard', count: 120, percentage: 60 },
+        { segment: 'Basic', count: 30, percentage: 15 },
+      ],
+      userActivityByHour: this.getUserActivityByHour(),
+      userGrowthRate: 6,
+    };
+  }
+
+  private async getTransactionMetrics(): Promise<TransactionMetrics> {
+    return {
+      totalTransactions: 450,
+      successfulTransactions: 427,
+      failedTransactions: 23,
+      transactionSuccessRate: 94.9,
+      averageTransactionValue: 175,
+      totalRevenue: 78750,
+      transactionsByType: this.getTransactionBreakdown(),
+      transactionVolumeByHour: this.getTransactionVolumeByHour(),
+      conversionRate: 3.2,
+      cartAbandonmentRate: 52,
+      averageProcessingTime: 250,
+    };
+  }
+
+  private async getOperationMetrics(): Promise<OperationMetrics> {
+    return {
+      ordersProcessed: 180,
+      inventoryTurnover: 9.2,
+      fulfillmentRate: 96,
+      returnRate: 3.5,
+      customerSupportTickets: 12,
+      averageResponseTime: 45,
+      systemDowntime: 15,
+      operationalEfficiency: 88,
+      costPerTransaction: 6.5,
+      employeeProductivity: 82,
+    };
+  }
+
+  private async getRevenueMetrics(): Promise<RevenueMetrics> {
+    return {
+      totalRevenue: 78750,
+      recurringRevenue: 35000,
+      averageRevenuePerUser: 35,
+      revenueByProduct: this.getRevenueByProduct(),
+      revenueByRegion: this.getRevenueByRegion(),
+      monthlyRecurringGrowth: 8.5,
+      customerLifetimeValue: 650,
+      profitMargin: 18,
+      revenueGrowthRate: 9.2,
+    };
+  }
+
+  private async getPerformanceMetrics(): Promise<PerformanceMetrics> {
+    return {
+      systemAvailability: 99.5,
+      averageResponseTime: 280,
+      pageLoadTime: 1.2,
+      errorRate: 2.3,
+      userSatisfaction: 82,
+      systemUtilization: 65,
+      throughput: 1250,
+      scalabilityIndex: 85,
+    };
+  }
+
+  private generateId(): string {
+    return Math.random().toString(36).substr(2, 9);
+  }
+
+  onModuleDestroy() {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+    }
+  }
+}

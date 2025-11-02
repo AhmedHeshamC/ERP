@@ -21,6 +21,11 @@ import { PurchasingModule } from './modules/purchasing/purchasing.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { HRModule } from './modules/hr/hr.module';
 import { CommonModule } from './shared/common/common.module';
+import { CacheModule } from './shared/cache/cache.module';
+import { MonitoringModule } from './shared/monitoring/monitoring.module';
+import { QueueModule } from './shared/queue/queue.module';
+import { PerformanceInterceptor } from './shared/monitoring/interceptors/performance.interceptor';
+import { PerformanceMiddleware, RequestSizeLimitMiddleware } from './shared/middleware/performance.middleware';
 import { configuration } from './config/configuration';
 import { validationSchema } from './config/validation';
 
@@ -68,6 +73,11 @@ import { validationSchema } from './config/validation';
     // Common
     CommonModule,
 
+    // Performance & Caching
+    CacheModule,
+    MonitoringModule,
+    QueueModule,
+
     // Static Files
     ServeStaticModule.forRootAsync({
       imports: [ConfigModule],
@@ -107,13 +117,26 @@ import { validationSchema } from './config/validation';
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
+    // Global performance interceptor
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PerformanceInterceptor,
+    },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Apply security middleware globally
+    // Apply middleware globally in order
     consumer
       .apply(CorrelationIdMiddleware)
+      .forRoutes('*');
+
+    consumer
+      .apply(RequestSizeLimitMiddleware)
+      .forRoutes('*');
+
+    consumer
+      .apply(PerformanceMiddleware)
       .forRoutes('*');
 
     consumer

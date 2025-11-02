@@ -7,6 +7,7 @@ import { UpdateCustomerDto } from '../dto/update-customer.dto';
 import { CustomerQueryDto } from '../dto/customer-query.dto';
 import { CustomerStatus } from '../enums/sales.enum';
 import { SecurityService } from '../../../shared/security/security.service';
+// import { CacheService } from '../../../shared/cache/cache.service';
 
 @Injectable()
 export class CustomerService {
@@ -96,6 +97,9 @@ export class CustomerService {
         { action: 'CREATE_CUSTOMER', customerCode: sanitizedData.code },
       );
 
+      // Cache invalidation will be implemented in Phase 4
+      // await this.invalidateCustomerListCache();
+
       this.logger.log(`Customer created successfully with ID: ${customer.id}`);
       return this.mapToCustomerEntity(customer);
     } catch (error) {
@@ -132,6 +136,21 @@ export class CustomerService {
     const { page = 1, limit = 10, search, isActive, sortBy = 'name', sortOrder = 'asc' } = query;
     const skip = (page - 1) * limit;
 
+    // Generate cache key - TODO: Implement in Phase 4
+    // const cacheKey = `customers:list:${JSON.stringify(query)}`;
+
+    // Try to get from cache first - TODO: Implement in Phase 4
+    // const cached = await this.cacheService.get<{
+    //   data: Customer[];
+    //   total: number;
+    //   pagination: any;
+    // }>(cacheKey, { ttl: 300 }); // 5 minutes cache
+
+    // if (false && cached) { // TODO: Re-enable in Phase 4
+    //   this.logger.log(`Cache hit for customers list: ${cached.data.length} customers`);
+    //   return cached;
+    // }
+
     const where: any = {};
 
     if (search) {
@@ -146,11 +165,29 @@ export class CustomerService {
       where.isActive = isActive;
     }
 
+    // Optimize query with proper indexing and selection
     const [customers, total] = await Promise.all([
       this.prisma.customer.findMany({
         where,
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          city: true,
+          state: true,
+          postalCode: true,
+          country: true,
+          taxId: true,
+          creditLimit: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
         skip,
-        take: limit,
+        take: Math.min(limit, 100), // Limit maximum page size
         orderBy: { [sortBy]: sortOrder },
       }),
       this.prisma.customer.count({ where }),
@@ -165,12 +202,17 @@ export class CustomerService {
       hasPrev: page > 1,
     };
 
-    this.logger.log(`Found ${customers.length} customers out of ${total} total`);
-    return {
+    const result = {
       data: customers.map(customer => this.mapToCustomerEntity(customer)),
       total,
       pagination
     };
+
+    // Cache the result - TODO: Implement in Phase 4
+    // await this.cacheService.set(cacheKey, result, { ttl: 300 });
+
+    this.logger.log(`Found ${customers.length} customers out of ${total} total`);
+    return result;
   }
 
   /**
@@ -179,15 +221,46 @@ export class CustomerService {
   async findOne(id: string): Promise<Customer> {
     this.logger.log(`Finding customer with ID: ${id}`);
 
+    // Try cache first - TODO: Implement in Phase 4
+    // const cacheKey = `customer:${id}`;
+    // const cached = await this.cacheService.get<Customer>(cacheKey, { ttl: 600 }); // 10 minutes cache
+
+    // if (false && cached) { // TODO: Re-enable in Phase 4
+    //   this.logger.log(`Cache hit for customer ID: ${id}`);
+    //   return cached;
+    // }
+
     const customer = await this.prisma.customer.findUnique({
       where: { id },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        postalCode: true,
+        country: true,
+        taxId: true,
+        creditLimit: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
     }
 
-    return this.mapToCustomerEntity(customer);
+    const customerEntity = this.mapToCustomerEntity(customer);
+
+    // Cache the result - TODO: Implement in Phase 4
+    // await this.cacheService.set(cacheKey, customerEntity, { ttl: 600 });
+
+    return customerEntity;
   }
 
   /**
@@ -257,6 +330,9 @@ export class CustomerService {
         userId,
         { action: 'UPDATE_CUSTOMER', customerCode: existingCustomer.code },
       );
+
+      // Cache invalidation will be implemented in Phase 4
+      // await this.invalidateCustomerCache(id);
 
       this.logger.log(`Customer updated successfully with ID: ${id}`);
       return updatedCustomerEntity;
@@ -394,4 +470,27 @@ export class CustomerService {
       taxId: prismaCustomer.taxId,
     });
   }
+
+  /**
+   * Invalidate cache for a specific customer - TODO: Implement in Phase 4
+   */
+  // private async invalidateCustomerCache(customerId: string): Promise<void> {
+  //   const cacheKeys = [
+  //     `customer:${customerId}`,
+  //   ];
+
+  //   for (const key of cacheKeys) {
+  //     await this.cacheService.del(key);
+  //   }
+
+  //   // Also invalidate customer list cache
+  //   await this.invalidateCustomerListCache();
+  // }
+
+  /**
+   * Invalidate all customer list cache entries - TODO: Implement in Phase 4
+   */
+  // private async invalidateCustomerListCache(): Promise<void> {
+  //   await this.cacheService.delPattern('customers:list:*');
+  // }
 }

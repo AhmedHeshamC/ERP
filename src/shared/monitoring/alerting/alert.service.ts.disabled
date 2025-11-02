@@ -1,0 +1,899 @@
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EnhancedLoggerService, LogLevel } from '../logging/enhanced-logger.service';
+import { PerformanceService } from '../performance.service';
+import { HealthService } from '../health/health.service';
+
+export interface Alert {
+  id: string;
+  name: string;
+  description: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'ACTIVE' | 'RESOLVED' | 'SUPPRESSED';
+  category: 'SYSTEM' | 'PERFORMANCE' | 'SECURITY' | 'BUSINESS' | 'AVAILABILITY';
+  source: string;
+  timestamp: Date;
+  resolvedAt?: Date;
+  metadata: Record<string, any>;
+  threshold?: AlertThreshold;
+  currentValue?: number;
+  tags: string[];
+  correlationId?: string;
+  acknowledgedBy?: string;
+  acknowledgedAt?: Date;
+  notes?: string;
+}
+
+export interface AlertThreshold {
+  metric: string;
+  operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte';
+  value: number;
+  duration?: number; // minutes
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+}
+
+export interface AlertRule {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  thresholds: AlertThreshold[];
+  conditions: AlertCondition[];
+  notifications: NotificationChannel[];
+  cooldown: number; // minutes
+  suppressDuration: number; // minutes
+  tags: string[];
+}
+
+export interface AlertCondition {
+  metric: string;
+  operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte' | 'contains' | 'not_contains';
+  value: any;
+  aggregate?: 'avg' | 'sum' | 'count' | 'min' | 'max';
+  timeWindow?: number; // minutes
+}
+
+export interface NotificationChannel {
+  id: string;
+  name: string;
+  type: 'EMAIL' | 'SMS' | 'WEBHOOK' | 'SLACK' | 'TEAMS' | 'PAGERDUTY';
+  config: Record<string, any>;
+  enabled: boolean;
+  filters: {
+    severities: string[];
+    categories: string[];
+    sources: string[];
+  };
+}
+
+export interface NotificationMessage {
+  alert: Alert;
+  channel: NotificationChannel;
+  message: string;
+  subject?: string;
+  recipients: string[];
+  metadata: Record<string, any>;
+}
+
+export interface AlertStatistics {
+  total: number;
+  active: number;
+  resolved: number;
+  suppressed: number;
+  bySeverity: Record<string, number>;
+  byCategory: Record<string, number>;
+  bySource: Record<string, number>;
+  recentAlerts: Alert[];
+  topAlerts: Array<{ name: string; count: number; lastOccurred: Date }>;
+  resolutionTimes: Array<{ category: string; avgTime: number; count: number }>;
+}
+
+@Injectable()
+export class AlertService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(AlertService.name);
+  private alerts: Alert[] = [];
+  private alertRules: AlertRule[] = [];
+  private notificationChannels: NotificationChannel[] = [];
+  private alertHistory: Alert[] = [];
+  private maxAlerts = 10000;
+  private maxHistory = 50000;
+  private monitoringInterval: NodeJS.Timeout | null = null;
+  private cooldownPeriods: Map<string, Date> = new Map();
+  private suppressedAlerts: Map<string, Date> = new Map();
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly enhancedLogger: EnhancedLoggerService,
+    private readonly performanceService: PerformanceService,
+    private readonly healthService: HealthService,
+  ) {}
+
+  onModuleInit() {
+    this.initializeDefaultAlertRules();
+    this.initializeDefaultNotificationChannels();
+
+    // Start monitoring every 30 seconds
+    this.monitoringInterval = setInterval(() => {
+      this.performAlertChecks().catch(error => {
+        this.logger.error('Alert monitoring failed:', error);
+      });
+    }, 30000);
+
+    this.logger.log('Alert service initialized with monitoring');
+  }
+
+  async createAlert(alertData: Partial<Alert>): Promise<Alert> {
+    const alert: Alert = {
+      id: this.generateId(),
+      name: alertData.name || 'Unknown Alert',
+      description: alertData.description || '',
+      severity: alertData.severity || 'MEDIUM',
+      status: 'ACTIVE',
+      category: alertData.category || 'SYSTEM',
+      source: alertData.source || 'system',
+      timestamp: new Date(),
+      metadata: alertData.metadata || {},
+      threshold: alertData.threshold,
+      currentValue: alertData.currentValue,
+      tags: alertData.tags || [],
+      correlationId: alertData.correlationId,
+    };
+
+    // Check if alert should be suppressed
+    if (this.isAlertSuppressed(alert)) {
+      alert.status = 'SUPPRESSED';
+      this.suppressedAlerts.set(alert.name, new Date());
+    }
+
+    // Check cooldown period
+    if (this.isInCooldown(alert)) {
+      this.logger.debug(`Alert ${alert.name} is in cooldown period, skipping`);
+      return alert;
+    }
+
+    this.alerts.unshift(alert);
+    this.alertHistory.unshift({ ...alert });
+
+    // Trim arrays if needed
+    if (this.alerts.length > this.maxAlerts) {
+      this.alerts = this.alerts.slice(0, this.maxAlerts);
+    }
+    if (this.alertHistory.length > this.maxHistory) {
+      this.alertHistory = this.alertHistory.slice(0, this.maxHistory);
+    }
+
+    // Set cooldown
+    this.cooldownPeriods.set(alert.name, new Date());
+
+    // Log the alert
+    this.enhancedLogger.warn(
+      `Alert triggered: ${alert.name} - ${alert.description}`,
+      'ALERT',
+      {
+        alertId: alert.id,
+        severity: alert.severity,
+        category: alert.category,
+        source: alert.source,
+        currentValue: alert.currentValue,
+        threshold: alert.threshold?.value,
+      }
+    );
+
+    // Send notifications if active
+    if (alert.status === 'ACTIVE') {
+      await this.sendNotifications(alert);
+    }
+
+    this.logger.warn(`Alert created: ${alert.name} (${alert.severity})`);
+    return alert;
+  }
+
+  async resolveAlert(alertId: string, resolvedBy?: string, notes?: string): Promise<Alert | null> {
+    const alertIndex = this.alerts.findIndex(a => a.id === alertId);
+    if (alertIndex === -1) {
+      return null;
+    }
+
+    const alert = this.alerts[alertIndex];
+    if (alert.status === 'RESOLVED') {
+      return alert;
+    }
+
+    alert.status = 'RESOLVED';
+    alert.resolvedAt = new Date();
+    if (resolvedBy) {
+      alert.acknowledgedBy = resolvedBy;
+      alert.acknowledgedAt = new Date();
+    }
+    if (notes) {
+      alert.notes = notes;
+    }
+
+    // Update in history as well
+    const historyIndex = this.alertHistory.findIndex(a => a.id === alertId);
+    if (historyIndex !== -1) {
+      this.alertHistory[historyIndex] = { ...alert };
+    }
+
+    this.enhancedLogger.info(
+      `Alert resolved: ${alert.name}`,
+      'ALERT',
+      {
+        alertId: alert.id,
+        resolvedBy,
+        resolutionTime: alert.resolvedAt.getTime() - alert.timestamp.getTime(),
+      }
+    );
+
+    // Send resolution notifications
+    await this.sendResolutionNotifications(alert);
+
+    return alert;
+  }
+
+  async acknowledgeAlert(alertId: string, acknowledgedBy: string, notes?: string): Promise<Alert | null> {
+    const alert = this.alerts.find(a => a.id === alertId);
+    if (!alert || alert.status === 'RESOLVED') {
+      return null;
+    }
+
+    alert.acknowledgedBy = acknowledgedBy;
+    alert.acknowledgedAt = new Date();
+    if (notes) {
+      alert.notes = notes;
+    }
+
+    this.enhancedLogger.info(
+      `Alert acknowledged: ${alert.name} by ${acknowledgedBy}`,
+      'ALERT',
+      { alertId: alert.id, acknowledgedBy }
+    );
+
+    return alert;
+  }
+
+  async suppressAlert(alertId: string, duration: number, reason?: string): Promise<Alert | null> {
+    const alert = this.alerts.find(a => a.id === alertId);
+    if (!alert) {
+      return null;
+    }
+
+    alert.status = 'SUPPRESSED';
+    const suppressUntil = new Date(Date.now() + duration * 60 * 1000);
+    this.suppressedAlerts.set(alert.name, suppressUntil);
+
+    this.enhancedLogger.info(
+      `Alert suppressed: ${alert.name} for ${duration} minutes`,
+      'ALERT',
+      { alertId: alert.id, reason, suppressUntil }
+    );
+
+    return alert;
+  }
+
+  async performAlertChecks(): Promise<void> {
+    try {
+      // Check system performance
+      await this.checkPerformanceAlerts();
+
+      // Check system health
+      await this.checkHealthAlerts();
+
+      // Check error rates
+      await this.checkErrorAlerts();
+
+      // Check business metrics
+      await this.checkBusinessAlerts();
+
+    } catch (error) {
+      this.logger.error('Alert check failed:', error);
+    }
+  }
+
+  async checkPerformanceAlerts(): Promise<void> {
+    const stats = this.performanceService.getStats(300); // Last 5 minutes
+
+    // High response time alert
+    if (stats.averageResponseTime > 2000) {
+      await this.createAlert({
+        name: 'High Response Time',
+        description: `Average response time is ${stats.averageResponseTime.toFixed(2)}ms`,
+        severity: stats.averageResponseTime > 5000 ? 'CRITICAL' : 'HIGH',
+        category: 'PERFORMANCE',
+        source: 'performance_service',
+        currentValue: stats.averageResponseTime,
+        threshold: {
+          metric: 'response_time',
+          operator: 'gt',
+          value: 2000,
+          severity: 'HIGH',
+        },
+        tags: ['performance', 'response_time'],
+      });
+    }
+
+    // High error rate alert
+    if (stats.errorRate > 5) {
+      await this.createAlert({
+        name: 'High Error Rate',
+        description: `Error rate is ${stats.errorRate.toFixed(2)}%`,
+        severity: stats.errorRate > 20 ? 'CRITICAL' : 'HIGH',
+        category: 'SYSTEM',
+        source: 'performance_service',
+        currentValue: stats.errorRate,
+        threshold: {
+          metric: 'error_rate',
+          operator: 'gt',
+          value: 5,
+          severity: 'HIGH',
+        },
+        tags: ['system', 'error_rate'],
+      });
+    }
+
+    // Low cache hit rate alert
+    if (stats.cacheHitRate < 50 && stats.totalRequests > 100) {
+      await this.createAlert({
+        name: 'Low Cache Hit Rate',
+        description: `Cache hit rate is ${stats.cacheHitRate.toFixed(2)}%`,
+        severity: 'MEDIUM',
+        category: 'PERFORMANCE',
+        source: 'performance_service',
+        currentValue: stats.cacheHitRate,
+        threshold: {
+          metric: 'cache_hit_rate',
+          operator: 'lt',
+          value: 50,
+          severity: 'MEDIUM',
+        },
+        tags: ['performance', 'cache'],
+      });
+    }
+  }
+
+  async checkHealthAlerts(): Promise<void> {
+    const healthResult = await this.healthService.performHealthCheck();
+
+    if (healthResult.status === 'UNHEALTHY') {
+      await this.createAlert({
+        name: 'System Unhealthy',
+        description: `System health score is ${healthResult.overallScore}/100`,
+        severity: 'CRITICAL',
+        category: 'AVAILABILITY',
+        source: 'health_service',
+        currentValue: healthResult.overallScore,
+        threshold: {
+          metric: 'health_score',
+          operator: 'lt',
+          value: 50,
+          severity: 'CRITICAL',
+        },
+        tags: ['availability', 'health'],
+        metadata: {
+          failedChecks: healthResult.checks.filter(c => c.status === 'DOWN'),
+        },
+      });
+    } else if (healthResult.status === 'DEGRADED') {
+      await this.createAlert({
+        name: 'System Degraded',
+        description: `System health score is ${healthResult.overallScore}/100`,
+        severity: 'MEDIUM',
+        category: 'AVAILABILITY',
+        source: 'health_service',
+        currentValue: healthResult.overallScore,
+        threshold: {
+          metric: 'health_score',
+          operator: 'lt',
+          value: 75,
+          severity: 'MEDIUM',
+        },
+        tags: ['availability', 'health'],
+        metadata: {
+          degradedChecks: healthResult.checks.filter(c => c.status === 'DEGRADED'),
+        },
+      });
+    }
+  }
+
+  async checkErrorAlerts(): Promise<void> {
+    // Check for recent critical errors in logs
+    const errorStats = await this.enhancedLogger.getLogStats(1); // Last hour
+
+    if (errorStats.logsByLevel[LogLevel.FATAL] > 0) {
+      await this.createAlert({
+        name: 'Fatal Errors Detected',
+        description: `${errorStats.logsByLevel[LogLevel.FATAL]} fatal errors in the last hour`,
+        severity: 'CRITICAL',
+        category: 'SYSTEM',
+        source: 'logging_service',
+        currentValue: errorStats.logsByLevel[LogLevel.FATAL],
+        threshold: {
+          metric: 'fatal_errors',
+          operator: 'gt',
+          value: 0,
+          severity: 'CRITICAL',
+        },
+        tags: ['system', 'fatal_error'],
+      });
+    }
+
+    if (errorStats.logsByLevel[LogLevel.ERROR] > 10) {
+      await this.createAlert({
+        name: 'High Error Rate',
+        description: `${errorStats.logsByLevel[LogLevel.ERROR]} errors in the last hour`,
+        severity: 'HIGH',
+        category: 'SYSTEM',
+        source: 'logging_service',
+        currentValue: errorStats.logsByLevel[LogLevel.ERROR],
+        threshold: {
+          metric: 'error_count',
+          operator: 'gt',
+          value: 10,
+          severity: 'HIGH',
+        },
+        tags: ['system', 'error_rate'],
+      });
+    }
+  }
+
+  async checkBusinessAlerts(): Promise<void> {
+    // This would check business-specific metrics
+    // For now, it's a placeholder for future business monitoring
+    // Examples: failed transactions, low user activity, etc.
+  }
+
+  async sendNotifications(alert: Alert): Promise<void> {
+    const relevantChannels = this.notificationChannels.filter(channel => {
+      if (!channel.enabled) return false;
+
+      return (
+        channel.filters.severities.includes(alert.severity) &&
+        channel.filters.categories.includes(alert.category)
+      );
+    });
+
+    const notifications = relevantChannels.map(channel =>
+      this.sendNotification(alert, channel).catch(error => {
+        this.logger.error(`Failed to send ${channel.type} notification for alert ${alert.id}:`, error);
+      })
+    );
+
+    await Promise.allSettled(notifications);
+  }
+
+  async sendNotification(alert: Alert, channel: NotificationChannel): Promise<void> {
+    const message = this.formatNotificationMessage(alert, channel);
+
+    switch (channel.type) {
+      case 'EMAIL':
+        await this.sendEmailNotification(channel, message);
+        break;
+      case 'WEBHOOK':
+        await this.sendWebhookNotification(channel, message);
+        break;
+      case 'SLACK':
+        await this.sendSlackNotification(channel, message);
+        break;
+      default:
+        this.logger.warn(`Unsupported notification channel type: ${channel.type}`);
+    }
+
+    this.logger.debug(`Sent ${channel.type} notification for alert ${alert.id}`);
+  }
+
+  private formatNotificationMessage(alert: Alert, channel: NotificationChannel): NotificationMessage {
+    const severity = alert.severity;
+    const emoji = this.getSeverityEmoji(severity);
+
+    const subject = `${emoji} ${severity} Alert: ${alert.name}`;
+
+    let message = `**${severity} Alert: ${alert.name}**\n\n`;
+    message += `**Description:** ${alert.description}\n`;
+    message += `**Source:** ${alert.source}\n`;
+    message += `**Category:** ${alert.category}\n`;
+    message += `**Time:** ${alert.timestamp.toISOString()}\n`;
+
+    if (alert.currentValue !== undefined && alert.threshold) {
+      message += `**Current Value:** ${alert.currentValue}\n`;
+      message += `**Threshold:** ${alert.threshold.value}\n`;
+    }
+
+    if (alert.metadata && Object.keys(alert.metadata).length > 0) {
+      message += `**Metadata:** ${JSON.stringify(alert.metadata, null, 2)}\n`;
+    }
+
+    if (alert.tags.length > 0) {
+      message += `**Tags:** ${alert.tags.join(', ')}\n`;
+    }
+
+    return {
+      alert,
+      channel,
+      message,
+      subject,
+      recipients: channel.config.recipients || [],
+      metadata: {
+        alertId: alert.id,
+        severity: alert.severity,
+        category: alert.category,
+      },
+    };
+  }
+
+  private async sendEmailNotification(channel: NotificationChannel, message: NotificationMessage): Promise<void> {
+    // In a real implementation, this would use an email service like SendGrid, SES, etc.
+    this.logger.info(`EMAIL notification sent to ${message.recipients.join(', ')}: ${message.subject}`);
+  }
+
+  private async sendWebhookNotification(channel: NotificationChannel, message: NotificationMessage): Promise<void> {
+    const webhookUrl = channel.config.url;
+    if (!webhookUrl) {
+      throw new Error('Webhook URL not configured');
+    }
+
+    const payload = {
+      alert: message.alert,
+      message: message.message,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...channel.config.headers,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`Webhook returned ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      throw new Error(`Webhook notification failed: ${error.message}`);
+    }
+  }
+
+  private async sendSlackNotification(channel: NotificationChannel, message: NotificationMessage): Promise<void> {
+    const webhookUrl = channel.config.webhookUrl;
+    if (!webhookUrl) {
+      throw new Error('Slack webhook URL not configured');
+    }
+
+    const payload = {
+      text: message.subject,
+      attachments: [{
+        color: this.getSeverityColor(message.alert.severity),
+        fields: [
+          { title: 'Description', value: message.alert.description, short: false },
+          { title: 'Source', value: message.alert.source, short: true },
+          { title: 'Category', value: message.alert.category, short: true },
+          { title: 'Time', value: message.alert.timestamp.toISOString(), short: true },
+        ],
+      }],
+    };
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Slack webhook returned ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      throw new Error(`Slack notification failed: ${error.message}`);
+    }
+  }
+
+  private async sendResolutionNotifications(alert: Alert): Promise<void> {
+    // Similar to sendNotifications but for resolved alerts
+    const resolutionChannels = this.notificationChannels.filter(channel =>
+      channel.enabled && channel.config.sendResolutions !== false
+    );
+
+    const notifications = resolutionChannels.map(channel =>
+      this.sendResolutionNotification(alert, channel).catch(error => {
+        this.logger.error(`Failed to send resolution notification for alert ${alert.id}:`, error);
+      })
+    );
+
+    await Promise.allSettled(notifications);
+  }
+
+  private async sendResolutionNotification(alert: Alert, channel: NotificationChannel): Promise<void> {
+    const message = {
+      alert: { ...alert, status: 'RESOLVED' },
+      channel,
+      message: `✅ Alert Resolved: ${alert.name}`,
+      subject: `RESOLVED: ${alert.name}`,
+      recipients: channel.config.recipients || [],
+      metadata: {
+        alertId: alert.id,
+        resolutionTime: alert.resolvedAt?.toISOString(),
+      },
+    };
+
+    // Send using appropriate channel method
+    switch (channel.type) {
+      case 'EMAIL':
+        await this.sendEmailNotification(channel, message);
+        break;
+      case 'WEBHOOK':
+        await this.sendWebhookNotification(channel, message);
+        break;
+      case 'SLACK':
+        await this.sendSlackNotification(channel, message);
+        break;
+    }
+  }
+
+  getActiveAlerts(): Alert[] {
+    return this.alerts.filter(alert => alert.status === 'ACTIVE');
+  }
+
+  getAlerts(filter?: {
+    severity?: string;
+    category?: string;
+    source?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): { alerts: Alert[]; total: number; hasMore: boolean } {
+    let filteredAlerts = [...this.alerts];
+
+    if (filter) {
+      if (filter.severity) {
+        filteredAlerts = filteredAlerts.filter(a => a.severity === filter.severity);
+      }
+      if (filter.category) {
+        filteredAlerts = filteredAlerts.filter(a => a.category === filter.category);
+      }
+      if (filter.source) {
+        filteredAlerts = filteredAlerts.filter(a => a.source === filter.source);
+      }
+      if (filter.status) {
+        filteredAlerts = filteredAlerts.filter(a => a.status === filter.status);
+      }
+    }
+
+    // Sort by timestamp (newest first)
+    filteredAlerts.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    const total = filteredAlerts.length;
+    const limit = filter?.limit || 100;
+    const offset = filter?.offset || 0;
+
+    const paginatedAlerts = filteredAlerts.slice(offset, offset + limit);
+
+    return {
+      alerts: paginatedAlerts,
+      total,
+      hasMore: offset + limit < total,
+    };
+  }
+
+  getAlertStatistics(hours: number = 24): AlertStatistics {
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const recentAlerts = this.alertHistory.filter(alert => alert.timestamp >= cutoff);
+
+    const total = recentAlerts.length;
+    const active = recentAlerts.filter(a => a.status === 'ACTIVE').length;
+    const resolved = recentAlerts.filter(a => a.status === 'RESOLVED').length;
+    const suppressed = recentAlerts.filter(a => a.status === 'SUPPRESSED').length;
+
+    const bySeverity: Record<string, number> = {};
+    const byCategory: Record<string, number> = {};
+    const bySource: Record<string, number> = {};
+
+    recentAlerts.forEach(alert => {
+      bySeverity[alert.severity] = (bySeverity[alert.severity] || 0) + 1;
+      byCategory[alert.category] = (byCategory[alert.category] || 0) + 1;
+      bySource[alert.source] = (bySource[alert.source] || 0) + 1;
+    });
+
+    // Top alerts
+    const alertCounts: Record<string, { count: number; lastOccurred: Date }> = {};
+    recentAlerts.forEach(alert => {
+      if (!alertCounts[alert.name]) {
+        alertCounts[alert.name] = { count: 0, lastOccurred: alert.timestamp };
+      }
+      alertCounts[alert.name].count++;
+      if (alert.timestamp > alertCounts[alert.name].lastOccurred) {
+        alertCounts[alert.name].lastOccurred = alert.timestamp;
+      }
+    });
+
+    const topAlerts = Object.entries(alertCounts)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Resolution times
+    const resolutionTimesByCategory: Record<string, number[]> = {};
+    recentAlerts.forEach(alert => {
+      if (alert.status === 'RESOLVED' && alert.resolvedAt) {
+        const resolutionTime = alert.resolvedAt.getTime() - alert.timestamp.getTime();
+        if (!resolutionTimesByCategory[alert.category]) {
+          resolutionTimesByCategory[alert.category] = [];
+        }
+        resolutionTimesByCategory[alert.category].push(resolutionTime);
+      }
+    });
+
+    const resolutionTimes = Object.entries(resolutionTimesByCategory).map(([category, times]) => ({
+      category,
+      avgTime: times.reduce((sum, time) => sum + time, 0) / times.length,
+      count: times.length,
+    }));
+
+    return {
+      total,
+      active,
+      resolved,
+      suppressed,
+      bySeverity,
+      byCategory,
+      bySource,
+      recentAlerts: recentAlerts.slice(0, 50),
+      topAlerts,
+      resolutionTimes,
+    };
+  }
+
+  private initializeDefaultAlertRules(): void {
+    this.alertRules = [
+      {
+        id: 'high_response_time',
+        name: 'High Response Time',
+        description: 'Alert when average response time exceeds 2 seconds',
+        enabled: true,
+        thresholds: [{
+          metric: 'response_time',
+          operator: 'gt',
+          value: 2000,
+          severity: 'HIGH',
+        }],
+        conditions: [],
+        notifications: [],
+        cooldown: 15,
+        suppressDuration: 60,
+        tags: ['performance', 'response_time'],
+      },
+      {
+        id: 'high_error_rate',
+        name: 'High Error Rate',
+        description: 'Alert when error rate exceeds 5%',
+        enabled: true,
+        thresholds: [{
+          metric: 'error_rate',
+          operator: 'gt',
+          value: 5,
+          severity: 'HIGH',
+        }],
+        conditions: [],
+        notifications: [],
+        cooldown: 10,
+        suppressDuration: 30,
+        tags: ['system', 'error_rate'],
+      },
+      {
+        id: 'system_unhealthy',
+        name: 'System Unhealthy',
+        description: 'Alert when system health score drops below 50%',
+        enabled: true,
+        thresholds: [{
+          metric: 'health_score',
+          operator: 'lt',
+          value: 50,
+          severity: 'CRITICAL',
+        }],
+        conditions: [],
+        notifications: [],
+        cooldown: 5,
+        suppressDuration: 15,
+        tags: ['availability', 'health'],
+      },
+    ];
+  }
+
+  private initializeDefaultNotificationChannels(): void {
+    this.notificationChannels = [
+      {
+        id: 'default_email',
+        name: 'Default Email Notifications',
+        type: 'EMAIL',
+        config: {
+          recipients: [this.configService.get<string>('ALERT_EMAIL', 'admin@example.com')],
+          sendResolutions: true,
+        },
+        enabled: true,
+        filters: {
+          severities: ['HIGH', 'CRITICAL'],
+          categories: ['SYSTEM', 'PERFORMANCE', 'AVAILABILITY'],
+          sources: [],
+        },
+      },
+      {
+        id: 'default_webhook',
+        name: 'Default Webhook Notifications',
+        type: 'WEBHOOK',
+        config: {
+          url: this.configService.get<string>('ALERT_WEBHOOK_URL'),
+          headers: {
+            'Authorization': `Bearer ${this.configService.get<string>('ALERT_WEBHOOK_TOKEN')}`,
+          },
+          sendResolutions: false,
+        },
+        enabled: !!this.configService.get<string>('ALERT_WEBHOOK_URL'),
+        filters: {
+          severities: ['CRITICAL'],
+          categories: ['SYSTEM', 'AVAILABILITY'],
+          sources: [],
+        },
+      },
+    ];
+  }
+
+  private isAlertSuppressed(alert: Alert): boolean {
+    const suppressUntil = this.suppressedAlerts.get(alert.name);
+    if (!suppressUntil) return false;
+
+    if (new Date() > suppressUntil) {
+      this.suppressedAlerts.delete(alert.name);
+      return false;
+    }
+
+    return true;
+  }
+
+  private isInCooldown(alert: Alert): boolean {
+    const lastAlert = this.cooldownPeriods.get(alert.name);
+    if (!lastAlert) return false;
+
+    const cooldownMinutes = this.alertRules.find(rule => rule.name === alert.name)?.cooldown || 15;
+    const cooldownUntil = new Date(lastAlert.getTime() + cooldownMinutes * 60 * 1000);
+
+    if (new Date() < cooldownUntil) {
+      return true;
+    }
+
+    this.cooldownPeriods.delete(alert.name);
+    return false;
+  }
+
+  private getSeverityEmoji(severity: string): string {
+    switch (severity) {
+      case 'LOW': return '🟢';
+      case 'MEDIUM': return '🟡';
+      case 'HIGH': return '🟠';
+      case 'CRITICAL': return '🔴';
+      default: return '⚪';
+    }
+  }
+
+  private getSeverityColor(severity: string): string {
+    switch (severity) {
+      case 'LOW': return 'good';
+      case 'MEDIUM': return 'warning';
+      case 'HIGH': return 'danger';
+      case 'CRITICAL': return 'danger';
+      default: return 'good';
+    }
+  }
+
+  private generateId(): string {
+    return Math.random().toString(36).substr(2, 9);
+  }
+
+  onModuleDestroy() {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+    }
+  }
+}

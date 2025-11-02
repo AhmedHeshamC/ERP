@@ -1,0 +1,87 @@
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+  Logger,
+} from '@nestjs/common';
+import { Observable, throwError } from 'rxjs';
+import { tap, catchError } from 'rxjs/operators';
+import { Request } from 'express';
+import { PerformanceService, PerformanceMetrics } from '../performance.service';
+import { CacheService } from '../../cache/cache.service';
+
+@Injectable()
+export class PerformanceInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(PerformanceInterceptor.name);
+
+  constructor(
+    private readonly performanceService: PerformanceService,
+    private readonly cacheService: CacheService,
+  ) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const startTime = Date.now();
+    const request = context.switchToHttp().getRequest<Request>();
+
+    // Extract user info from request if available
+    const userId = (request as any).user?.id;
+    const endpoint = `${request.method} ${request.route?.path || request.path}`;
+    const method = request.method;
+
+    // Check if this was a cache hit
+    let cacheHit = false;
+
+    return next.handle().pipe(
+      tap((response) => {
+        const duration = Date.now() - startTime;
+
+        // Build metrics object
+        const metrics: PerformanceMetrics = {
+          endpoint,
+          method,
+          duration,
+          timestamp: new Date(),
+          userId,
+          statusCode: context.switchToHttp().getResponse().statusCode,
+          cacheHit,
+          memoryUsage: process.memoryUsage().heapUsed,
+        };
+
+        // Record metrics
+        this.performanceService.recordMetrics(metrics);
+
+        // Log slow requests
+        if (duration > 1000) {
+          this.logger.warn(`Slow request detected: ${endpoint} - ${duration}ms`);
+        }
+
+        // Log successful requests at debug level
+        this.logger.debug(`Request completed: ${endpoint} - ${duration}ms`);
+      }),
+      catchError((error) => {
+        const duration = Date.now() - startTime;
+
+        // Build metrics object for failed request
+        const metrics: PerformanceMetrics = {
+          endpoint,
+          method,
+          duration,
+          timestamp: new Date(),
+          userId,
+          statusCode: error.response?.statusCode || 500,
+          cacheHit,
+          memoryUsage: process.memoryUsage().heapUsed,
+        };
+
+        // Record metrics for failed request too
+        this.performanceService.recordMetrics(metrics);
+
+        // Log errors
+        this.logger.error(`Request failed: ${endpoint} - ${duration}ms - ${error.message}`, error.stack);
+
+        return throwError(() => error);
+      }),
+    );
+  }
+}
