@@ -667,4 +667,63 @@ export class PerformanceService implements OnModuleInit, OnModuleDestroy {
   private generateAlertId(): string {
     return `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
+
+  /**
+   * Get performance statistics for dashboard
+   * This method provides aggregated stats for the last specified minutes
+   */
+  getStats(minutesAgo: number = 5): {
+    totalRequests: number;
+    errorRate: number;
+    averageResponseTime: number;
+    requestsPerMinute: number;
+    cacheHitRate: number;
+    memoryUsage: number;
+    activeConnections: number;
+  } {
+    const now = new Date();
+    const fromTime = new Date(now.getTime() - minutesAgo * 60 * 1000);
+
+    const recentMetrics = this.metrics.filter(m => m.timestamp >= fromTime);
+
+    const totalRequests = recentMetrics.length;
+    const errorCount = recentMetrics.filter(m => m.statusCode >= 400).length;
+    const errorRate = totalRequests > 0 ? (errorCount / totalRequests) * 100 : 0;
+
+    const averageResponseTime = totalRequests > 0
+      ? recentMetrics.reduce((sum, m) => sum + m.responseTime, 0) / totalRequests
+      : 0;
+
+    const requestsPerMinute = totalRequests / minutesAgo;
+
+    // Get current system metrics
+    const latestSystemMetrics = this.systemMetrics[this.systemMetrics.length - 1];
+    const memoryUsage = latestSystemMetrics
+      ? latestSystemMetrics.memoryUsage.percentage
+      : 0;
+
+    const activeConnections = latestSystemMetrics
+      ? latestSystemMetrics.activeConnections
+      : 0;
+
+    // Get cache stats from cache service (mocked for now)
+    const cacheHitRate = 85.5; // Mock value - would come from actual cache service
+
+    return {
+      totalRequests,
+      errorRate,
+      averageResponseTime,
+      requestsPerMinute,
+      cacheHitRate,
+      memoryUsage,
+      activeConnections,
+    };
+  }
+
+  /**
+   * Get most active endpoints (alias for getBusiestEndpoints)
+   */
+  getMostActiveEndpoints(limit: number = 10): EndpointStats[] {
+    return this.getBusiestEndpoints(limit);
+  }
 }

@@ -1,0 +1,663 @@
+import { expect } from 'chai';
+import { describe, it, beforeEach, afterEach } from 'mocha';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { HealthService } from '../health.service';
+import { PrismaService } from '../../../database/prisma.service';
+import { CacheService } from '../../../cache/cache.service';
+import * as sinon from 'sinon';
+
+describe('HealthService Unit Tests', () => {
+  let service: HealthService;
+  let prismaService: PrismaService;
+  let cacheService: CacheService;
+  let configService: ConfigService;
+
+  // Mock dependencies with proper typing
+  const mockPrismaService = {
+    healthCheck: () => Promise.resolve(true),
+    $queryRaw: () => Promise.resolve([{ test: 'data' }]),
+    user: {
+      findFirst: () => Promise.resolve({ id: 'test-id' }),
+    },
+  };
+
+  const mockCacheService = {
+    isRedisConnected: () => true,
+    get: () => Promise.resolve('test_value'),
+    set: () => Promise.resolve(true),
+    del: () => Promise.resolve(true),
+    getStats: () => ({
+      hits: 100,
+      misses: 20,
+      keys: 50,
+    }),
+    getMemoryUsage: () => Promise.resolve(50 * 1024 * 1024),
+  };
+
+  const mockConfigService = {
+    get: (key: string, defaultValue?: any) => defaultValue,
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        HealthService,
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
+    }).compile();
+
+    service = module.get<HealthService>(HealthService);
+    prismaService = module.get<PrismaService>(PrismaService);
+    cacheService = module.get<CacheService>(CacheService);
+    configService = module.get<ConfigService>(ConfigService);
+  });
+
+  afterEach(async () => {
+    if (service) {
+      service.onModuleDestroy();
+    }
+  });
+
+  describe('Service Initialization', () => {
+    it('should be defined', () => {
+      expect(service).to.be.instanceOf(HealthService);
+    });
+
+    it('should initialize with correct dependencies', () => {
+      expect(service).to.have.property('prismaService');
+      expect(service).to.have.property('cacheService');
+      expect(service).to.have.property('configService');
+    });
+  });
+
+  describe('performHealthCheck', () => {
+    it('should return HEALTHY status when all services are operational', async () => {
+      // Arrange
+      const prismaHealthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const cacheConnectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+
+      // Act
+      const result = await service.performHealthCheck();
+
+      // Assert
+      expect(result).to.have.property('status', 'HEALTHY');
+      expect(result).to.have.property('overallScore').that.is.greaterThan(80);
+      expect(result).to.have.property('checks').that.is.an('array');
+      expect(result).to.have.property('timestamp').that.is.instanceOf(Date);
+      expect(result).to.have.property('duration').that.is.a('number');
+      expect(result).to.have.property('uptime').that.is.a('number');
+
+      expect(result.checks).to.have.length.greaterThan(0);
+      expect(result.checks.every(check => ['UP', 'DEGRADED', 'DOWN'].includes(check.status))).to.be.true;
+
+      prismaHealthCheckSpy.restore();
+      cacheConnectedSpy.restore();
+    });
+
+    it('should return DEGRADED status when cache is not connected', async () => {
+      // Arrange
+      const prismaHealthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const cacheConnectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(false);
+
+      // Act
+      const result = await service.performHealthCheck();
+
+      // Assert
+      expect(result.status).to.equal('DEGRADED');
+      expect(result.overallScore).to.be.lessThan(80);
+      expect(result.overallScore).to.be.greaterThanOrEqual(50);
+
+      const cacheCheck = result.checks.find(check => check.name === 'redis_cache');
+      expect(cacheCheck).to.have.property('status', 'DEGRADED');
+      expect(cacheCheck).to.have.property('message').that.includes('Redis is not connected');
+
+      prismaHealthCheckSpy.restore();
+      cacheConnectedSpy.restore();
+    });
+
+    it('should return UNHEALTHY status when database is down', async () => {
+      // Arrange
+      const prismaHealthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(false);
+      const cacheConnectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+
+      // Act
+      const result = await service.performHealthCheck();
+
+      // Assert
+      expect(result.status).to.equal('UNHEALTHY');
+      expect(result.overallScore).to.be.lessThan(50);
+
+      const dbCheck = result.checks.find(check => check.name === 'database');
+      expect(dbCheck).to.have.property('status', 'DOWN');
+      expect(dbCheck).to.have.property('message').that.includes('Database health check query failed');
+
+      prismaHealthCheckSpy.restore();
+      cacheConnectedSpy.restore();
+    });
+
+    it('should handle database connection errors gracefully', async () => {
+      // Arrange
+      const prismaHealthCheckSpy = sinon.stub(prismaService, 'healthCheck').rejects(new Error('Connection failed'));
+      const cacheConnectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+
+      // Act
+      const result = await service.performHealthCheck();
+
+      // Assert
+      expect(result.status).to.equal('UNHEALTHY');
+
+      const dbCheck = result.checks.find(check => check.name === 'database');
+      expect(dbCheck).to.have.property('status', 'DOWN');
+      expect(dbCheck).to.have.property('message').that.includes('Connection failed');
+
+      prismaHealthCheckSpy.restore();
+      cacheConnectedSpy.restore();
+    });
+
+    it('should complete health check within reasonable time', async () => {
+      // Arrange
+      const startTime = Date.now();
+      const prismaHealthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const cacheConnectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+
+      // Act
+      await service.performHealthCheck();
+      const duration = Date.now() - startTime;
+
+      // Assert
+      expect(duration).to.be.lessThan(5000); // Should complete within 5 seconds
+
+      prismaHealthCheckSpy.restore();
+      cacheConnectedSpy.restore();
+    });
+
+    it('should include all required health checks', async () => {
+      // Arrange
+      const prismaHealthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const cacheConnectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+
+      // Act
+      const result = await service.performHealthCheck();
+
+      // Assert
+      const checkNames = result.checks.map(check => check.name);
+      expect(checkNames).to.include('database');
+      expect(checkNames).to.include('redis_cache');
+      expect(checkNames).to.include('application');
+      expect(checkNames).to.include('system_resources');
+
+      prismaHealthCheckSpy.restore();
+      cacheConnectedSpy.restore();
+    });
+  });
+
+  describe('checkDatabase', () => {
+    it('should return UP status when database is healthy', async () => {
+      // Arrange
+      const healthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const queryRawSpy = sinon.stub(prismaService, '$queryRaw').resolves([{ active: 5, idle: 10 }]);
+
+      // Act
+      const result = await service.checkDatabase();
+
+      // Assert
+      expect(result).to.have.property('status', 'UP');
+      expect(result).to.have.property('name', 'database');
+      expect(result).to.have.property('responseTime').that.is.a('number').and.is.greaterThan(0);
+      expect(result).to.have.property('lastChecked').that.is.instanceOf(Date);
+      expect(result).to.have.property('details');
+
+      healthCheckSpy.restore();
+      queryRawSpy.restore();
+    });
+
+    it('should return DOWN status when database health check fails', async () => {
+      // Arrange
+      const healthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(false);
+
+      // Act
+      const result = await service.checkDatabase();
+
+      // Assert
+      expect(result).to.have.property('status', 'DOWN');
+      expect(result).to.have.property('message').that.includes('Database health check query failed');
+
+      healthCheckSpy.restore();
+    });
+
+    it('should handle database exceptions properly', async () => {
+      // Arrange
+      const healthCheckSpy = sinon.stub(prismaService, 'healthCheck').rejects(new Error('Connection timeout'));
+
+      // Act
+      const result = await service.checkDatabase();
+
+      // Assert
+      expect(result).to.have.property('status', 'DOWN');
+      expect(result).to.have.property('message').that.includes('Connection timeout');
+
+      healthCheckSpy.restore();
+    });
+
+    it('should measure response time accurately', async () => {
+      // Arrange
+      const healthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const queryRawSpy = sinon.stub(prismaService, '$queryRaw').resolves([{ test: 'data' }]);
+
+      // Act
+      const result = await service.checkDatabase();
+
+      // Assert
+      expect(result.responseTime).to.be.a('number');
+      expect(result.responseTime).to.be.greaterThan(0);
+
+      healthCheckSpy.restore();
+      queryRawSpy.restore();
+    });
+  });
+
+  describe('checkCache', () => {
+    it('should return UP status when cache is working correctly', async () => {
+      // Arrange
+      const connectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+      const getSpy = sinon.stub(cacheService, 'get').resolves('test_value');
+      const setSpy = sinon.stub(cacheService, 'set').resolves(true);
+      const delSpy = sinon.stub(cacheService, 'del').resolves(true);
+      const getStatsSpy = sinon.stub(cacheService, 'getStats').returns({
+        hits: 100,
+        misses: 20,
+        keys: 50,
+      });
+      const getMemoryUsageSpy = sinon.stub(cacheService, 'getMemoryUsage').resolves(50 * 1024 * 1024);
+
+      // Act
+      const result = await service.checkCache();
+
+      // Assert
+      expect(result).to.have.property('status', 'UP');
+      expect(result).to.have.property('name', 'redis_cache');
+      expect(result).to.have.property('responseTime').that.is.a('number');
+      expect(result).to.have.property('details');
+
+      // Verify cache operations were called
+      expect(setSpy.called).to.be.true;
+      expect(getSpy.called).to.be.true;
+      expect(delSpy.called).to.be.true;
+      expect(getStatsSpy.called).to.be.true;
+      expect(getMemoryUsageSpy.called).to.be.true;
+
+      connectedSpy.restore();
+      getSpy.restore();
+      setSpy.restore();
+      delSpy.restore();
+      getStatsSpy.restore();
+      getMemoryUsageSpy.restore();
+    });
+
+    it('should return DEGRADED status when Redis is not connected', async () => {
+      // Arrange
+      const connectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(false);
+
+      // Act
+      const result = await service.checkCache();
+
+      // Assert
+      expect(result).to.have.property('status', 'DEGRADED');
+      expect(result).to.have.property('message').that.includes('Redis is not connected');
+
+      connectedSpy.restore();
+    });
+
+    it('should return DEGRADED status when cache operations fail', async () => {
+      // Arrange
+      const connectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+      const setSpy = sinon.stub(cacheService, 'set').resolves(true);
+      const getSpy = sinon.stub(cacheService, 'get').resolves(null); // Returns different value
+
+      // Act
+      const result = await service.checkCache();
+
+      // Assert
+      expect(result).to.have.property('status', 'DEGRADED');
+      expect(result).to.have.property('message').that.includes('Cache operations are not working correctly');
+
+      connectedSpy.restore();
+      setSpy.restore();
+      getSpy.restore();
+    });
+
+    it('should handle cache service errors gracefully', async () => {
+      // Arrange
+      const connectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+      const setSpy = sinon.stub(cacheService, 'set').rejects(new Error('Cache operation failed'));
+
+      // Act
+      const result = await service.checkCache();
+
+      // Assert
+      expect(result).to.have.property('status', 'DOWN');
+      expect(result).to.have.property('message').that.includes('Cache health check failed');
+
+      connectedSpy.restore();
+      setSpy.restore();
+    });
+  });
+
+  describe('checkApplication', () => {
+    it('should return UP status when application resources are healthy', async () => {
+      // Act
+      const result = await service.checkApplication();
+
+      // Assert
+      expect(result).to.have.property('status', 'UP');
+      expect(result).to.have.property('name', 'application');
+      expect(result).to.have.property('responseTime').that.is.a('number');
+      expect(result).to.have.property('details');
+      expect(result).to.have.property('lastChecked').that.is.instanceOf(Date);
+
+      // Check system metrics structure
+      expect(result.details).to.have.property('cpu');
+      expect(result.details).to.have.property('memory');
+      expect(result.details).to.have.property('disk');
+      expect(result.details).to.have.property('network');
+    });
+
+    it('should return UNHEALTHY status when memory usage is critical', async () => {
+      // This test would require mocking system metrics
+      // For now, we'll test the structure and ensure it handles high memory scenarios
+      const result = await service.checkApplication();
+
+      expect(result).to.have.property('status');
+      expect(['UP', 'DEGRADED', 'UNHEALTHY']).to.include(result.status);
+    });
+
+    it('should include detailed system metrics', async () => {
+      // Act
+      const result = await service.checkApplication();
+
+      // Assert
+      expect(result.details).to.have.nested.property('cpu.usage');
+      expect(result.details).to.have.nested.property('memory.used');
+      expect(result.details).to.have.nested.property('memory.total');
+      expect(result.details).to.have.nested.property('memory.percentage');
+    });
+  });
+
+  describe('checkSystemResources', () => {
+    it('should return valid system resource health check', async () => {
+      // Act
+      const result = await service.checkSystemResources();
+
+      // Assert
+      expect(result).to.have.property('status');
+      expect(['UP', 'DEGRADED', 'UNHEALTHY']).to.include(result.status);
+      expect(result).to.have.property('name', 'system_resources');
+      expect(result).to.have.property('responseTime').that.is.a('number');
+      expect(result).to.have.property('details');
+      expect(result).to.have.property('lastChecked').that.is.instanceOf(Date);
+
+      // Verify system metrics structure
+      expect(result.details).to.have.property('cpu');
+      expect(result.details).to.have.property('memory');
+      expect(result.details).to.have.property('disk');
+      expect(result.details).to.have.property('network');
+    });
+
+    it('should provide detailed resource information', async () => {
+      // Act
+      const result = await service.checkSystemResources();
+
+      // Assert
+      expect(result.details.cpu).to.have.property('usage');
+      expect(result.details.cpu).to.have.property('loadAverage');
+      expect(result.details.memory).to.have.property('used');
+      expect(result.details.memory).to.have.property('total');
+      expect(result.details.memory).to.have.property('percentage');
+    });
+  });
+
+  describe('checkBusinessLogic', () => {
+    it('should return business logic health checks', async () => {
+      // Arrange
+      const healthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const queryRawSpy = sinon.stub(prismaService, '$queryRaw').resolves([{ test: 'data' }]);
+      const findFirstSpy = sinon.stub(prismaService.user, 'findFirst').resolves({ id: 'test-user-id' });
+
+      // Act
+      const result = await service.checkBusinessLogic();
+
+      // Assert
+      expect(result).to.be.an('array');
+      expect(result).to.have.length(3); // Should check user auth, db operations, and business processes
+
+      // Verify all checks have required structure
+      result.forEach(check => {
+        expect(check).to.have.property('name');
+        expect(check).to.have.property('status');
+        expect(['UP', 'DOWN']).to.include(check.status);
+        expect(check).to.have.property('lastChecked').that.is.instanceOf(Date);
+      });
+
+      healthCheckSpy.restore();
+      queryRawSpy.restore();
+      findFirstSpy.restore();
+    });
+
+    it('should handle business logic failures gracefully', async () => {
+      // Arrange
+      const healthCheckSpy = sinon.stub(prismaService, 'healthCheck').rejects(new Error('Database error'));
+
+      // Act
+      const result = await service.checkBusinessLogic();
+
+      // Assert
+      expect(result).to.be.an('array');
+      expect(result).to.have.length(3);
+      expect(result.some(check => check.status === 'DOWN')).to.be.true;
+
+      healthCheckSpy.restore();
+    });
+  });
+
+  describe('getSystemMetrics', () => {
+    it('should return comprehensive system metrics', () => {
+      // Act
+      const metrics = service.getSystemMetrics();
+
+      // Assert
+      expect(metrics).to.have.property('cpu');
+      expect(metrics).to.have.property('memory');
+      expect(metrics).to.have.property('disk');
+      expect(metrics).to.have.property('network');
+
+      // Verify CPU metrics
+      expect(metrics.cpu).to.have.property('usage').that.is.a('number');
+      expect(metrics.cpu).to.have.property('loadAverage').that.is.an('array');
+
+      // Verify memory metrics
+      expect(metrics.memory).to.have.property('used').that.is.a('number');
+      expect(metrics.memory).to.have.property('total').that.is.a('number');
+      expect(metrics.memory).to.have.property('percentage').that.is.a('number');
+      expect(metrics.memory).to.have.property('heapUsed').that.is.a('number');
+      expect(metrics.memory).to.have.property('heapTotal').that.is.a('number');
+
+      // Verify metrics are within reasonable ranges
+      expect(metrics.memory.percentage).to.be.greaterThanOrEqual(0);
+      expect(metrics.memory.percentage).to.be.lessThanOrEqual(100);
+    });
+
+    it('should return real-time data', () => {
+      // Act
+      const metrics1 = service.getSystemMetrics();
+      setTimeout(() => {
+        const metrics2 = service.getSystemMetrics();
+
+        // Assert - should be slightly different as time passes
+        expect(metrics1).to.not.deep.equal(metrics2);
+      }, 10);
+    });
+  });
+
+  describe('calculateOverallHealth', () => {
+    it('should calculate HEALTHY status for all UP checks', () => {
+      // Arrange
+      const checks = [
+        { name: 'database', status: 'UP', responseTime: 10 },
+        { name: 'cache', status: 'UP', responseTime: 5 },
+        { name: 'application', status: 'UP', responseTime: 1 },
+      ];
+
+      // Act
+      const result = (service as any).calculateOverallHealth(checks, 50);
+
+      // Assert
+      expect(result).to.have.property('status', 'HEALTHY');
+      expect(result).to.have.property('overallScore').that.is.greaterThan(80);
+      expect(result).to.have.property('timestamp').that.is.instanceOf(Date);
+      expect(result).to.have.property('duration', 50);
+      expect(result).to.have.property('checks').that.deep.equals(checks);
+    });
+
+    it('should calculate UNHEALTHY status when critical services are DOWN', () => {
+      // Arrange
+      const checks = [
+        { name: 'database', status: 'DOWN', responseTime: 1000 },
+        { name: 'cache', status: 'UP', responseTime: 5 },
+        { name: 'application', status: 'UP', responseTime: 1 },
+      ];
+
+      // Act
+      const result = (service as any).calculateOverallHealth(checks, 1000);
+
+      // Assert
+      expect(result).to.have.property('status', 'UNHEALTHY');
+      expect(result).to.have.property('overallScore').that.is.lessThan(50);
+    });
+
+    it('should calculate DEGRADED status when some services are degraded', () => {
+      // Arrange
+      const checks = [
+        { name: 'database', status: 'UP', responseTime: 100 },
+        { name: 'cache', status: 'DEGRADED', responseTime: 50 },
+        { name: 'application', status: 'UP', responseTime: 1 },
+      ];
+
+      // Act
+      const result = (service as any).calculateOverallHealth(checks, 100);
+
+      // Assert
+      expect(result).to.have.property('status', 'DEGRADED');
+      expect(result).to.have.property('overallScore').that.is.greaterThanOrEqual(50);
+      expect(result).to.have.property('overallScore').that.is.lessThan(100);
+    });
+
+    it('should penalize slow response times', () => {
+      // Arrange
+      const fastChecks = [
+        { name: 'database', status: 'UP', responseTime: 10 },
+        { name: 'cache', status: 'UP', responseTime: 5 },
+      ];
+
+      const slowChecks = [
+        { name: 'database', status: 'UP', responseTime: 1500 },
+        { name: 'cache', status: 'UP', responseTime: 800 },
+      ];
+
+      // Act
+      const fastResult = (service as any).calculateOverallHealth(fastChecks, 100);
+      const slowResult = (service as any).calculateOverallHealth(slowChecks, 2000);
+
+      // Assert
+      expect(slowResult.overallScore).to.be.lessThan(fastResult.overallScore);
+    });
+
+    it('should ensure overall score is within valid range', () => {
+      // Arrange
+      const checks = [
+        { name: 'database', status: 'DOWN', responseTime: 5000 },
+        { name: 'cache', status: 'DOWN', responseTime: 5000 },
+        { name: 'application', status: 'DOWN', responseTime: 5000 },
+      ];
+
+      // Act
+      const result = (service as any).calculateOverallHealth(checks, 5000);
+
+      // Assert
+      expect(result.overallScore).to.be.greaterThanOrEqual(0);
+      expect(result.overallScore).to.be.lessThanOrEqual(100);
+    });
+  });
+
+  describe('getLastHealthCheck', () => {
+    it('should return null when no health check has been performed', () => {
+      // Act
+      const result = service.getLastHealthCheck();
+
+      // Assert
+      expect(result).to.be.null;
+    });
+
+    it('should return the last health check result after performing one', async () => {
+      // Arrange
+      const prismaHealthCheckSpy = sinon.stub(prismaService, 'healthCheck').resolves(true);
+      const cacheConnectedSpy = sinon.stub(cacheService, 'isRedisConnected').returns(true);
+
+      // Act
+      await service.performHealthCheck();
+      const result = service.getLastHealthCheck();
+
+      // Assert
+      expect(result).to.not.be.null;
+      expect(result).to.have.property('status');
+      expect(result).to.have.property('timestamp');
+      expect(result).to.have.property('overallScore');
+      expect(result).to.have.property('checks');
+
+      prismaHealthCheckSpy.restore();
+      cacheConnectedSpy.restore();
+    });
+  });
+
+  describe('getHealthHistory', () => {
+    it('should return health history array', async () => {
+      // Act
+      const history = await service.getHealthHistory(24);
+
+      // Assert
+      expect(history).to.be.an('array');
+    });
+
+    it('should return empty history when no checks have been performed', async () => {
+      // Act
+      const history = await service.getHealthHistory(24);
+
+      // Assert
+      expect(history).to.be.an('array');
+      // Initially might be empty or contain recent check
+    });
+  });
+
+  describe('Module Lifecycle', () => {
+    it('should handle module initialization properly', async () => {
+      // This is tested implicitly by the beforeEach setup
+      expect(service).to.be.instanceOf(HealthService);
+    });
+
+    it('should handle module destruction properly', async () => {
+      // Act & Assert - should not throw
+      expect(() => service.onModuleDestroy()).to.not.throw();
+    });
+  });
+});

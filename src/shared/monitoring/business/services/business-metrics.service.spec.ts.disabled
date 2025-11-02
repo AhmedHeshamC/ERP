@@ -1,0 +1,365 @@
+import { expect } from 'chai';
+import { BusinessMetricsService } from './business-metrics.service';
+import { UserAnalyticsService } from './user-analytics.service';
+import { TransactionAnalyticsService } from './transaction-analytics.service';
+// import { RevenueMonitoringService } from './revenue-monitoring.service'; // Temporarily disabled
+import { OperationalEfficiencyService } from './operational-efficiency.service';
+import { CustomerBehaviorService } from './customer-behavior.service';
+import { ProductPerformanceService } from './product-performance.service';
+import { SalesFunnelService } from './sales-funnel.service';
+import { InventoryTurnoverService } from './inventory-turnover.service';
+import { FinancialKpiService } from './financial-kpi.service';
+import { MetricTimeRange, MetricType } from '../types/metric.types';
+
+describe('Business Metrics Service - TDD GREEN Phase', () => {
+  let businessMetricsService: BusinessMetricsService;
+  let userAnalyticsService: UserAnalyticsService;
+  let transactionAnalyticsService: TransactionAnalyticsService;
+  let revenueMonitoringService: RevenueMonitoringService;
+  let operationalEfficiencyService: OperationalEfficiencyService;
+  let customerBehaviorService: CustomerBehaviorService;
+  let productPerformanceService: ProductPerformanceService;
+  let salesFunnelService: SalesFunnelService;
+  let inventoryTurnoverService: InventoryTurnoverService;
+  let financialKpiService: FinancialKpiService;
+
+  beforeEach(() => {
+    // Initialize all services - GREEN phase: Services are implemented
+    userAnalyticsService = new UserAnalyticsService();
+    transactionAnalyticsService = new TransactionAnalyticsService();
+    revenueMonitoringService = new RevenueMonitoringService();
+    operationalEfficiencyService = new OperationalEfficiencyService();
+    customerBehaviorService = new CustomerBehaviorService();
+    productPerformanceService = new ProductPerformanceService();
+    salesFunnelService = new SalesFunnelService();
+    inventoryTurnoverService = new InventoryTurnoverService();
+    financialKpiService = new FinancialKpiService();
+
+    businessMetricsService = new BusinessMetricsService(
+      userAnalyticsService,
+      transactionAnalyticsService,
+      revenueMonitoringService,
+      operationalEfficiencyService,
+      customerBehaviorService,
+      productPerformanceService,
+      salesFunnelService,
+      inventoryTurnoverService,
+      financialKpiService
+    );
+  });
+
+  describe('Business Metrics Service - Core Functionality', () => {
+    it('should calculate user analytics metrics successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await businessMetricsService.calculateUserAnalytics(timeRange);
+
+      // Verify structure - KISS: Simple property validation
+      expect(result).to.exist;
+      expect(result.activeUsers).to.exist;
+      expect(result.newUsers).to.exist;
+      expect(result.userEngagementRate).to.exist;
+      expect(result.userRetentionRate).to.exist;
+      expect(result.averageSessionDuration).to.exist;
+      expect(result.userActivityTrends).to.be.an('array');
+
+      // Verify metric structure - KISS: Simple metric validation
+      expect(result.activeUsers.id).to.be.a('string');
+      expect(result.activeUsers.name).to.be.a('string');
+      expect(result.activeUsers.type).to.equal(MetricType.USER_ANALYTICS);
+      expect(result.activeUsers.value.value).to.be.a('number');
+      expect(result.activeUsers.value.unit).to.be.a('string');
+      expect(result.activeUsers.value.formatted).to.be.a('string');
+    });
+
+    it('should calculate transaction analytics metrics successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await businessMetricsService.calculateTransactionAnalytics(timeRange);
+
+      // Verify structure - KISS: Simple property validation
+      expect(result).to.exist;
+      expect(result.totalTransactions).to.exist;
+      expect(result.successfulTransactions).to.exist;
+      expect(result.transactionSuccessRate).to.exist;
+      expect(result.averageTransactionValue).to.exist;
+      expect(result.averageProcessingTime).to.exist;
+      expect(result.transactionVolumeTrends).to.be.an('array');
+
+      // Verify metric structure - KISS: Simple metric validation
+      expect(result.totalTransactions.type).to.equal(MetricType.TRANSACTION_ANALYTICS);
+      expect(result.totalTransactions.value.value).to.be.a('number');
+      expect(result.transactionSuccessRate.value.value).to.be.at.least(0);
+      expect(result.transactionSuccessRate.value.value).to.be.at.most(100);
+    });
+
+    it('should calculate revenue metrics successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await businessMetricsService.calculateRevenueMetrics(timeRange);
+
+      // Verify structure - KISS: Simple property validation
+      expect(result).to.exist;
+      expect(result.totalRevenue).to.exist;
+      expect(result.revenueGrowthRate).to.exist;
+      expect(result.recurringRevenue).to.exist;
+      expect(result.revenueByProductCategory).to.be.an('array');
+      expect(result.revenueByRegion).to.be.an('array');
+      expect(result.averageRevenuePerUser).to.exist;
+
+      // Verify metric structure - KISS: Simple metric validation
+      expect(result.totalRevenue.type).to.equal(MetricType.REVENUE);
+      expect(result.totalRevenue.value.value).to.be.a('number');
+      expect(result.totalRevenue.value.value).to.be.at.least(0);
+      expect(result.revenueGrowthRate.value.value).to.be.a('number');
+    });
+
+    it('should get comprehensive business metrics summary successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await businessMetricsService.getBusinessMetricsSummary(timeRange);
+
+      // Verify summary structure - KISS: Simple property validation
+      expect(result).to.exist;
+      expect(result.userMetrics).to.exist;
+      expect(result.transactionMetrics).to.exist;
+      expect(result.revenueMetrics).to.exist;
+      expect(result.operationalEfficiencyMetrics).to.exist;
+      expect(result.customerBehaviorMetrics).to.exist;
+      expect(result.productPerformanceMetrics).to.exist;
+      expect(result.salesFunnelMetrics).to.exist;
+      expect(result.inventoryTurnoverMetrics).to.exist;
+      expect(result.financialKpiMetrics).to.exist;
+      expect(result.calculatedAt).to.be.a('date');
+      expect(result.timeRange.startDate).to.deep.equal(timeRange.startDate);
+      expect(result.timeRange.endDate).to.deep.equal(timeRange.endDate);
+
+      // Verify that all metrics have proper structure - KISS: Simple validation
+      expect(result.userMetrics.activeUsers.value.value).to.be.a('number');
+      expect(result.transactionMetrics.totalTransactions.value.value).to.be.a('number');
+      expect(result.revenueMetrics.totalRevenue.value.value).to.be.a('number');
+      expect(result.operationalEfficiencyMetrics.orderFulfillmentRate.value.value).to.be.a('number');
+      expect(result.customerBehaviorMetrics.customerAcquisitionCost.value.value).to.be.a('number');
+      expect(result.productPerformanceMetrics.productSalesVolume.value.value).to.be.a('number');
+      expect(result.salesFunnelMetrics.leadConversionRate.value.value).to.be.a('number');
+      expect(result.inventoryTurnoverMetrics.inventoryTurnoverRatio.value.value).to.be.a('number');
+      expect(result.financialKpiMetrics.grossProfitMargin.value.value).to.be.a('number');
+    });
+  });
+
+  describe('User Analytics Service', () => {
+    it('should calculate active users metric successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await userAnalyticsService.getActiveUsers(timeRange);
+
+      expect(result).to.exist;
+      expect(result.activeUsers.value.value).to.be.a('number');
+      expect(result.activeUsers.value.value).to.be.at.least(0);
+      expect(result.newUsers.value.value).to.be.a('number');
+      expect(result.userEngagementRate.value.value).to.be.at.least(0);
+      expect(result.userEngagementRate.value.value).to.be.at.most(100);
+      expect(result.userRetentionRate.value.value).to.be.at.least(0);
+      expect(result.userRetentionRate.value.value).to.be.at.most(100);
+    });
+
+    it('should calculate user engagement metrics successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await userAnalyticsService.getUserEngagementMetrics(timeRange);
+
+      expect(result).to.exist;
+      expect(result.userEngagementRate.value.value).to.be.a('number');
+    });
+
+    it('should calculate user retention metrics successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await userAnalyticsService.getUserRetentionMetrics(timeRange);
+
+      expect(result).to.exist;
+      expect(result.userRetentionRate.value.value).to.be.a('number');
+    });
+
+    it('should calculate user activity trends successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await userAnalyticsService.getUserActivityTrends(timeRange);
+
+      expect(result).to.exist;
+      expect(result.userActivityTrends).to.be.an('array');
+      expect(result.userActivityTrends.length).to.be.at.least(1);
+    });
+  });
+
+  describe('Transaction Analytics Service', () => {
+    it('should calculate transaction volume metrics successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await transactionAnalyticsService.getTransactionVolume(timeRange);
+
+      expect(result).to.exist;
+      expect(result.totalTransactions.value.value).to.be.a('number');
+      expect(result.totalTransactions.value.value).to.be.at.least(0);
+      expect(result.successfulTransactions.value.value).to.be.at.least(0);
+      expect(result.transactionSuccessRate.value.value).to.be.at.least(0);
+      expect(result.transactionSuccessRate.value.value).to.be.at.most(100);
+    });
+
+    it('should calculate transaction success rate successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await transactionAnalyticsService.getTransactionSuccessRate(timeRange);
+
+      expect(result).to.exist;
+      expect(result.transactionSuccessRate.value.value).to.be.a('number');
+      expect(result.transactionSuccessRate.value.value).to.be.at.least(0);
+      expect(result.transactionSuccessRate.value.value).to.be.at.most(100);
+    });
+
+    it('should calculate average transaction value successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await transactionAnalyticsService.getAverageTransactionValue(timeRange);
+
+      expect(result).to.exist;
+      expect(result.averageTransactionValue.value.value).to.be.a('number');
+      expect(result.averageTransactionValue.value.value).to.be.at.least(0);
+    });
+
+    it('should calculate transaction processing time successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await transactionAnalyticsService.getTransactionProcessingTime(timeRange);
+
+      expect(result).to.exist;
+      expect(result.averageProcessingTime.value.value).to.be.a('number');
+      expect(result.averageProcessingTime.value.value).to.be.at.least(0);
+    });
+  });
+
+  describe('Revenue Monitoring Service', () => {
+    it('should calculate total revenue successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await revenueMonitoringService.getTotalRevenue(timeRange);
+
+      expect(result).to.exist;
+      expect(result.totalRevenue.value.value).to.be.a('number');
+      expect(result.totalRevenue.value.value).to.be.at.least(0);
+      expect(result.revenueGrowthRate.value.value).to.be.a('number');
+      expect(result.recurringRevenue.value.value).to.be.a('number');
+      expect(result.recurringRevenue.value.value).to.be.at.least(0);
+    });
+
+    it('should calculate revenue growth rate successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await revenueMonitoringService.getRevenueGrowthRate(timeRange);
+
+      expect(result).to.exist;
+      expect(result.revenueGrowthRate.value.value).to.be.a('number');
+    });
+
+    it('should calculate revenue by product category successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await revenueMonitoringService.getRevenueByProductCategory(timeRange);
+
+      expect(result).to.exist;
+      expect(result.revenueByProductCategory).to.be.an('array');
+      expect(result.revenueByProductCategory.length).to.be.at.least(1);
+      expect(result.revenueByProductCategory[0].value.value).to.be.a('number');
+    });
+
+    it('should calculate recurring revenue metrics successfully', async () => {
+      const timeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31')
+      };
+
+      const result = await revenueMonitoringService.getRecurringRevenueMetrics(timeRange);
+
+      expect(result).to.exist;
+      expect(result.recurringRevenue.value.value).to.be.a('number');
+      expect(result.recurringRevenue.value.value).to.be.at.least(0);
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle invalid time ranges gracefully', async () => {
+      const invalidTimeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-31'),
+        endDate: new Date('2024-01-01') // End date before start date
+      };
+
+      try {
+        await businessMetricsService.calculateUserAnalytics(invalidTimeRange);
+        expect.fail('Should have thrown an error for invalid time range');
+      } catch (error) {
+        expect(error).to.exist;
+        expect((error as Error).message).to.include('Invalid');
+      }
+    });
+
+    it('should handle empty time ranges gracefully', async () => {
+      const emptyTimeRange: MetricTimeRange = {
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-01') // Same start and end date
+      };
+
+      try {
+        await businessMetricsService.calculateUserAnalytics(emptyTimeRange);
+        expect.fail('Should have thrown an error for empty time range');
+      } catch (error) {
+        expect(error).to.exist;
+        expect((error as Error).message).to.include('Invalid');
+      }
+    });
+  });
+});

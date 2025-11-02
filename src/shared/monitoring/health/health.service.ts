@@ -2,57 +2,12 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CacheService } from '../../cache/cache.service';
 import { ConfigService } from '@nestjs/config';
-
-export interface HealthCheckResult {
-  status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY';
-  timestamp: Date;
-  duration: number;
-  checks: HealthCheck[];
-  overallScore: number;
-  uptime: number;
-}
-
-export interface HealthCheck {
-  name: string;
-  status: 'UP' | 'DOWN' | 'DEGRADED';
-  responseTime?: number;
-  message?: string;
-  details?: any;
-  lastChecked: Date;
-}
-
-export interface SystemMetrics {
-  cpu: {
-    usage: number;
-    loadAverage: number[];
-  };
-  memory: {
-    used: number;
-    total: number;
-    percentage: number;
-    heapUsed: number;
-    heapTotal: number;
-  };
-  disk: {
-    used: number;
-    total: number;
-    percentage: number;
-  };
-  network: {
-    connections: number;
-    bytesReceived: number;
-    bytesSent: number;
-  };
-}
-
-export interface BusinessHealthCheck {
-  name: string;
-  status: 'UP' | 'DOWN' | 'DEGRADED';
-  metric: number;
-  threshold: number;
-  message?: string;
-  lastChecked: Date;
-}
+import { HealthCheckResult, HealthCheck } from './interfaces/health-check.interface';
+import { IHealthCheckProvider, IHealthMetricsCollector } from './interfaces/health-check-provider.interface';
+import { DatabaseHealthCheckProvider } from './providers/database-health-check.provider';
+import { CacheHealthCheckProvider } from './providers/cache-health-check.provider';
+import { SystemHealthCheckProvider, DefaultHealthMetricsCollector } from './providers/system-health-check.provider';
+import { HealthStatusCalculator } from './calculators/health-status.calculator';
 
 @Injectable()
 export class HealthService implements OnModuleInit {
@@ -61,11 +16,23 @@ export class HealthService implements OnModuleInit {
   private lastHealthCheck: HealthCheckResult | null = null;
   private healthCheckInterval: NodeJS.Timeout | null = null;
 
+  // Health check providers - following Dependency Inversion Principle
+  private readonly healthCheckProviders: IHealthCheckProvider[];
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly cacheService: CacheService,
     private readonly configService: ConfigService,
-  ) {}
+    private readonly metricsCollector: IHealthMetricsCollector = new DefaultHealthMetricsCollector(),
+    private readonly statusCalculator: HealthStatusCalculator = new HealthStatusCalculator(),
+  ) {
+    // Initialize health check providers - following Open/Closed Principle
+    this.healthCheckProviders = [
+      new DatabaseHealthCheckProvider(prismaService),
+      new CacheHealthCheckProvider(cacheService),
+      new SystemHealthCheckProvider(metricsCollector),
+    ];
+  }
 
   onModuleInit() {
     // Run health checks every 30 seconds
@@ -90,37 +57,59 @@ export class HealthService implements OnModuleInit {
     const checks: HealthCheck[] = [];
 
     try {
-      // Database Health Check
-      checks.push(await this.checkDatabase());
+      // Execute all health check providers in parallel for efficiency
+      const providerResults = await Promise.allSettled(
+        this.healthCheckProviders.map(provider => provider.performCheck())
+      );
 
-      // Redis/Cache Health Check
-      checks.push(await this.checkCache());
+      // Process results from providers
+      providerResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          checks.push(result.value);
+        } else {
+          const providerName = this.healthCheckProviders[index].getName();
+          checks.push({
+            name: providerName,
+            status: 'DOWN',
+            message: `Health check provider failed: ${result.reason?.message || 'Unknown error'}`,
+            lastChecked: new Date(),
+          });
+        }
+      });
 
-      // Application Health Check
+      // Add application-specific health checks
       checks.push(await this.checkApplication());
 
-      // External Services Health Check
-      checks.push(await this.checkExternalServices());
-
-      // System Resources Health Check
-      checks.push(await this.checkSystemResources());
-
-      // Business Logic Health Check
+      // Add business logic health checks
       const businessChecks = await this.checkBusinessLogic();
       checks.push(...businessChecks);
+
+      // Add external services check if configured
+      const externalServiceCheck = await this.checkExternalServices();
+      if (externalServiceCheck) {
+        checks.push(externalServiceCheck);
+      }
 
     } catch (error) {
       this.logger.error('Health check execution failed:', error);
       checks.push({
         name: 'health_check_execution',
         status: 'DOWN',
-        message: `Health check execution failed: ${error.message}`,
+        message: `Health check execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       });
     }
 
     const duration = Date.now() - startTime;
-    const result = this.calculateOverallHealth(checks, duration);
+    const statusResult = this.statusCalculator.calculateOverallHealth(checks, duration);
+
+    const result: HealthCheckResult = {
+      ...statusResult,
+      timestamp: new Date(),
+      duration,
+      checks,
+      uptime: Date.now() - this.startTime,
+    };
 
     this.lastHealthCheck = result;
     this.logger.log(`Health check completed: ${result.status} (${result.overallScore}/100) in ${duration}ms`);
@@ -159,7 +148,7 @@ export class HealthService implements OnModuleInit {
         name: 'database',
         status: 'DOWN',
         responseTime: Date.now() - startTime,
-        message: `Database connection failed: ${error.message}`,
+        message: `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
@@ -183,7 +172,7 @@ export class HealthService implements OnModuleInit {
 
       // Test cache operations
       const testKey = 'health_check_test';
-      await this.cacheService.set(testKey, 'test_value', 10);
+      await this.cacheService.set(testKey, 'test_value');
       const retrievedValue = await this.cacheService.get(testKey);
       await this.cacheService.del(testKey);
 
@@ -214,7 +203,7 @@ export class HealthService implements OnModuleInit {
         name: 'redis_cache',
         status: 'DOWN',
         responseTime: Date.now() - startTime,
-        message: `Cache health check failed: ${error.message}`,
+        message: `Cache health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
@@ -261,7 +250,7 @@ export class HealthService implements OnModuleInit {
         name: 'application',
         status: 'DOWN',
         responseTime: Date.now() - startTime,
-        message: `Application health check failed: ${error.message}`,
+        message: `Application health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
@@ -333,7 +322,7 @@ export class HealthService implements OnModuleInit {
         name: 'external_services',
         status: 'DEGRADED',
         responseTime: Date.now() - startTime,
-        message: `External services check failed: ${error.message}`,
+        message: `External services check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
@@ -350,7 +339,7 @@ export class HealthService implements OnModuleInit {
 
       // Check CPU usage
       if (metrics.cpu.usage > 90) {
-        status = 'UNHEALTHY';
+        status = 'DOWN';
         issues.push(`High CPU usage: ${metrics.cpu.usage.toFixed(2)}%`);
       } else if (metrics.cpu.usage > 75) {
         status = 'DEGRADED';
@@ -359,7 +348,7 @@ export class HealthService implements OnModuleInit {
 
       // Check memory usage
       if (metrics.memory.percentage > 90) {
-        status = 'UNHEALTHY';
+        status = 'DOWN';
         issues.push(`High memory usage: ${metrics.memory.percentage.toFixed(2)}%`);
       } else if (metrics.memory.percentage > 75) {
         status = status === 'UP' ? 'DEGRADED' : status;
@@ -368,7 +357,7 @@ export class HealthService implements OnModuleInit {
 
       // Check disk usage
       if (metrics.disk.percentage > 90) {
-        status = 'UNHEALTHY';
+        status = 'DOWN';
         issues.push(`High disk usage: ${metrics.disk.percentage.toFixed(2)}%`);
       } else if (metrics.disk.percentage > 80) {
         status = status === 'UP' ? 'DEGRADED' : status;
@@ -388,7 +377,7 @@ export class HealthService implements OnModuleInit {
         name: 'system_resources',
         status: 'DOWN',
         responseTime: Date.now() - startTime,
-        message: `System resources check failed: ${error.message}`,
+        message: `System resources check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
@@ -433,7 +422,7 @@ export class HealthService implements OnModuleInit {
     const startTime = Date.now();
     try {
       // Simple check - can we access the users table?
-      await this.prismaService.user.findFirst({
+      await (this.prismaService as any).user.findFirst({
         select: { id: true },
         take: 1,
       });
@@ -450,7 +439,7 @@ export class HealthService implements OnModuleInit {
         name: 'user_authentication',
         status: 'DOWN',
         responseTime: Date.now() - startTime,
-        message: `User authentication check failed: ${error.message}`,
+        message: `User authentication check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
@@ -460,7 +449,7 @@ export class HealthService implements OnModuleInit {
     const startTime = Date.now();
     try {
       // Test basic database operations
-      await this.prismaService.$queryRaw`SELECT 1 as test`;
+      await (this.prismaService as any).$queryRaw`SELECT 1 as test`;
 
       return {
         name: 'database_operations',
@@ -474,7 +463,7 @@ export class HealthService implements OnModuleInit {
         name: 'database_operations',
         status: 'DOWN',
         responseTime: Date.now() - startTime,
-        message: `Database operations check failed: ${error.message}`,
+        message: `Database operations check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
@@ -487,7 +476,7 @@ export class HealthService implements OnModuleInit {
       const criticalTables = ['users', 'accounts', 'products'];
       const checks = await Promise.allSettled(
         criticalTables.map(table =>
-          this.prismaService.$queryRawUnsafe(`SELECT COUNT(*) as count FROM "${table}" LIMIT 1`)
+          (this.prismaService as any).$queryRawUnsafe(`SELECT COUNT(*) as count FROM "${table}" LIMIT 1`)
         )
       );
 
@@ -524,45 +513,40 @@ export class HealthService implements OnModuleInit {
         name: 'business_processes',
         status: 'DOWN',
         responseTime: Date.now() - startTime,
-        message: `Business processes check failed: ${error.message}`,
+        message: `Business processes check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         lastChecked: new Date(),
       };
     }
   }
 
-  getSystemMetrics(): SystemMetrics {
-    const memUsage = process.memoryUsage();
-    const cpuUsage = process.cpuUsage();
+  /**
+   * Get system metrics using the injected metrics collector
+   * Follows Dependency Inversion Principle
+   */
+  getSystemMetrics(): any {
+    return this.metricsCollector.getSystemMetrics();
+  }
 
-    return {
-      cpu: {
-        usage: (cpuUsage.user + cpuUsage.system) / 1000000, // Convert to percentage
-        loadAverage: require('os').loadavg(),
-      },
-      memory: {
-        used: memUsage.rss,
-        total: require('os').totalmem(),
-        percentage: (memUsage.rss / require('os').totalmem()) * 100,
-        heapUsed: memUsage.heapUsed,
-        heapTotal: memUsage.heapTotal,
-      },
-      disk: {
-        used: 0, // Would need fs-stats package for real disk usage
-        total: 0,
-        percentage: 0,
-      },
-      network: {
-        connections: 0, // Would need additional tracking
-        bytesReceived: 0,
-        bytesSent: 0,
-      },
-    };
+  /**
+   * Add a new health check provider at runtime
+   * Follows Open/Closed Principle - extension without modification
+   */
+  addHealthCheckProvider(provider: IHealthCheckProvider): void {
+    this.healthCheckProviders.push(provider);
+    this.logger.log(`Added health check provider: ${provider.getName()}`);
+  }
+
+  /**
+   * Get all registered health check providers
+   */
+  getHealthCheckProviders(): IHealthCheckProvider[] {
+    return [...this.healthCheckProviders];
   }
 
   async getDatabaseMetrics(): Promise<any> {
     try {
       // Get connection pool metrics (PostgreSQL specific)
-      const connectionStats = await this.prismaService.$queryRaw`
+      const connectionStats = await (this.prismaService as any).$queryRaw`
         SELECT
           count(*) as total_connections,
           count(*) FILTER (WHERE state = 'active') as active_connections,
@@ -577,48 +561,11 @@ export class HealthService implements OnModuleInit {
     }
   }
 
-  calculateOverallHealth(checks: HealthCheck[], duration: number): HealthCheckResult {
-    const upChecks = checks.filter(c => c.status === 'UP').length;
-    const downChecks = checks.filter(c => c.status === 'DOWN').length;
-    const degradedChecks = checks.filter(c => c.status === 'DEGRADED').length;
-    const totalChecks = checks.length;
-
-    let status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' = 'HEALTHY';
-    let overallScore = 100;
-
-    if (downChecks > 0) {
-      status = 'UNHEALTHY';
-      overallScore = Math.max(0, 100 - (downChecks / totalChecks) * 100);
-    } else if (degradedChecks > 0) {
-      status = 'DEGRADED';
-      overallScore = Math.max(50, 100 - (degradedChecks / totalChecks) * 30);
-    }
-
-    // Penalize for slow response times
-    const avgResponseTime = checks.reduce((sum, check) => sum + (check.responseTime || 0), 0) / totalChecks;
-    if (avgResponseTime > 1000) {
-      overallScore -= 20;
-    } else if (avgResponseTime > 500) {
-      overallScore -= 10;
-    }
-
-    overallScore = Math.max(0, Math.min(100, overallScore));
-
-    return {
-      status,
-      timestamp: new Date(),
-      duration,
-      checks,
-      overallScore,
-      uptime: Date.now() - this.startTime,
-    };
-  }
-
   getLastHealthCheck(): HealthCheckResult | null {
     return this.lastHealthCheck;
   }
 
-  async getHealthHistory(hours: number = 24): Promise<HealthCheckResult[]> {
+  async getHealthHistory(_hours: number = 24): Promise<HealthCheckResult[]> {
     // In a real implementation, this would store health check results in a database
     // For now, return the last health check
     return this.lastHealthCheck ? [this.lastHealthCheck] : [];

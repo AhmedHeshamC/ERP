@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { EnhancedLoggerService } from '../logging/enhanced-logger.service';
 import { PerformanceService } from '../performance.service';
 import { HealthService } from '../health/health.service';
@@ -139,7 +138,7 @@ export interface InfrastructureMetrics {
 export interface TrendData {
   performance: Array<{ time: Date; responseTime: number; requests: number; errorRate: number }>;
   health: Array<{ time: Date; score: number; status: string }>;
-  alerts: Array<{ time: Date; total: number; critical: number; resolved: number }>;
+  alerts: Array<{ time: Date; critical: number; high: number; medium: number; low: number }>;
   business: Array<{ time: Date; users: number; transactions: number; revenue: number }>;
   infrastructure: Array<{ time: Date; cpu: number; memory: number; disk: number }>;
 }
@@ -152,7 +151,6 @@ export class DashboardService implements OnModuleInit {
   private lastCacheUpdate = 0;
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly enhancedLogger: EnhancedLoggerService,
     private readonly performanceService: PerformanceService,
     private readonly healthService: HealthService,
@@ -240,12 +238,12 @@ export class DashboardService implements OnModuleInit {
       slowestEndpoints: slowestEndpoints.map(e => ({
         endpoint: e.endpoint,
         avgTime: e.averageResponseTime,
-        count: e.requestCount,
+        count: e.totalRequests,
       })),
       fastestEndpoints: fastestEndpoints.map(e => ({
         endpoint: e.endpoint,
         avgTime: e.averageResponseTime,
-        count: e.requestCount,
+        count: e.totalRequests,
       })),
       cacheHitRate: stats.cacheHitRate,
       memoryUsage: stats.memoryUsage,
@@ -425,7 +423,6 @@ export class DashboardService implements OnModuleInit {
   private async getTrendData(): Promise<TrendData> {
     // Generate trend data for the last 24 hours in 1-hour intervals
     const hours = 24;
-    const now = new Date();
 
     return {
       performance: this.generatePerformanceTrends(hours),
@@ -438,6 +435,7 @@ export class DashboardService implements OnModuleInit {
 
   private generatePerformanceTrends(hours: number): Array<{ time: Date; responseTime: number; requests: number; errorRate: number }> {
     const trends = [];
+    const now = new Date();
     for (let i = hours - 1; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 60 * 60 * 1000);
       // In a real implementation, these would be actual historical data
@@ -453,6 +451,7 @@ export class DashboardService implements OnModuleInit {
 
   private generateHealthTrends(hours: number): Array<{ time: Date; score: number; status: string }> {
     const trends = [];
+    const now = new Date();
     for (let i = hours - 1; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 60 * 60 * 1000);
       const score = 70 + Math.random() * 30;
@@ -465,16 +464,18 @@ export class DashboardService implements OnModuleInit {
     return trends;
   }
 
-  private generateAlertTrends(hours: number): Array<{ time: Date; total: number; critical: number; resolved: number }> {
+  private generateAlertTrends(hours: number): Array<{ time: Date; critical: number; high: number; medium: number; low: number }> {
     const trends = [];
+    const now = new Date();
     for (let i = hours - 1; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 60 * 60 * 1000);
       const total = Math.floor(Math.random() * 10);
       trends.push({
         time,
-        total,
         critical: Math.floor(total * 0.2),
-        resolved: Math.floor(total * 0.7),
+        high: Math.floor(total * 0.3),
+        medium: Math.floor(total * 0.3),
+        low: Math.floor(total * 0.2),
       });
     }
     return trends;
@@ -482,6 +483,7 @@ export class DashboardService implements OnModuleInit {
 
   private generateBusinessTrends(hours: number): Array<{ time: Date; users: number; transactions: number; revenue: number }> {
     const trends = [];
+    const now = new Date();
     for (let i = hours - 1; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 60 * 60 * 1000);
       trends.push({
@@ -496,6 +498,7 @@ export class DashboardService implements OnModuleInit {
 
   private generateInfrastructureTrends(hours: number): Array<{ time: Date; cpu: number; memory: number; disk: number }> {
     const trends = [];
+    const now = new Date();
     for (let i = hours - 1; i >= 0; i--) {
       const time = new Date(now.getTime() - i * 60 * 60 * 1000);
       trends.push({
@@ -510,6 +513,7 @@ export class DashboardService implements OnModuleInit {
 
   private generateUserActivityTrends(hours: number): Array<{ hour: string; activeUsers: number }> {
     const trends = [];
+    const now = new Date();
     for (let i = 0; i < hours; i++) {
       const hour = new Date(now.getTime() - i * 60 * 60 * 1000);
       trends.push({
@@ -526,7 +530,7 @@ export class DashboardService implements OnModuleInit {
     return (usage.user + usage.system) / 1000000; // Convert to percentage
   }
 
-  async getWidgetData(widgetType: string, params?: any): Promise<any> {
+  async getWidgetData(widgetType: string): Promise<any> {
     switch (widgetType) {
       case 'overview':
         return this.getSystemOverview();
