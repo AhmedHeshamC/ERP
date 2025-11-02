@@ -2,10 +2,12 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { join } from 'path';
 import { PrismaModule } from './shared/database/prisma.module';
 import { SecurityModule } from './shared/security/security.module';
+import { AuditModule } from './shared/audit/audit.module';
+import { AuditInterceptor } from './shared/audit/interceptors/audit.interceptor';
 import { ProductionErrorFilter } from './shared/filters/production-error.filter';
 import { CorrelationIdMiddleware } from './shared/middleware/correlation-id.middleware';
 import { SecurityHeadersMiddleware } from './shared/middleware/security-headers.middleware';
@@ -60,6 +62,9 @@ import { validationSchema } from './config/validation';
     // Security
     SecurityModule,
 
+    // Audit
+    AuditModule,
+
     // Common
     CommonModule,
 
@@ -96,6 +101,11 @@ import { validationSchema } from './config/validation';
     {
       provide: APP_GUARD,
       useClass: EnhancedThrottlerGuard,
+    },
+    // Global audit interceptor
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
     },
   ],
 })

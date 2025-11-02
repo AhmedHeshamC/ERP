@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -9,7 +9,10 @@ import { AppModule } from './app.module';
 import { SecurityService } from './shared/security/security.service';
 import { LoggingInterceptor } from './shared/common/interceptors/logging.interceptor';
 import { TimeoutInterceptor } from './shared/common/interceptors/timeout.interceptor';
+import { ApiResponseInterceptor } from './shared/common/interceptors/api-response.interceptor';
 import { ErrorsFilter } from './shared/common/filters/errors.filter';
+import { UnifiedValidationPipe } from './shared/common/pipes/unified-validation.pipe';
+import { SecurityValidationService } from './shared/security/services/security-validation.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -43,25 +46,27 @@ async function bootstrap() {
   });
 
   // Global Pipes
+  const securityValidationService = app.get(SecurityValidationService);
   app.useGlobalPipes(
-    new ValidationPipe({
+    new UnifiedValidationPipe(securityValidationService, {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-      validationError: {
-        target: false,
-        value: false,
-      },
-    }),
+      handleSpecialCharacters: true,
+      skipSecurityValidation: false,
+      maxPayloadSize: 10 * 1024 * 1024, // 10MB
+    })
   );
 
   // Global Interceptors
   app.useGlobalInterceptors(
     new LoggingInterceptor(),
     new TimeoutInterceptor(),
+    new ApiResponseInterceptor({
+      includePerformance: true,
+      includeRequestDetails: false, // Keep secure by default
+      sanitizeResponses: true,
+    }),
   );
 
   // Global Filters

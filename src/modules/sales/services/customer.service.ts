@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
+import { AuditService } from '../../../shared/audit/services/audit.service';
 import { Customer } from '../entities/customer.entity';
 import { CreateCustomerDto } from '../dto/create-customer.dto';
 import { UpdateCustomerDto } from '../dto/update-customer.dto';
@@ -14,12 +15,13 @@ export class CustomerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly securityService: SecurityService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
    * Create a new customer with validation and sanitization
    */
-  async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
+  async create(createCustomerDto: CreateCustomerDto, userId?: string): Promise<Customer> {
     this.logger.log(`Creating customer with code: ${createCustomerDto.code}`);
 
     // Sanitize input data
@@ -81,14 +83,41 @@ export class CustomerService {
           taxId: sanitizedData.taxId,
           creditLimit: sanitizedData.creditLimit,
           isActive: sanitizedData.isActive ?? true,
+          createdBy: userId,
         },
       });
+
+      // Log audit event
+      await this.auditService.logCreate(
+        'CUSTOMER',
+        customer.id,
+        this.mapToCustomerEntity(customer),
+        userId,
+        { action: 'CREATE_CUSTOMER', customerCode: sanitizedData.code },
+      );
 
       this.logger.log(`Customer created successfully with ID: ${customer.id}`);
       return this.mapToCustomerEntity(customer);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
+
+      // Log audit event for failed creation
+      if (userId) {
+        await this.auditService.logBusinessEvent(
+          'CUSTOMER_CREATE_FAILED',
+          'CUSTOMER',
+          'unknown',
+          'CREATE',
+          userId,
+          {
+            error: errorMessage,
+            customerData: this.securityService.sanitizeInput(sanitizedData),
+          },
+          'HIGH',
+        );
+      }
+
       this.logger.error(`Error creating customer: ${errorMessage}`, errorStack);
       throw error;
     }
@@ -164,7 +193,7 @@ export class CustomerService {
   /**
    * Update customer
    */
-  async update(id: string, updateCustomerDto: UpdateCustomerDto): Promise<Customer> {
+  async update(id: string, updateCustomerDto: UpdateCustomerDto, userId?: string): Promise<Customer> {
     this.logger.log(`Updating customer with ID: ${id}`);
 
     const existingCustomer = await this.findOne(id);
@@ -210,17 +239,47 @@ export class CustomerService {
       if (sanitizedData.isActive !== undefined) updateData.isActive = sanitizedData.isActive;
 
       updateData.updatedAt = new Date();
+      updateData.updatedBy = userId;
 
       const updatedCustomer = await this.prisma.customer.update({
         where: { id },
         data: updateData,
       });
 
+      const updatedCustomerEntity = this.mapToCustomerEntity(updatedCustomer);
+
+      // Log audit event
+      await this.auditService.logUpdate(
+        'CUSTOMER',
+        id,
+        existingCustomer,
+        updatedCustomerEntity,
+        userId,
+        { action: 'UPDATE_CUSTOMER', customerCode: existingCustomer.code },
+      );
+
       this.logger.log(`Customer updated successfully with ID: ${id}`);
-      return this.mapToCustomerEntity(updatedCustomer);
+      return updatedCustomerEntity;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
+
+      // Log audit event for failed update
+      if (userId) {
+        await this.auditService.logBusinessEvent(
+          'CUSTOMER_UPDATE_FAILED',
+          'CUSTOMER',
+          id,
+          'UPDATE',
+          userId,
+          {
+            error: errorMessage,
+            customerData: this.securityService.sanitizeInput(sanitizedData),
+          },
+          'HIGH',
+        );
+      }
+
       this.logger.error(`Error updating customer: ${errorMessage}`, errorStack);
       throw error;
     }

@@ -13,6 +13,12 @@ export enum UserRole {
   USER = 'USER',
   ACCOUNTANT = 'ACCOUNTANT',
   INVENTORY_MANAGER = 'INVENTORY_MANAGER',
+  FINANCE = 'FINANCE',
+  VIEWER = 'VIEWER',
+  PURCHASING = 'PURCHASING',
+  SALES = 'SALES',
+  HR_ADMIN = 'HR_ADMIN',
+  EMPLOYEE = 'EMPLOYEE',
 }
 
 export interface UserResponse {

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
+import { AuditService } from '../../../shared/audit/services/audit.service';
 import { Order as PrismaOrder } from '@prisma/client';
 import { CreateOrderDto } from '../dto/create-order.dto';
 import { UpdateOrderDto } from '../dto/update-order.dto';
@@ -19,12 +20,13 @@ export class OrderService {
     private readonly prisma: PrismaService,
     private readonly securityService: SecurityService,
     private readonly customerService: CustomerService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
    * Create a new sales order
    */
-  async create(createOrderDto: CreateOrderDto): Promise<PrismaOrder> {
+  async create(createOrderDto: CreateOrderDto, userId?: string): Promise<PrismaOrder> {
     this.logger.log(`Creating order for customer: ${createOrderDto.customerId}`);
 
     // Sanitize input data
@@ -127,11 +129,49 @@ export class OrderService {
       // Update inventory (reduce stock)
       await this.updateInventoryForOrder(orderItems, false);
 
+      // Log audit event for successful order creation
+      await this.auditService.logCreate(
+        'ORDER',
+        order.id,
+        {
+          orderNumber,
+          customerId: sanitizedData.customerId,
+          totalAmount,
+          status: OrderStatus.DRAFT,
+          itemCount: orderItems.length,
+        },
+        userId,
+        {
+          action: 'CREATE_ORDER',
+          orderNumber,
+          customerCreditChecked: true,
+          inventoryUpdated: true,
+        },
+      );
+
       this.logger.log(`Order created successfully with ID: ${order.id}`);
       return order;
     } catch (error) {
       const errorMessage = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
       const errorStack = error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined;
+
+      // Log audit event for failed order creation
+      if (userId) {
+        await this.auditService.logBusinessEvent(
+          'ORDER_CREATE_FAILED',
+          'ORDER',
+          'unknown',
+          'CREATE',
+          userId,
+          {
+            error: errorMessage,
+            orderData: this.securityService.sanitizeInput(sanitizedData),
+            customerId: sanitizedData.customerId,
+          },
+          'HIGH',
+        );
+      }
+
       this.logger.error(`Error creating order: ${errorMessage}`, errorStack);
       throw error;
     }
@@ -255,7 +295,7 @@ export class OrderService {
   /**
    * Update order status
    */
-  async updateStatus(id: string, updateStatusDto: UpdateOrderStatusDto): Promise<PrismaOrder> {
+  async updateStatus(id: string, updateStatusDto: UpdateOrderStatusDto, userId?: string): Promise<PrismaOrder> {
     this.logger.log(`Updating order status for ID: ${id} to ${updateStatusDto.status}`);
 
     const order = await this.findOne(id);
@@ -311,10 +351,52 @@ export class OrderService {
         },
       });
 
+      // Log audit event for order status change
+      await this.auditService.logBusinessEvent(
+        'ORDER_STATUS_CHANGED',
+        'ORDER',
+        id,
+        'UPDATE_STATUS',
+        userId,
+        {
+          action: 'UPDATE_ORDER_STATUS',
+          oldStatus: order.status,
+          newStatus: updateStatusDto.status,
+          orderNumber: order.orderNumber,
+          customerId: order.customerId,
+          trackingNumber: updateStatusDto.trackingNumber,
+          cancellationReason: updateStatusDto.cancellationReason,
+          notes: updateStatusDto.notes,
+          inventoryRestored: updateStatusDto.status === OrderStatus.CANCELLED,
+        },
+        updateStatusDto.status === OrderStatus.CANCELLED ? 'HIGH' : 'MEDIUM',
+      );
+
       this.logger.log(`Order status updated successfully for ID: ${id}`);
       return updatedOrder;
     } catch (error) {
-      this.logger.error(`Error updating order status: ${error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error)}`, error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined);
+      const errorMessage = error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error);
+      const errorStack = error instanceof Error ? error instanceof Error ? error.stack : undefined : undefined;
+
+      // Log audit event for failed status update
+      if (userId) {
+        await this.auditService.logBusinessEvent(
+          'ORDER_STATUS_UPDATE_FAILED',
+          'ORDER',
+          id,
+          'UPDATE_STATUS',
+          userId,
+          {
+            error: errorMessage,
+            oldStatus: order.status,
+            newStatus: updateStatusDto.status,
+            orderNumber: order.orderNumber,
+          },
+          'HIGH',
+        );
+      }
+
+      this.logger.error(`Error updating order status: ${errorMessage}`, errorStack);
       throw error;
     }
   }

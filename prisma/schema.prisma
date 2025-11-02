@@ -67,21 +67,24 @@ model ProductCategory {
 }
 
 model Product {
-  id                String          @id @default(cuid())
+  id                String               @id @default(cuid())
   name              String
-  sku               String          @unique
+  sku               String               @unique
   description       String?
-  price             Decimal         @db.Decimal(10, 2)
+  price             Decimal              @db.Decimal(10, 2)
   categoryId        String
-  status            String          @default("ACTIVE")
-  stockQuantity     Int             @default(0)
-  lowStockThreshold Int             @default(10)
-  isActive          Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  orderItems        OrderItem[]     @relation("OrderProductItems")
-  category          ProductCategory @relation(fields: [categoryId], references: [id])
-  stockMovements    StockMovement[] @relation("ProductStockMovements")
+  status            String               @default("ACTIVE")
+  stockQuantity     Int                  @default(0)
+  lowStockThreshold Int                  @default(10)
+  isActive          Boolean              @default(true)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  orderItems        OrderItem[]          @relation("OrderProductItems")
+  category          ProductCategory      @relation(fields: [categoryId], references: [id])
+  stockMovements    StockMovement[]      @relation("ProductStockMovements")
+  inventoryValuations InventoryValuation[]
+  costLayers        CostLayer[]
+  lowStockAlerts    LowStockAlert[]
 
   @@index([categoryId])
   @@index([status])
@@ -345,6 +348,7 @@ model PurchaseOrder {
   totalAmount       Decimal                    @default(0) @db.Decimal(15, 2)
   currency          String                     @default("USD")
   notes             String?
+  deletedAt         DateTime?
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
   createdBy         String?
@@ -358,6 +362,7 @@ model PurchaseOrder {
   @@index([status])
   @@index([orderDate])
   @@index([totalAmount])
+  @@index([deletedAt])
   @@map("purchase_orders")
 }
 
@@ -966,4 +971,131 @@ model ResourceLock {
   @@index([expiresAt])
   @@index([isActive])
   @@map("resource_locks")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  eventType    String
+  resourceType String
+  resourceId   String
+  action       String
+  userId       String?
+  oldValues    Json?
+  newValues    Json?
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  correlationId String?
+  severity     String   @default("INFO")
+  timestamp    DateTime @default(now())
+
+  // Indexes for performance and querying
+  @@index([eventType])
+  @@index([resourceType, resourceId])
+  @@index([userId])
+  @@index([timestamp])
+  @@index([severity])
+  @@index([correlationId])
+  @@map("audit_logs")
+}
+
+// Inventory Valuation Models
+model InventoryValuation {
+  id            String   @id @default(cuid())
+  productId     String
+  method        String   @default("WEIGHTED_AVERAGE")
+  quantity      Int      @default(0)
+  unitCost      Decimal  @default(0) @db.Decimal(10, 2)
+  totalValue    Decimal  @default(0) @db.Decimal(15, 2)
+  valuationDate DateTime @default(now())
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
+  product       Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([method])
+  @@index([valuationDate])
+  @@index([isActive])
+  @@map("inventory_valuations")
+}
+
+model CostLayer {
+  id                String   @id @default(cuid())
+  productId         String
+  batchNumber       String?
+  quantity          Int      @default(0)
+  unitCost          Decimal  @default(0) @db.Decimal(10, 2)
+  totalCost         Decimal  @default(0) @db.Decimal(15, 2)
+  remainingQuantity Int      @default(0)
+  acquisitionDate   DateTime @default(now())
+  expiryDate        DateTime?
+  supplierId        String?
+  purchaseOrderId   String?
+  location          String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  product           Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([acquisitionDate])
+  @@index([expiryDate])
+  @@index([isActive])
+  @@index([remainingQuantity])
+  @@map("cost_layers")
+}
+
+model Warehouse {
+  id                String    @id @default(cuid())
+  name              String
+  code              String    @unique
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  postalCode        String?
+  contactPerson     String?
+  contactPhone      String?
+  contactEmail      String?
+  maxCapacity       Int?
+  currentUtilization Int     @default(0)
+  operatingHours    String?
+  status            String    @default("ACTIVE")
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdBy         String?
+  updatedBy         String?
+  notes             String?
+
+  @@index([code])
+  @@index([status])
+  @@index([isActive])
+  @@map("warehouses")
+}
+
+model LowStockAlert {
+  id                String   @id @default(cuid())
+  productId         String
+  currentStock      Int
+  lowStockThreshold Int
+  stockDeficit      Int
+  severity          String   @default("MEDIUM")
+  isActive          Boolean  @default(true)
+  isAcknowledged    Boolean  @default(false)
+  acknowledgedAt    DateTime?
+  acknowledgedBy    String?
+  reorderQuantity   Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  product           Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([severity])
+  @@index([isActive])
+  @@index([isAcknowledged])
+  @@map("low_stock_alerts")
 }

@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SecurityService } from '../../shared/security/security.service';
+import { AuditService } from '../../shared/audit/services/audit.service';
 import { CreateUserDto, UpdateUserDto, UserQueryDto, UserPasswordChangeDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../authentication/guards/jwt-auth.guard';
 import { RolesGuard } from '../authentication/guards/roles.guard';
@@ -40,6 +41,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly securityService: SecurityService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -345,45 +347,123 @@ export class UserController {
   @Get('security-events')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ResourcePermission('system', 'monitor')
-  async getSecurityEvents(@Query() query: Record<string, unknown>) {
+  async getSecurityEvents(@Query() query: any) {
     try {
       this.logger.log('Retrieving security events', { query });
 
-      // This endpoint should integrate with a security logging service
-      // For now, return a placeholder response that matches test expectations
-      const events = [
-        {
-          id: '1',
-          type: 'LOGIN_SUCCESS',
-          userId: 'test-user-id',
-          timestamp: new Date().toISOString(),
-          details: 'User logged in successfully'
-        },
-        {
-          id: '2',
-          type: 'PASSWORD_CHANGE',
-          userId: 'test-user-id',
-          timestamp: new Date().toISOString(),
-          details: 'Password changed successfully'
-        }
-      ];
+      // Build audit query from request parameters
+      const auditQuery = {
+        page: parseInt(query.page as string) || 1,
+        limit: Math.min(parseInt(query.limit as string) || 20, 100), // Cap at 100 for performance
+        sortBy: query.sortBy as string || 'timestamp',
+        sortOrder: query.sortOrder && ['asc', 'desc'].includes(query.sortOrder as string)
+          ? query.sortOrder as 'asc' | 'desc'
+          : 'desc',
+        eventType: query.eventType as string || undefined,
+        resourceType: query.resourceType as string || undefined,
+        resourceId: query.resourceId as string || undefined,
+        action: query.action as string || undefined,
+        userId: query.userId as string || undefined,
+        severity: query.severity && ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(query.severity as string)
+          ? query.severity as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+          : undefined,
+        dateFrom: query.dateFrom ? new Date(query.dateFrom as string) : undefined,
+        dateTo: query.dateTo ? new Date(query.dateTo as string) : undefined,
+      };
+
+      // Query audit logs for security events
+      const auditResult = await this.auditService.findAuditLogs(auditQuery);
+
+      // Transform audit logs to security event format
+      const securityEvents = auditResult.data.map(log => ({
+        id: log.id,
+        type: log.eventType,
+        resourceType: log.resourceType,
+        resourceId: log.resourceId,
+        action: log.action,
+        userId: log.userId,
+        timestamp: log.timestamp,
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
+        correlationId: log.correlationId,
+        severity: log.severity,
+        details: this.extractSecurityEventDetails(log),
+      }));
+
+      // Calculate summary statistics
+      const summary = this.calculateSecurityEventSummary(securityEvents);
+
+      this.logger.log(`Retrieved ${securityEvents.length} security events`);
 
       return {
         success: true,
         message: 'Security events retrieved successfully',
         data: {
-          events,
+          events: securityEvents,
           pagination: {
-            page: 1,
-            limit: 10,
-            total: events.length,
-            totalPages: 1
-          }
+            page: auditQuery.page,
+            limit: auditQuery.limit,
+            total: auditResult.total,
+            totalPages: Math.ceil(auditResult.total / auditQuery.limit)
+          },
+          summary
         }
       };
     } catch (error) {
       this.logger.error(`Failed to retrieve security events: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
+  }
+
+  /**
+   * Extract relevant details from audit log for security event display
+   */
+  private extractSecurityEventDetails(log: any): string {
+    const details: string[] = [];
+
+    // Extract common security-relevant information
+    if (log.metadata) {
+      if (log.metadata.reason) details.push(`Reason: ${log.metadata.reason}`);
+      if (log.metadata.outcome) details.push(`Outcome: ${log.metadata.outcome}`);
+      if (log.metadata.failureReason) details.push(`Failure: ${log.metadata.failureReason}`);
+    }
+
+    // Extract action-specific details
+    if (log.action) {
+      details.push(`Action: ${log.action}`);
+    }
+
+    // Add resource information
+    if (log.resourceType && log.resourceId) {
+      details.push(`Resource: ${log.resourceType}:${log.resourceId}`);
+    }
+
+    return details.length > 0 ? details.join('; ') : log.eventType;
+  }
+
+  /**
+   * Calculate security event summary statistics
+   */
+  private calculateSecurityEventSummary(events: any[]): any {
+    const summary = {
+      totalEvents: events.length,
+      byEventType: {} as Record<string, number>,
+      bySeverity: {} as Record<string, number>,
+      recentEvents: events.filter(e => {
+        const eventTime = new Date(e.timestamp);
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        return eventTime > oneDayAgo;
+      }).length,
+    };
+
+    events.forEach(event => {
+      // Count by event type
+      summary.byEventType[event.type] = (summary.byEventType[event.type] || 0) + 1;
+
+      // Count by severity
+      summary.bySeverity[event.severity] = (summary.bySeverity[event.severity] || 0) + 1;
+    });
+
+    return summary;
   }
 }

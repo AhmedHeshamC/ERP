@@ -690,6 +690,54 @@ export class PurchaseOrderService {
   }
 
   /**
+   * Soft delete a purchase order
+   * Only allows deletion of draft orders or orders that haven't been approved yet
+   */
+  async softDeletePurchaseOrder(id: string, deletedBy: string): Promise<void> {
+    try {
+      this.logger.log(`Soft deleting purchase order: ${id}`);
+
+      // Validate purchase order exists
+      const existingOrder = await this.prismaService.purchaseOrder.findUnique({
+        where: { id },
+      });
+
+      if (!existingOrder) {
+        throw new NotFoundException(`Purchase order with ID ${id} not found`);
+      }
+
+      if (existingOrder.deletedAt) {
+        throw new BadRequestException(`Purchase order with ID ${id} is already deleted`);
+      }
+
+      // Business rule: Only allow deletion of draft or pending approval orders
+      if (existingOrder.status === PurchaseOrderStatus.APPROVED ||
+          existingOrder.status === PurchaseOrderStatus.SENT ||
+          existingOrder.status === PurchaseOrderStatus.COMPLETED) {
+        throw new BadRequestException(`Cannot delete purchase order with status: ${existingOrder.status}. Only draft or pending approval orders can be deleted.`);
+      }
+
+      // Perform soft delete by setting deletedAt timestamp
+      await this.prismaService.purchaseOrder.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          updatedBy: deletedBy,
+        },
+      });
+
+      this.logger.log(`Successfully soft deleted purchase order: ${id}`);
+
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(`Failed to soft delete purchase order: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
+      throw new InternalServerErrorException('Failed to delete purchase order');
+    }
+  }
+
+  /**
    * Calculate total amount for purchase order items
    * Private helper method for order total calculation
    */

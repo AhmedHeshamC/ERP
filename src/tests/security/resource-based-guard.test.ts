@@ -4,7 +4,7 @@ import { ResourceBasedGuard } from '../../shared/security/guards/resource-based.
 import { PermissionsService } from '../../shared/security/permissions.service';
 import { Reflector } from '@nestjs/core';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { UserRole } from '../../modules/users/dto/user.dto';
+import { UserRole } from '../../shared/security/permissions.service';
 
 describe('ResourceBasedGuard', () => {
   let guard: ResourceBasedGuard;
@@ -12,8 +12,8 @@ describe('ResourceBasedGuard', () => {
   let reflector: Reflector;
 
   beforeEach(() => {
+    permissionsService = new PermissionsService();
     reflector = new Reflector();
-    permissionsService = new PermissionsService(reflector);
     guard = new ResourceBasedGuard(permissionsService, reflector);
   });
 
@@ -26,7 +26,7 @@ describe('ResourceBasedGuard', () => {
       });
 
       // Mock required permissions
-      reflector.set('permissions', {
+      (reflector as any).set('permissions', {
         permissions: [{ resource: 'users', action: 'create' }]
       }, mockContext.getHandler());
 
@@ -47,7 +47,7 @@ describe('ResourceBasedGuard', () => {
         expect.fail('Should have thrown ForbiddenException');
       } catch (error) {
         expect(error).to.be.instanceOf(ForbiddenException);
-        expect(error.message).to.include('not authenticated');
+        expect((error as Error).message).to.include('not authenticated');
       }
     });
 
@@ -59,7 +59,7 @@ describe('ResourceBasedGuard', () => {
       });
 
       // Mock required permissions
-      reflector.set('permissions', {
+      (reflector as any).set('permissions', {
         permissions: [{ resource: 'users', action: 'delete' }]
       }, mockContext.getHandler());
 
@@ -68,7 +68,7 @@ describe('ResourceBasedGuard', () => {
         expect.fail('Should have thrown ForbiddenException');
       } catch (error) {
         expect(error).to.be.instanceOf(ForbiddenException);
-        expect(error.message).to.include('Insufficient permissions');
+        expect((error as Error).message).to.include('Insufficient permissions');
       }
     });
 
@@ -93,7 +93,7 @@ describe('ResourceBasedGuard', () => {
       });
 
       // Mock required permissions
-      reflector.set('permissions', {
+      (reflector as any).set('permissions', {
         permissions: [{ resource: 'customers', action: 'read' }]
       }, mockContext.getHandler());
 
@@ -111,7 +111,7 @@ describe('ResourceBasedGuard', () => {
       });
 
       // Mock required permissions
-      reflector.set('permissions', {
+      (reflector as any).set('permissions', {
         permissions: [{ resource: 'orders', action: 'approve' }]
       }, mockContext.getHandler());
 
@@ -128,7 +128,7 @@ describe('ResourceBasedGuard', () => {
       });
 
       // Mock required permissions
-      reflector.set('permissions', {
+      (reflector as any).set('permissions', {
         permissions: [{ resource: 'users', action: 'read' }]
       }, mockContext.getHandler());
 

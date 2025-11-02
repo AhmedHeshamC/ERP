@@ -1,7 +1,8 @@
 {
   "require": [
     "ts-node/register",
-    "tsconfig-paths/register"
+    "tsconfig-paths/register",
+    "./src/shared/testing/test-setup.ts"
   ],
   "spec": "src/**/*.spec.ts",
   "exclude": "node_modules/**/*",

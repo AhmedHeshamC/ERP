@@ -817,4 +817,313 @@ export class ScheduledReportsService {
 
     return generatedReport;
   }
+
+  /**
+   * Get comprehensive dashboard statistics for scheduled reports
+   * Provides insights into report usage, execution status, and performance
+   */
+  async getDashboardStatistics(): Promise<any> {
+    try {
+      this.logger.log('Calculating scheduled reports dashboard statistics');
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // Get all statistics in parallel for better performance
+      const [
+        totalReports,
+        activeReports,
+        inactiveReports,
+        totalExecutions,
+        recentExecutions,
+        successfulExecutions,
+        failedExecutions,
+        pendingExecutions,
+        executionsByStatus,
+        executionsByScheduleType,
+        reportsByFormat,
+        reportsByScheduleType,
+        executionTrends,
+        topPerformingReports,
+        recentlyFailedReports,
+        nextDueReports,
+      ] = await Promise.all([
+        // Basic report counts
+        this.prismaService.scheduledReport.count(),
+        this.prismaService.scheduledReport.count({ where: { isActive: true } }),
+        this.prismaService.scheduledReport.count({ where: { isActive: false } }),
+
+        // Execution statistics
+        this.prismaService.scheduledReportExecution.count(),
+        this.prismaService.scheduledReportExecution.count({
+          where: { createdAt: { gte: thirtyDaysAgo } }
+        }),
+        this.prismaService.scheduledReportExecution.count({
+          where: { status: ExecutionStatus.COMPLETED }
+        }),
+        this.prismaService.scheduledReportExecution.count({
+          where: { status: ExecutionStatus.FAILED }
+        }),
+        this.prismaService.scheduledReportExecution.count({
+          where: { status: ExecutionStatus.PENDING }
+        }),
+
+        // Grouped statistics
+        this.getExecutionsByStatus(),
+        this.getExecutionsByScheduleType(),
+        this.getReportsByFormat(),
+        this.getReportsByScheduleType(),
+        this.getExecutionTrends(thirtyDaysAgo),
+        this.getTopPerformingReports(5),
+        this.getRecentlyFailedReports(5),
+        this.getNextDueReports(5),
+      ]);
+
+      // Calculate derived metrics
+      const successRate = totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 0;
+      const failureRate = totalExecutions > 0 ? (failedExecutions / totalExecutions) * 100 : 0;
+      const averageExecutionsPerDay = recentExecutions / 30;
+      const activeRate = totalReports > 0 ? (activeReports / totalReports) * 100 : 0;
+
+      const statistics = {
+        overview: {
+          totalReports,
+          activeReports,
+          inactiveReports,
+          totalExecutions,
+          successRate: Math.round(successRate * 100) / 100,
+          failureRate: Math.round(failureRate * 100) / 100,
+          activeRate: Math.round(activeRate * 100) / 100,
+          averageExecutionsPerDay: Math.round(averageExecutionsPerDay * 100) / 100,
+        },
+
+        executionStats: {
+          successfulExecutions,
+          failedExecutions,
+          pendingExecutions,
+          recentExecutions, // Last 30 days
+          executionsByStatus,
+          executionsByScheduleType,
+        },
+
+        reportStats: {
+          reportsByFormat,
+          reportsByScheduleType,
+        },
+
+        trends: {
+          executionTrends,
+        },
+
+        insights: {
+          topPerformingReports,
+          recentlyFailedReports,
+          nextDueReports,
+        },
+
+        generatedAt: now.toISOString(),
+      };
+
+      this.logger.log('Successfully calculated dashboard statistics');
+      return statistics;
+
+    } catch (error) {
+      this.logger.error(`Failed to calculate dashboard statistics: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw new InternalServerErrorException('Failed to calculate dashboard statistics');
+    }
+  }
+
+  /**
+   * Get executions grouped by status
+   */
+  private async getExecutionsByStatus(): Promise<Record<string, number>> {
+    const results = await this.prismaService.scheduledReportExecution.groupBy({
+      by: ['status'],
+      _count: true,
+    });
+
+    return results.reduce((acc, result) => {
+      acc[result.status] = result._count;
+      return acc;
+    }, {} as Record<string, number>);
+  }
+
+  /**
+   * Get executions grouped by schedule type
+   */
+  private async getExecutionsByScheduleType(): Promise<Record<string, number>> {
+    const results = await this.prismaService.scheduledReportExecution.findMany({
+      select: {
+        scheduledReport: {
+          select: { scheduleType: true }
+        },
+        status: true,
+      },
+    });
+
+    return results.reduce((acc, execution) => {
+      const scheduleType = execution.scheduledReport.scheduleType;
+      acc[scheduleType] = (acc[scheduleType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }
+
+  /**
+   * Get reports grouped by format
+   */
+  private async getReportsByFormat(): Promise<Record<string, number>> {
+    const results = await this.prismaService.scheduledReport.groupBy({
+      by: ['format'],
+      _count: true,
+    });
+
+    return results.reduce((acc, result) => {
+      acc[result.format] = result._count;
+      return acc;
+    }, {} as Record<string, number>);
+  }
+
+  /**
+   * Get reports grouped by schedule type
+   */
+  private async getReportsByScheduleType(): Promise<Record<string, number>> {
+    const results = await this.prismaService.scheduledReport.groupBy({
+      by: ['scheduleType'],
+      _count: true,
+    });
+
+    return results.reduce((acc, result) => {
+      acc[result.scheduleType] = result._count;
+      return acc;
+    }, {} as Record<string, number>);
+  }
+
+  /**
+   * Get execution trends over time (daily counts)
+   */
+  private async getExecutionTrends(sinceDate: Date): Promise<Array<{ date: string; count: number; successRate: number }>> {
+    // Get daily execution counts and success rates
+    const executions = await this.prismaService.scheduledReportExecution.findMany({
+      where: {
+        createdAt: { gte: sinceDate }
+      },
+      select: {
+        createdAt: true,
+        status: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Group by date
+    const dailyStats = executions.reduce((acc, execution) => {
+      const date = execution.createdAt.toISOString().split('T')[0];
+      if (!acc[date]) {
+        acc[date] = { total: 0, successful: 0 };
+      }
+      acc[date].total++;
+      if (execution.status === ExecutionStatus.COMPLETED) {
+        acc[date].successful++;
+      }
+      return acc;
+    }, {} as Record<string, { total: number; successful: number }>);
+
+    // Convert to trend format
+    return Object.entries(dailyStats).map(([date, stats]) => ({
+      date,
+      count: stats.total,
+      successRate: stats.total > 0 ? Math.round((stats.successful / stats.total) * 10000) / 100 : 0,
+    }));
+  }
+
+  /**
+   * Get top performing reports (most successful executions)
+   */
+  private async getTopPerformingReports(limit: number): Promise<Array<{ id: string; name: string; successRate: number; totalExecutions: number }>> {
+    const reports = await this.prismaService.scheduledReport.findMany({
+      include: {
+        scheduledExecutions: {
+          select: { status: true }
+        }
+      },
+      where: {
+        scheduledExecutions: {
+          some: {} // Only include reports with executions
+        }
+      }
+    });
+
+    return reports
+      .map(report => {
+        const totalExecutions = report.scheduledExecutions.length;
+        const successfulExecutions = report.scheduledExecutions.filter(e => e.status === ExecutionStatus.COMPLETED).length;
+        const successRate = totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 0;
+
+        return {
+          id: report.id,
+          name: report.name,
+          successRate: Math.round(successRate * 100) / 100,
+          totalExecutions,
+        };
+      })
+      .sort((a, b) => b.successRate - a.successRate)
+      .slice(0, limit);
+  }
+
+  /**
+   * Get recently failed reports
+   */
+  private async getRecentlyFailedReports(limit: number): Promise<Array<{ id: string; name: string; lastFailure: Date; failureCount: number }>> {
+    const reports = await this.prismaService.scheduledReport.findMany({
+      include: {
+        scheduledExecutions: {
+          where: {
+            status: ExecutionStatus.FAILED,
+            createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Last 7 days
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }
+      },
+      where: {
+        scheduledExecutions: {
+          some: {
+            status: ExecutionStatus.FAILED,
+            createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+          }
+        }
+      }
+    });
+
+    return reports
+      .map(report => ({
+        id: report.id,
+        name: report.name,
+        lastFailure: report.scheduledExecutions[0]?.createdAt || new Date(),
+        failureCount: report.scheduledExecutions.length,
+      }))
+      .sort((a, b) => b.lastFailure.getTime() - a.lastFailure.getTime())
+      .slice(0, limit);
+  }
+
+  /**
+   * Get reports that are due to run next
+   */
+  private async getNextDueReports(limit: number): Promise<Array<{ id: string; name: string; nextRunAt: Date; scheduleType: string }>> {
+    const reports = await this.prismaService.scheduledReport.findMany({
+      where: {
+        isActive: true,
+        nextRunAt: { gte: new Date() }
+      },
+      orderBy: { nextRunAt: 'asc' },
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        nextRunAt: true,
+        scheduleType: true,
+      }
+    });
+
+    return reports;
+  }
 }

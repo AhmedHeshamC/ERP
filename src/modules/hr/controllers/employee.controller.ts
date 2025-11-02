@@ -22,6 +22,7 @@ import { EmployeeWithDepartment, EmployeeFilters, EmployeeListResponse, Employee
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
 import { Roles } from '../../../shared/security/decorators/roles.decorator';
+import { UserRole } from '../../users/dto/user.dto';
 import { AuthenticatedRequest } from '../../../shared/security/interfaces/jwt.interface';
 
 /**
@@ -50,7 +51,7 @@ export class EmployeeController {
    * OWASP A03: Injection - Input validation and sanitization
    */
   @Post()
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN)
   async createEmployee(
     @Body() createEmployeeDto: CreateEmployeeDto,
     @Request() req: AuthenticatedRequest,
@@ -96,7 +97,7 @@ export class EmployeeController {
    * OWASP A01: Broken Access Control - Resource-based access
    */
   @Get(':id')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.EMPLOYEE)
   async getEmployeeById(@Param('id') id: string): Promise<EmployeeWithDepartment> {
     try {
       this.logger.log(`Fetching employee by ID!: ${id}`);
@@ -114,7 +115,7 @@ export class EmployeeController {
    * OWASP A01: Broken Access Control - Resource-based access
    */
   @Get('number/:employeeId')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.EMPLOYEE)
   async getEmployeeByEmployeeId(
     @Param('employeeId') employeeId: string,
   ): Promise<EmployeeWithDepartment> {
@@ -134,7 +135,7 @@ export class EmployeeController {
    * OWASP A01: Broken Access Control - Role-based filtering
    */
   @Get()
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.EMPLOYEE)
   async getEmployees(@Query() filters: EmployeeFilters): Promise<EmployeeListResponse> {
     try {
       this.logger.log(`Fetching employees with filters!: ${JSON.stringify(filters)}`);
@@ -195,7 +196,7 @@ export class EmployeeController {
    * OWASP A01: Broken Access Control - Role-based access
    */
   @Delete(':id')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN)
   async deleteEmployee(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
@@ -231,7 +232,7 @@ export class EmployeeController {
    * OWASP A01: Broken Access Control - Role-based access
    */
   @Post(':id/activate')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN)
   async activateEmployee(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
@@ -266,7 +267,7 @@ export class EmployeeController {
    * OWASP A01: Broken Access Control - Role-based access
    */
   @Post(':id/deactivate')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN)
   async deactivateEmployee(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,

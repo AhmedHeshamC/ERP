@@ -21,6 +21,7 @@ import { RolesGuard } from '../../authentication/guards/roles.guard';
 import { Roles } from '../../authentication/decorators/roles.decorator';
 import { ResourcePermission } from '../../../shared/security/decorators/permissions.decorator';
 import { ResourceBasedGuard } from '../../../shared/security/guards/resource-based.guard';
+import { CurrentUser } from '../../authentication/decorators/current-user.decorator';
 import { UserRole } from '../../users/dto/user.dto';
 
 @ApiTags('customers')
@@ -36,9 +37,9 @@ export class CustomerController {
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Customer created successfully' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
   @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Customer already exists' })
-  async create(@Body() createCustomerDto: CreateCustomerDto) {
+  async create(@Body() createCustomerDto: CreateCustomerDto, @CurrentUser() user?: any) {
     try {
-      const customer = await this.customerService.create(createCustomerDto);
+      const customer = await this.customerService.create(createCustomerDto, user?.id);
       return customer; // Return data directly for test compatibility
     } catch (error) {
       throw error;
@@ -83,9 +84,9 @@ export class CustomerController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Customer updated successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Customer not found' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
-  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
+  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto, @CurrentUser() user?: any) {
     try {
-      const customer = await this.customerService.update(id, updateCustomerDto);
+      const customer = await this.customerService.update(id, updateCustomerDto, user?.id);
       return customer; // Return data directly for test compatibility
     } catch (error) {
       throw error;

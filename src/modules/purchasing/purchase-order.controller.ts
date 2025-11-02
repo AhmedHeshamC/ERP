@@ -12,6 +12,8 @@ import {
   ParseUUIDPipe,
   Logger,
   NotFoundException,
+  BadRequestException,
+  Request,
 } from '@nestjs/common';
 import { PurchaseOrderService } from './purchase-order.service';
 import {
@@ -137,12 +139,30 @@ export class PurchaseOrderController {
   /**
    * Delete (soft delete) a purchase order
    * DELETE /api/v1/purchase-orders/:id
-   * Note: This would need to be implemented in the service
+   * Only allows deletion of draft or pending approval orders
    */
   @Delete(':id')
-  async deletePurchaseOrder(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    this.logger.log(`Deleting purchase order!: ${id}`);
-    // TODO: Implement soft delete functionality
-    throw new Error('Delete functionality not yet implemented');
+  async deletePurchaseOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req: any
+  ): Promise<{ message: string }> {
+    try {
+      this.logger.log(`Soft deleting purchase order: ${id}`);
+
+      // Get user ID from request (assuming authentication middleware sets this)
+      const deletedBy = req.user?.id || req.user?.sub || 'anonymous';
+
+      await this.purchaseOrderService.softDeletePurchaseOrder(id, deletedBy);
+
+      this.logger.log(`Successfully soft deleted purchase order: ${id}`);
+      return { message: 'Purchase order deleted successfully' };
+
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(`Failed to delete purchase order ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new BadRequestException('Failed to delete purchase order');
+    }
   }
 }

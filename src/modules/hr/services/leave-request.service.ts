@@ -799,6 +799,26 @@ export class LeaveRequestService {
         [LeaveStatus.COMPLETED]: 0, // We'll add this if needed in the future
       };
 
+      // Calculate monthly trends
+      const monthlyMap = new Map<string, { count: number; days: number }>();
+      filteredRequests.forEach(lr => {
+        // Extract month from startDate (format: YYYY-MM)
+        const month = new Date(lr.startDate).toISOString().substring(0, 7);
+        const current = monthlyMap.get(month) || { count: 0, days: 0 };
+        monthlyMap.set(month, {
+          count: current.count + 1,
+          days: current.days + Number(lr.daysRequested)
+        });
+      });
+
+      const monthlyTrends = Array.from(monthlyMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b)) // Sort by month chronologically
+        .map(([month, data]) => ({
+          month,
+          count: data.count,
+          days: data.days
+        }));
+
       const response: LeaveAnalyticsResponse = {
         totalLeaveRequests: totalRequests,
         approvedLeaveRequests: approvedRequests,
@@ -810,7 +830,7 @@ export class LeaveRequestService {
         byLeaveType,
         byDepartment,
         byStatus,
-        monthlyTrends: [], // TODO: Implement monthly trends if needed
+        monthlyTrends,
       };
 
       this.logger.log(`Successfully generated leave analytics!: ${totalRequests} total requests`);

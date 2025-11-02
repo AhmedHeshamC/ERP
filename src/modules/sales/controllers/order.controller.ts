@@ -22,6 +22,7 @@ import { OrderQueryDto } from '../dto/order-query.dto';
 import { JwtAuthGuard } from '../../authentication/guards/jwt-auth.guard';
 import { RolesGuard } from '../../authentication/guards/roles.guard';
 import { Roles } from '../../authentication/decorators/roles.decorator';
+import { CurrentUser } from '../../authentication/decorators/current-user.decorator';
 import { UserRole } from '../../users/dto/user.dto';
 
 @ApiTags('orders')
@@ -36,9 +37,9 @@ export class OrderController {
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Order created successfully' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data or insufficient credit' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Customer or product not found' })
-  async create(@Body() createOrderDto: CreateOrderDto) {
+  async create(@Body() createOrderDto: CreateOrderDto, @CurrentUser() user?: any) {
     try {
-      const order = await this.orderService.create(createOrderDto);
+      const order = await this.orderService.create(createOrderDto, user?.id);
       return order; // Return data directly for test compatibility
     } catch (error) {
       throw error;
@@ -94,9 +95,9 @@ export class OrderController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Order status updated successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Order not found' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid status transition' })
-  async updateStatus(@Param('id') id: string, @Body() updateStatusDto: UpdateOrderStatusDto) {
+  async updateStatus(@Param('id') id: string, @Body() updateStatusDto: UpdateOrderStatusDto, @CurrentUser() user?: any) {
     try {
-      const order = await this.orderService.updateStatus(id, updateStatusDto);
+      const order = await this.orderService.updateStatus(id, updateStatusDto, user?.id);
       return order; // Return data directly for test compatibility
     } catch (error) {
       throw error;

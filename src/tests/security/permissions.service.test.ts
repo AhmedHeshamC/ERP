@@ -1,17 +1,14 @@
 import { expect } from 'chai';
 import { describe, it, beforeEach } from 'mocha';
 import { PermissionsService } from '../../shared/security/permissions.service';
-import { Reflector } from '@nestjs/core';
-import { UserRole } from '../../modules/users/dto/user.dto';
+import { UserRole } from '../../shared/security/permissions.service';
 import { ForbiddenException } from '@nestjs/common';
 
 describe('PermissionsService', () => {
   let permissionsService: PermissionsService;
-  let reflector: Reflector;
 
   beforeEach(() => {
-    reflector = new Reflector();
-    permissionsService = new PermissionsService(reflector);
+    permissionsService = new PermissionsService();
   });
 
   describe('canAccess', () => {
@@ -113,7 +110,7 @@ describe('PermissionsService', () => {
           expect.fail('Should have thrown ForbiddenException');
         } catch (error) {
           expect(error).to.be.instanceOf(ForbiddenException);
-          expect(error.message).to.include('can only access own');
+          expect((error as Error).message).to.include('can only access own');
         }
       });
 
@@ -163,7 +160,7 @@ describe('PermissionsService', () => {
           expect.fail('Should have thrown ForbiddenException');
         } catch (error) {
           expect(error).to.be.instanceOf(ForbiddenException);
-          expect(error.message).to.include('Cannot cancel approved orders');
+          expect((error as Error).message).to.include('Cannot cancel approved orders');
         }
       });
 
@@ -191,7 +188,7 @@ describe('PermissionsService', () => {
       const permissions = permissionsService.getUserPermissions(adminUser);
 
       expect(permissions).to.have.property('users');
-      expect(permissions.users).to.include('create', 'read', 'update', 'delete', 'manage');
+      expect(permissions.users).to.include.members(['create', 'read', 'update', 'delete', 'manage']);
     });
 
     it('should return limited permissions for user', () => {

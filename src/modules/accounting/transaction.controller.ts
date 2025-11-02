@@ -19,6 +19,7 @@ import { AuthenticatedUser } from '../../shared/security/interfaces/jwt.interfac
 import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/security/guards/roles.guard';
 import { Roles } from '../../shared/security/decorators/roles.decorator';
+import { UserRole } from '../users/dto/user.dto';
 
 @ApiTags('Transactions')
 @Controller('transactions')
@@ -27,7 +28,7 @@ export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
   @Post()
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Create a new transaction with double-entry bookkeeping' })
   @ApiResponse({ status: 201, description: 'Transaction created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid transaction data or double-entry rules violated' })
@@ -70,7 +71,7 @@ export class TransactionController {
   }
 
   @Patch(':id/post')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Post a pending transaction' })
   @ApiResponse({ status: 200, description: 'Transaction posted successfully' })
   @ApiResponse({ status: 400, description: 'Transaction is already posted or not found' })
@@ -80,7 +81,7 @@ export class TransactionController {
   }
 
   @Patch(':id/cancel')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Cancel a pending transaction' })
   @ApiResponse({ status: 200, description: 'Transaction cancelled successfully' })
   @ApiResponse({ status: 400, description: 'Cannot cancel posted transaction' })

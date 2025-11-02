@@ -271,12 +271,21 @@ export class ScheduledReportsController {
   })
   async getScheduledReportStats(): Promise<any> {
     this.logger.log('Fetching scheduled reports dashboard statistics');
-    // This would be implemented to return comprehensive statistics
-    // For now, return a placeholder
-    return {
-      message: 'Dashboard statistics endpoint ready for implementation',
-      timestamp: new Date().toISOString(),
-    };
+
+    try {
+      // Get comprehensive statistics from the scheduled reports service
+      const stats = await this.scheduledReportsService.getDashboardStatistics();
+
+      return {
+        success: true,
+        message: 'Dashboard statistics retrieved successfully',
+        data: stats,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to fetch dashboard statistics: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
   }
 
   /**

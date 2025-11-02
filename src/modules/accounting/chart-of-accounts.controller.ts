@@ -21,6 +21,7 @@ import { AccountType } from './enums/accounting.enum';
 import { JwtAuthGuard } from '../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/security/guards/roles.guard';
 import { Roles } from '../../shared/security/decorators/roles.decorator';
+import { UserRole } from '../users/dto/user.dto';
 
 @ApiTags('Chart of Accounts')
 @Controller('chart-of-accounts')
@@ -29,7 +30,7 @@ export class ChartOfAccountsController {
   constructor(private readonly chartOfAccountsService: ChartOfAccountsService) {}
 
   @Post()
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Create a new chart of accounts account' })
   @ApiResponse({ status: 201, description: 'Account created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input' })
@@ -79,7 +80,7 @@ export class ChartOfAccountsController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Update chart of accounts account' })
   @ApiResponse({ status: 200, description: 'Account updated successfully' })
   @ApiResponse({ status: 404, description: 'Account not found' })
@@ -90,7 +91,7 @@ export class ChartOfAccountsController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Delete chart of accounts account (soft delete)' })
   @ApiResponse({ status: 200, description: 'Account deleted successfully' })
   @ApiResponse({ status: 404, description: 'Account not found' })

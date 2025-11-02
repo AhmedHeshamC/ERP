@@ -19,7 +19,7 @@ describe('TokenInvalidationService', () => {
     service = new TokenInvalidationService(configService);
 
     // Override Redis methods with mock implementation
-    (service as any).setRedisValue = async (key: string, value: string, ttl: number) => {
+    (service as any).setRedisValue = async (key: string, value: string, _ttl: number) => {
       mockRedis.set(key, value);
       // In real Redis, this would expire after ttl seconds
       // For testing, we'll just store the value
@@ -66,7 +66,7 @@ describe('TokenInvalidationService', () => {
         await service.invalidateToken('test.token', 'user-123');
         expect.fail('Should have thrown error');
       } catch (error) {
-        expect(error.message).to.equal('Token invalidation failed');
+        expect((error as Error).message).to.equal('Token invalidation failed');
       }
     });
   });

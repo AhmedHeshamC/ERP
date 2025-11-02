@@ -14,14 +14,15 @@ export enum OrderStatus {
 
 export enum InvoiceStatus {
   DRAFT = 'DRAFT',
+  CONFIRMED = 'CONFIRMED',
   SENT = 'SENT',
+  PARTIALLY_PAID = 'PARTIALLY_PAID',
   PAID = 'PAID',
   OVERDUE = 'OVERDUE',
   CANCELLED = 'CANCELLED',
-  CONFIRMED = 'CONFIRMED',
+  VOID = 'VOID',
   SHIPPED = 'SHIPPED',
   DELIVERED = 'DELIVERED',
-  VOID = 'VOID',
 }
 
 export enum PaymentStatus {

@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsBoolean, IsDecimal, MaxLength } from 'class-validator';
+import { IsPositiveDecimal } from '../../../shared/common/decorators/is-positive-decimal.decorator';
 import { AccountType } from '../enums/accounting.enum';
 
 export class CreateChartOfAccountsDto {
@@ -34,4 +35,14 @@ export class CreateChartOfAccountsDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsDecimal()
+  @IsPositiveDecimal()
+  openingBalance?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  openingBalanceCurrency?: string;
 }

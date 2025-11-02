@@ -19,6 +19,7 @@ import { CreatePayrollDto } from '../dto/create-payroll.dto';
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
 import { Roles } from '../../../shared/security/decorators/roles.decorator';
+import { UserRole } from '../../users/dto/user.dto';
 import { AuthenticatedRequest } from '../../../shared/security/interfaces/jwt.interface';
 import { PayrollRecord } from '@prisma/client';
 
@@ -80,7 +81,7 @@ export class PayrollController {
    * OWASP A03: Injection - Input validation and sanitization
    */
   @Post('calculate')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   async calculatePayroll(
     @Body() createPayrollDto: CreatePayrollDto,
     @Request() req: AuthenticatedRequest,
@@ -129,7 +130,7 @@ export class PayrollController {
    * OWASP A01: Broken Access Control - Resource-based access
    */
   @Get(':id')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.EMPLOYEE)
   async getPayrollById(@Param('id') id: string) {
     try {
       this.logger.log(`Fetching payroll record!: ${id}`);
@@ -147,7 +148,7 @@ export class PayrollController {
    * OWASP A01: Broken Access Control - Resource-based access
    */
   @Get('employee/:employeeId')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.EMPLOYEE)
   async getPayrollByEmployee(@Param('employeeId') employeeId: string) {
     try {
       this.logger.log(`Fetching payroll records for employee!: ${employeeId}`);
@@ -165,7 +166,7 @@ export class PayrollController {
    * OWASP A01: Broken Access Control - Role-based filtering
    */
   @Get()
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER', 'EMPLOYEE')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.EMPLOYEE)
   async getPayroll(@Query() filters: PayrollFilters): Promise<{ payrollRecords: PayrollRecord[]; total: number }> {
     try {
       this.logger.log(`Fetching payroll records with filters!: ${JSON.stringify(filters)}`);
@@ -184,7 +185,7 @@ export class PayrollController {
    * OWASP A03: Injection - Input validation and sanitization
    */
   @Put(':id/approve')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   async approvePayroll(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
@@ -221,7 +222,7 @@ export class PayrollController {
    * OWASP A01: Broken Access Control - Role-based access
    */
   @Post(':id/process')
-  @Roles('HR_ADMIN', 'ADMIN')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN)
   async processPayment(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
@@ -258,7 +259,7 @@ export class PayrollController {
    * OWASP A01: Broken Access Control - Role-based access
    */
   @Post('reports')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   async generatePayrollReport(@Body() reportParams: PayrollReportParams) {
     try {
       this.logger.log(`Generating payroll report!: ${JSON.stringify(reportParams)}`);
@@ -276,24 +277,69 @@ export class PayrollController {
    * OWASP A01: Broken Access Control - Role-based access
    */
   @Get('summary')
-  @Roles('HR_ADMIN', 'ADMIN', 'MANAGER')
+  @Roles(UserRole.HR_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   async getPayrollSummary(@Query() filters: PayrollFilters): Promise<PayrollSummary> {
     try {
       this.logger.log('Fetching payroll summary statistics');
-      const summary = await this.payrollService.findAll({
+
+      // Get all payroll records for calculations (no take limit for summary)
+      const { payrollRecords, total } = await this.payrollService.findAll({
         ...filters,
-        take: 1, // Just get the total count
+        take: 1000, // Increased limit for comprehensive summary
       });
 
+      // Calculate total payroll amount (sum of gross pay)
+      const totalPayrollAmount = payrollRecords.reduce((sum, record) => sum + Number(record.grossPay), 0);
+
+      // Calculate average salary (average of gross pay)
+      const averageSalary = payrollRecords.length > 0 ? totalPayrollAmount / payrollRecords.length : 0;
+
+      // Calculate status breakdown
+      const statusMap = new Map<string, { count: number; totalAmount: number }>();
+      payrollRecords.forEach(record => {
+        const status = record.paymentStatus;
+        const current = statusMap.get(status) || { count: 0, totalAmount: 0 };
+        statusMap.set(status, {
+          count: current.count + 1,
+          totalAmount: current.totalAmount + Number(record.grossPay)
+        });
+      });
+
+      const statusBreakdown = Array.from(statusMap.entries()).map(([status, data]) => ({
+        status,
+        count: data.count,
+        totalAmount: data.totalAmount
+      }));
+
+      // Calculate monthly trend
+      const monthlyMap = new Map<string, { amount: number; count: number }>();
+      payrollRecords.forEach(record => {
+        // Extract month from payPeriod (format: YYYY-MM)
+        const month = record.payPeriod;
+        const current = monthlyMap.get(month) || { amount: 0, count: 0 };
+        monthlyMap.set(month, {
+          amount: current.amount + Number(record.grossPay),
+          count: current.count + 1
+        });
+      });
+
+      const monthlyTrend = Array.from(monthlyMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b)) // Sort by month chronologically
+        .map(([month, data]) => ({
+          month,
+          amount: data.amount,
+          count: data.count
+        }));
+
       const payrollSummary: PayrollSummary = {
-        totalPayrollRecords: summary.total,
-        totalPayrollAmount: 0, // TODO: Calculate actual total from payroll records
-        averageSalary: 0, // TODO: Calculate actual average from payroll records
-        statusBreakdown: [], // TODO: Calculate actual status breakdown
-        monthlyTrend: [], // TODO: Calculate actual monthly trend
+        totalPayrollRecords: total,
+        totalPayrollAmount,
+        averageSalary,
+        statusBreakdown,
+        monthlyTrend,
       };
 
-      this.logger.log('Successfully retrieved payroll summary');
+      this.logger.log(`Successfully retrieved payroll summary: ${total} records, total amount: $${totalPayrollAmount.toFixed(2)}`);
       return payrollSummary;
     } catch (error) {
       this.logger.error(`Failed to fetch payroll summary: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);

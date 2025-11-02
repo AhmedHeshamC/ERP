@@ -40,15 +40,18 @@ export class EnhancedValidationPipe implements PipeTransform {
     private readonly options: ValidationPipeOptions = {},
   ) {}
 
-  async transform(value: any, metadata: ArgumentMetadata): Promise<any> {
+  async transform(value: any, metadata: ArgumentMetadata, context?: any): Promise<any> {
     try {
       // Skip validation if not needed
       if (this.shouldSkipValidation(metadata)) {
         return value;
       }
 
-      // Create validation context
-      const context = this.createValidationContext();
+      // Extract correlation ID from request
+      const correlationId = this.extractCorrelationId(context);
+
+      // Create validation context with correlation ID
+      const validationContext = this.createValidationContext(correlationId, context);
 
       // Perform basic type validation
       if (!this.validateType(value, metadata)) {
@@ -57,9 +60,9 @@ export class EnhancedValidationPipe implements PipeTransform {
 
       // Perform security validation
       if (!this.options.skipSecurityValidation) {
-        const securityResult = await this.performSecurityValidation(value, context);
+        const securityResult = await this.performSecurityValidation(value, validationContext);
         if (!securityResult.isValid) {
-          throw this.createSecurityValidationException(securityResult);
+          throw this.createSecurityValidationException(securityResult, correlationId);
         }
       }
 
@@ -70,14 +73,14 @@ export class EnhancedValidationPipe implements PipeTransform {
 
       // Perform whitelist validation if enabled
       if (this.options.whitelist && metadata.metatype) {
-        value = this.applyWhitelist(value, metadata);
+        value = this.applyWhitelist(value, metadata, correlationId);
       }
 
       // Perform custom validation if DTO has validate method
       if (value && typeof value.validate === 'function') {
         const validationResult = await value.validate();
         if (!validationResult.isValid) {
-          throw this.createCustomValidationException(validationResult);
+          throw this.createCustomValidationException(validationResult, correlationId);
         }
       }
 
@@ -88,9 +91,11 @@ export class EnhancedValidationPipe implements PipeTransform {
       }
 
       // Handle unexpected errors
+      const correlationId = this.extractCorrelationId(context);
       throw this.createValidationException(
         'Validation failed due to system error',
-        error instanceof Error ? error : undefined
+        error instanceof Error ? error : undefined,
+        correlationId
       );
     }
   }
@@ -188,7 +193,7 @@ export class EnhancedValidationPipe implements PipeTransform {
   /**
    * Apply whitelist to remove non-allowed properties
    */
-  private applyWhitelist(value: any, metadata: ArgumentMetadata): any {
+  private applyWhitelist(value: any, metadata: ArgumentMetadata, correlationId?: string): any {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return value;
     }
@@ -215,7 +220,7 @@ export class EnhancedValidationPipe implements PipeTransform {
       );
 
       if (nonWhitelisted.length > 0) {
-        throw this.createWhitelistException(nonWhitelisted);
+        throw this.createWhitelistException(nonWhitelisted, correlationId);
       }
     }
 
@@ -240,11 +245,48 @@ export class EnhancedValidationPipe implements PipeTransform {
   }
 
   /**
-   * Create validation context
+   * Extract correlation ID from request context
    */
-  private createValidationContext(): SecurityValidationContext {
+  private extractCorrelationId(context?: any): string {
+    if (!context) {
+      return this.generateCorrelationId();
+    }
+
+    // Try to extract from various possible request contexts
+    const request = context.getRequest?.() || context.req || context;
+
+    if (request && typeof request === 'object') {
+      return (request as any).correlationId ||
+             request.headers?.['x-correlation-id'] ||
+             request.headers?.['x-request-id'] ||
+             this.generateCorrelationId();
+    }
+
+    return this.generateCorrelationId();
+  }
+
+  /**
+   * Generate a new correlation ID
+   */
+  private generateCorrelationId(): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 9);
+    return `val_${timestamp}_${random}`;
+  }
+
+  /**
+   * Create validation context with correlation ID
+   */
+  private createValidationContext(correlationId: string, context?: any): SecurityValidationContext {
+    const request = context?.getRequest?.() || context?.req || context;
+
     return {
       timestamp: new Date(),
+      requestId: correlationId,
+      ip: request?.ip,
+      userAgent: request?.headers?.['user-agent'],
+      method: request?.method,
+      endpoint: request?.url,
     };
   }
 
@@ -253,7 +295,8 @@ export class EnhancedValidationPipe implements PipeTransform {
    */
   private createValidationException(
     message: string,
-    originalError?: Error
+    originalError?: Error,
+    correlationId?: string
   ): HttpException {
     const response = ApiResponseBuilder.error(
       message,
@@ -262,7 +305,8 @@ export class EnhancedValidationPipe implements PipeTransform {
         message: originalError.message,
         timestamp: new Date().toISOString(),
       }] : undefined,
-      'VALIDATION_ERROR'
+      'VALIDATION_ERROR',
+      { requestId: correlationId }
     );
 
     return new HttpException(response, HttpStatus.BAD_REQUEST);
@@ -271,7 +315,7 @@ export class EnhancedValidationPipe implements PipeTransform {
   /**
    * Create security validation exception
    */
-  private createSecurityValidationException(securityResult: any): HttpException {
+  private createSecurityValidationException(securityResult: any, correlationId?: string): HttpException {
     const response = ApiResponseBuilder.error(
       'Security validation failed',
       securityResult.errors.map((error: any) => ({
@@ -280,7 +324,8 @@ export class EnhancedValidationPipe implements PipeTransform {
         field: error.field,
         timestamp: new Date().toISOString(),
       })),
-      'SECURITY_VALIDATION_ERROR'
+      'SECURITY_VALIDATION_ERROR',
+      { requestId: correlationId }
     );
 
     // Use appropriate status code based on security level
@@ -292,13 +337,15 @@ export class EnhancedValidationPipe implements PipeTransform {
   /**
    * Create custom validation exception
    */
-  private createCustomValidationException(validationResult: any): HttpException {
+  private createCustomValidationException(validationResult: any, correlationId?: string): HttpException {
     const response = ApiResponseBuilder.validationError(
       validationResult.errors || [{
         code: 'CUSTOM_VALIDATION_ERROR',
         message: validationResult.message || 'Custom validation failed',
         timestamp: new Date().toISOString(),
-      }]
+      }],
+      'Custom validation failed',
+      { requestId: correlationId }
     );
 
     return new HttpException(response, HttpStatus.BAD_REQUEST);
@@ -307,7 +354,7 @@ export class EnhancedValidationPipe implements PipeTransform {
   /**
    * Create whitelist exception
    */
-  private createWhitelistException(nonWhitelistedProperties: string[]): HttpException {
+  private createWhitelistException(nonWhitelistedProperties: string[], correlationId?: string): HttpException {
     const response = ApiResponseBuilder.error(
       `Properties not allowed: ${nonWhitelistedProperties.join(', ')}`,
       nonWhitelistedProperties.map(prop => ({
@@ -316,7 +363,8 @@ export class EnhancedValidationPipe implements PipeTransform {
         field: prop,
         timestamp: new Date().toISOString(),
       })),
-      'WHITELIST_VIOLATION'
+      'WHITELIST_VIOLATION',
+      { requestId: correlationId }
     );
 
     return new HttpException(response, HttpStatus.BAD_REQUEST);

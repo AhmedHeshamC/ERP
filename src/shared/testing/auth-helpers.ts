@@ -97,6 +97,48 @@ export class AuthHelpers {
       lastName: 'User',
       username: 'inventory-test',
     },
+    [UserRole.FINANCE]: {
+      email: 'finance-test@test.com',
+      password: 'FinancePassword123!',
+      firstName: 'Finance',
+      lastName: 'User',
+      username: 'finance-test',
+    },
+    [UserRole.VIEWER]: {
+      email: 'viewer-test@test.com',
+      password: 'ViewerPassword123!',
+      firstName: 'Viewer',
+      lastName: 'User',
+      username: 'viewer-test',
+    },
+    [UserRole.PURCHASING]: {
+      email: 'purchasing-test@test.com',
+      password: 'PurchasingPassword123!',
+      firstName: 'Purchasing',
+      lastName: 'User',
+      username: 'purchasing-test',
+    },
+    [UserRole.SALES]: {
+      email: 'sales-test@test.com',
+      password: 'SalesPassword123!',
+      firstName: 'Sales',
+      lastName: 'User',
+      username: 'sales-test',
+    },
+    [UserRole.HR_ADMIN]: {
+      email: 'hradmin-test@test.com',
+      password: 'HrAdminPassword123!',
+      firstName: 'HR Admin',
+      lastName: 'User',
+      username: 'hradmin-test',
+    },
+    [UserRole.EMPLOYEE]: {
+      email: 'employee-test@test.com',
+      password: 'EmployeePassword123!',
+      firstName: 'Employee',
+      lastName: 'User',
+      username: 'employee-test',
+    },
   };
 
   /**
