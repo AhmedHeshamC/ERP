@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { SecurityService } from '../../../shared/security/security.service';
-// import { CacheService } from '../../../shared/cache/cache.service'; // TODO: Enable in Phase 4
+import { CacheService } from '../../../shared/cache/cache.service';
 import { Audit } from '../../../shared/audit/decorators/audit.decorator';
 import {
   CreateProductDto,
@@ -20,7 +20,7 @@ export class ProductService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly securityService: SecurityService,
-    // private readonly cacheService: CacheService, // TODO: Enable in Phase 4
+    private readonly cacheService: CacheService,
   ) {}
 
   /**
@@ -123,16 +123,16 @@ export class ProductService {
       // Sanitize query parameters
       const sanitizedQuery = this.securityService.sanitizeInput(query);
 
-      // Generate cache key - TODO: Enable in Phase 4
-      // const cacheKey = `products:list:${JSON.stringify(sanitizedQuery)}`;
+      // Generate cache key
+      const cacheKey = `products:list:${JSON.stringify(sanitizedQuery)}`;
 
-      // Try to get from cache first - TODO: Enable in Phase 4
-      // const cached = await this.cacheService.get<ProductsQueryResponse>(cacheKey, { ttl: 300 }); // 5 minutes cache
+      // Try to get from cache first
+      const cached = await this.cacheService.get<ProductsQueryResponse>(cacheKey, { ttl: 300 }); // 5 minutes cache
 
-      // if (cached) {
-      //   this.logger.log(`Cache hit for products list: ${cached.products.length} products`);
-      //   return cached;
-      // }
+      if (cached) {
+        this.logger.log(`Cache hit for products list: ${cached.products.length} products`);
+        return cached;
+      }
 
       // Build where clause for filtering
       const where: any = {};
@@ -219,8 +219,8 @@ export class ProductService {
         totalPages,
       };
 
-      // Cache the result - TODO: Enable in Phase 4
-      // await this.cacheService.set(cacheKey, result, { ttl: 300 });
+      // Cache the result
+      await this.cacheService.set(cacheKey, result, { ttl: 300 });
 
       this.logger.log(`Found ${products.length} products (total: ${total})`);
 
@@ -360,6 +360,10 @@ export class ProductService {
       });
 
       this.logger.log(`Successfully updated product: ${updatedProduct.name} (ID: ${updatedProduct.id})`);
+
+      // Invalidate cache for this product and product lists
+      await this.invalidateSingleProductCache(id);
+
       return this.mapToProductResponse(updatedProduct);
 
     } catch (error) {
@@ -643,25 +647,36 @@ export class ProductService {
   /**
    * Invalidate all product-related cache entries
    */
-  // private async invalidateProductCache(): Promise<void> {
-  //   // TODO: Enable in Phase 4
-  //   // await this.cacheService.delPattern('products:list:*');
-  //   // await this.cacheService.delPattern('product:*');
-  // }
+  private async invalidateProductCache(): Promise<void> {
+    try {
+      await this.cacheService.delPattern('products:list:*');
+      await this.cacheService.delPattern('product:*');
+      this.logger.debug('Product cache invalidated successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to invalidate product cache: ${errorMessage}`);
+    }
+  }
 
   /**
-   * Invalidate cache for a specific product - TODO: Implement in Phase 4
+   * Invalidate cache for a specific product
    */
-  // private async invalidateSingleProductCache(productId: string): Promise<void> {
-  //   const cacheKeys = [
-  //     `product:${productId}`,
-  //   ];
+  private async invalidateSingleProductCache(productId: string): Promise<void> {
+    const cacheKeys = [
+      `product:${productId}`,
+    ];
 
-  //   for (const key of cacheKeys) {
-  //     await this.cacheService.del(key);
-  //   }
+    try {
+      for (const key of cacheKeys) {
+        await this.cacheService.del(key);
+      }
 
-  //   // Also invalidate product list cache
-  //   await this.invalidateProductCache();
-  // }
+      // Also invalidate product list cache
+      await this.invalidateProductCache();
+      this.logger.debug(`Cache invalidated for product: ${productId}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to invalidate cache for product ${productId}: ${errorMessage}`);
+    }
+  }
 }

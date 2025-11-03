@@ -1,0 +1,448 @@
+// P2P (Procure-to-Pay) Schema Models
+// These models extend the existing schema with P2P-specific entities
+
+model PurchaseRequisition {
+  id               String               @id @default(cuid())
+  requestNumber    String               @unique
+  title            String
+  description      String?
+  requestorId      String
+  departmentId     String
+  priority         String               @default("NORMAL")
+  type             String               @default("STOCK")
+  status           String               @default("DRAFT")
+  totalAmount      Decimal              @default(0) @db.Decimal(15, 2)
+  currency         String               @default("USD")
+  requiredDate     DateTime
+  justification    String?
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  createdBy        String?
+  updatedBy        String?
+
+  // Relations
+  items            RequisitionItem[]
+  approvals        RequisitionApproval[]
+  purchaseOrders   PurchaseOrder[]
+
+  @@index([requestNumber])
+  @@index([status])
+  @@index([requestorId])
+  @@index([departmentId])
+  @@index([priority])
+  @@index([requiredDate])
+  @@index([createdAt])
+  @@map("purchase_requisitions")
+}
+
+model RequisitionItem {
+  id                     String             @id @default(cuid())
+  requisitionId          String
+  productId              String?
+  description            String
+  quantity               Int
+  unitPrice              Decimal?           @db.Decimal(10, 2)
+  estimatedPrice         Decimal            @db.Decimal(10, 2)
+  currency               String             @default("USD")
+  uom                    String
+  specifications         String?
+  preferredSupplier      String?
+  suggestedSuppliers     String[]
+  category               String
+  requestedDeliveryDate  DateTime
+  notes                  String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  // Relations
+  requisition            PurchaseRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  @@index([requisitionId])
+  @@index([productId])
+  @@index([category])
+  @@map("requisition_items")
+}
+
+model RequisitionApproval {
+  id            String   @id @default(cuid())
+  requisitionId String
+  approverId    String
+  approverName  String
+  approverRole  String
+  status        String   @default("PENDING")
+  comments      String?
+  approvedAt    DateTime?
+  level         Int
+  isRequired    Boolean  @default(true)
+  isDelegated   Boolean  @default(false)
+  delegatedTo   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  requisition   PurchaseRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  @@index([requisitionId])
+  @@index([approverId])
+  @@index([status])
+  @@index([level])
+  @@map("requisition_approvals")
+}
+
+model SupplierQualification {
+  id               String    @id @default(cuid())
+  supplierId       String
+  category         String
+  status           String    @default("PENDING")
+  score            Decimal   @default(0) @db.Decimal(5, 2)
+  certifications   Json?
+  capabilities     Json?
+  performanceHistory Json?
+  validFrom        DateTime  @default(now())
+  validUntil       DateTime?
+  approvedBy       String?
+  approvedAt       DateTime?
+  lastReviewDate   DateTime  @default(now())
+  nextReviewDate   DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([supplierId])
+  @@index([category])
+  @@index([status])
+  @@index([validFrom])
+  @@index([validUntil])
+  @@map("supplier_qualifications")
+}
+
+model PurchaseOrderEnhanced {
+  id                    String                     @id @default(cuid())
+  orderNumber           String                     @unique
+  requisitionId         String?
+  supplierId            String
+  status                String                     @default("DRAFT")
+  orderDate             DateTime                   @default(now())
+  expectedDeliveryDate  DateTime?
+  actualDeliveryDate    DateTime?
+  subtotal              Decimal                    @default(0) @db.Decimal(15, 2)
+  taxAmount             Decimal                    @default(0) @db.Decimal(15, 2)
+  totalAmount           Decimal                    @default(0) @db.Decimal(15, 2)
+  currency              String                     @default("USD")
+  paymentTerms          String                     @default("NET30")
+  deliveryTerms         String?
+  shippingAddress       Json?
+  billingAddress        Json?
+  notes                 String?
+  sentAt                DateTime?
+  confirmedAt           DateTime?
+  approvedAt            DateTime?
+  closedAt              DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  createdBy             String?
+  updatedBy             String?
+
+  // Relations
+  requisition           PurchaseRequisition?      @relation(fields: [requisitionId], references: [id])
+  items                 PurchaseOrderItemEnhanced[]
+  approvals             PurchaseOrderApproval[]
+  receipts              PurchaseReceiptEnhanced[]
+  invoices              InvoiceEnhanced[]
+
+  @@index([orderNumber])
+  @@index([status])
+  @@index([supplierId])
+  @@index([orderDate])
+  @@index([expectedDeliveryDate])
+  @@map("purchase_orders_enhanced")
+}
+
+model PurchaseOrderItemEnhanced {
+  id                     String                     @id @default(cuid())
+  orderId                String
+  requisitionItemId      String?
+  productId              String?
+  supplierSku            String?
+  description            String
+  quantity               Int
+  unitPrice              Decimal                    @db.Decimal(10, 2)
+  totalPrice             Decimal                    @default(0) @db.Decimal(15, 2)
+  currency               String                     @default("USD")
+  discount               Decimal                    @default(0) @db.Decimal(10, 2)
+  taxRate                Decimal                    @default(0) @db.Decimal(5, 4)
+  taxAmount              Decimal                    @default(0) @db.Decimal(15, 2)
+  uom                    String
+  expectedDeliveryDate   DateTime
+  actualDeliveryDate     DateTime?
+  specifications         String?
+  qualityRequirements    String?
+  receivedQuantity       Int                        @default(0)
+  acceptedQuantity       Int                        @default(0)
+  rejectedQuantity       Int                        @default(0)
+  batchNumber            String?
+  expiryDate             DateTime?
+  lotNumber              String?
+  serialNumbers          String[]
+  storageLocation        String?
+  notes                  String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  // Relations
+  order                  PurchaseOrderEnhanced      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  receiptItems           ReceiptItem[]
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([expectedDeliveryDate])
+  @@map("purchase_order_items_enhanced")
+}
+
+model PurchaseOrderApproval {
+  id            String   @id @default(cuid())
+  orderId       String
+  approverId    String
+  approverName  String
+  approverRole  String
+  status        String   @default("PENDING")
+  comments      String?
+  approvedAt    DateTime?
+  level         Int
+  isRequired    Boolean  @default(true)
+  delegationChain String[]?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  order         PurchaseOrderEnhanced @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([approverId])
+  @@index([status])
+  @@index([level])
+  @@map("purchase_order_approvals")
+}
+
+model PurchaseReceiptEnhanced {
+  id                   String              @id @default(cuid())
+  receiptNumber        String              @unique
+  orderId              String
+  status               String              @default("DRAFT")
+  receiptDate          DateTime            @default(now())
+  receivedBy           String
+  deliveryNoteNumber   String?
+  carrier              String?
+  vehicleNumber        String?
+  notes                String?
+  completedAt          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  createdBy            String?
+  updatedBy            String?
+
+  // Relations
+  order                PurchaseOrderEnhanced @relation(fields: [orderId], references: [id])
+  items                ReceiptItem[]
+  inspections          QualityInspection[]
+
+  @@index([receiptNumber])
+  @@index([orderId])
+  @@index([status])
+  @@index([receiptDate])
+  @@map("purchase_receipts_enhanced")
+}
+
+model ReceiptItem {
+  id                String                @id @default(cuid())
+  receiptId         String
+  orderItemId       String
+  productId         String?
+  description       String
+  orderedQuantity   Int
+  receivedQuantity  Int
+  acceptedQuantity  Int                   @default(0)
+  rejectedQuantity  Int                   @default(0)
+  pendingQuantity   Int                   @default(0)
+  unitPrice         Decimal               @db.Decimal(10, 2)
+  batchNumber       String?
+  expiryDate        DateTime?
+  lotNumber         String?
+  serialNumbers     String[]
+  storageLocation   String?
+  condition         String                @default("EXCELLENT")
+  notes             String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  // Relations
+  receipt           PurchaseReceiptEnhanced @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  orderItem         PurchaseOrderItemEnhanced @relation(fields: [orderItemId], references: [id])
+  inspections       QualityInspection[]
+
+  @@index([receiptId])
+  @@index([orderItemId])
+  @@index([productId])
+  @@map("receipt_items")
+}
+
+model QualityInspection {
+  id                  String          @id @default(cuid())
+  receiptId           String
+  receiptItemId       String
+  inspectorId         String
+  inspectorName       String
+  inspectionDate      DateTime        @default(now())
+  status              String          @default("PENDING")
+  overallResult       String?
+  criteria            Json?
+  defects             Json?
+  recommendations     String[]
+  nextInspectionDate  DateTime?
+  documents           String[]
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // Relations
+  receipt             PurchaseReceiptEnhanced @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receiptItem         ReceiptItem     @relation(fields: [receiptItemId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+  @@index([receiptItemId])
+  @@index([inspectorId])
+  @@index([inspectionDate])
+  @@index([status])
+  @@map("quality_inspections")
+}
+
+model InvoiceEnhanced {
+  id                    String               @id @default(cuid())
+  invoiceNumber         String               @unique
+  orderId               String
+  supplierId            String
+  status                String               @default("DRAFT")
+  invoiceDate           DateTime             @default(now())
+  dueDate               DateTime
+  currency              String               @default("USD")
+  subtotal              Decimal              @default(0) @db.Decimal(15, 2)
+  taxAmount             Decimal              @default(0) @db.Decimal(15, 2)
+  totalAmount           Decimal              @default(0) @db.Decimal(15, 2)
+  discountAmount        Decimal?             @db.Decimal(15, 2)
+  paidAmount            Decimal              @default(0) @db.Decimal(15, 2)
+  balanceAmount         Decimal              @db.Decimal(15, 2)
+  matchingStatus        String               @default("PENDING")
+  receivedAt            DateTime?
+  approvedAt            DateTime?
+  paidAt                DateTime?
+  cancelledAt           DateTime?
+  notes                 String?
+  attachments           String[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  createdBy             String?
+  updatedBy             String?
+
+  // Relations
+  order                 PurchaseOrderEnhanced @relation(fields: [orderId], references: [id])
+  matchingDetails       MatchingDetail[]
+  approvals             InvoiceApproval[]
+  payments              Payment[]
+
+  @@index([invoiceNumber])
+  @@index([orderId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([invoiceDate])
+  @@index([dueDate])
+  @@map("invoices_enhanced")
+}
+
+model MatchingDetail {
+  id                String         @id @default(cuid())
+  invoiceId         String
+  orderId           String
+  receiptId         String?
+  type              String         @default("THREE_WAY")
+  status            String         @default("PENDING")
+  poAmount          Decimal        @db.Decimal(15, 2)
+  receiptAmount     Decimal        @db.Decimal(15, 2)
+  invoiceAmount     Decimal        @db.Decimal(15, 2)
+  varianceAmount    Decimal        @db.Decimal(15, 2)
+  variancePercentage Decimal        @db.Decimal(5, 2)
+  tolerance         Decimal        @db.Decimal(5, 2)
+  issues            Json?
+  resolvedAt        DateTime?
+  resolvedBy        String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  // Relations
+  invoice           InvoiceEnhanced @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([orderId])
+  @@index([status])
+  @@map("matching_details")
+}
+
+model InvoiceApproval {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  approverId    String
+  approverName  String
+  approverRole  String
+  status        String   @default("PENDING")
+  comments      String?
+  approvedAt    DateTime?
+  level         Int
+  isRequired    Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  invoice       InvoiceEnhanced @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([approverId])
+  @@index([status])
+  @@index([level])
+  @@map("invoice_approvals")
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  paymentNumber     String   @unique
+  invoiceId         String
+  supplierId        String
+  status            String   @default("PENDING")
+  amount            Decimal  @db.Decimal(15, 2)
+  currency          String   @default("USD")
+  paymentDate       DateTime
+  scheduledDate     DateTime?
+  paymentMethod     String?
+  referenceNumber   String?
+  bankAccount       String?
+  approvalRequired  Boolean  @default(false)
+  approvedBy        String?
+  approvedAt        DateTime?
+  processedBy       String?
+  processedAt       DateTime?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  invoice           InvoiceEnhanced @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([paymentNumber])
+  @@index([invoiceId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([scheduledDate])
+  @@map("payments")
+}

@@ -12,6 +12,19 @@ export interface PerformanceMetrics {
   ip?: string;
   memoryUsage?: number;
   cpuUsage?: number;
+  // Enhanced features
+  isSlowRequest?: boolean;
+  databaseQueries?: number;
+  queryTime?: number;
+  hasError?: boolean;
+  errorMessage?: string;
+  cacheHit?: boolean;
+  cacheResponseTime?: number;
+  cacheInvalidation?: boolean;
+  invalidationTime?: number;
+  memoryAlert?: boolean;
+  correlationId?: string;
+  traceId?: string;
 }
 
 export interface EndpointStats {
@@ -51,6 +64,7 @@ export interface PerformanceAlert {
   threshold: number;
   timestamp: Date;
   resolved: boolean;
+  context?: any;
 }
 
 export interface PerformanceReport {
@@ -725,5 +739,47 @@ export class PerformanceService implements OnModuleInit, OnModuleDestroy {
    */
   getMostActiveEndpoints(limit: number = 10): EndpointStats[] {
     return this.getBusiestEndpoints(limit);
+  }
+
+  /**
+   * Get slow queries for analysis
+   */
+  getSlowQueries(limit: number = 10): PerformanceMetrics[] {
+    const slowQueries = this.metrics
+      .filter(m => m.responseTime > this.alertThresholds.responseTime)
+      .sort((a, b) => b.responseTime - a.responseTime)
+      .slice(0, limit);
+
+    return slowQueries;
+  }
+
+  /**
+   * Get performance alerts
+   */
+  getPerformanceAlerts(): PerformanceAlert[] {
+    return this.alerts.filter(alert => !alert.resolved);
+  }
+
+  /**
+   * Get all metrics including enhanced fields
+   */
+  getMetrics(): PerformanceMetrics[] {
+    return [...this.metrics];
+  }
+
+  /**
+   * Record enhanced metrics with additional context
+   */
+  recordEnhancedMetrics(metrics: Partial<PerformanceMetrics>): void {
+    const baseMetrics: PerformanceMetrics = {
+      endpoint: '',
+      method: 'GET',
+      responseTime: 0,
+      timestamp: new Date(),
+      statusCode: 200,
+      ...metrics,
+    };
+
+    this.recordMetrics(baseMetrics);
   }
 }
