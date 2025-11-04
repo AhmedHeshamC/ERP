@@ -1,5 +1,5 @@
-import { PrismaService } from '../../../database/prisma.service';
-import { IntegrationTestHelpers } from '../integration-setup';
+import { PrismaService } from '../../../../shared/database/prisma.service';
+import { IntegrationTestHelpers } from '../../integration-setup';
 
 /**
  * Base Data Factory Class

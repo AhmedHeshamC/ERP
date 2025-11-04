@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Put,
-  Delete,
   Query,
   Body,
   Param,
@@ -12,20 +11,40 @@ import {
   Logger
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
-import { AlertService } from './alert.service';
+import { AlertService, Alert } from './alert.service';
 import { JwtAuthGuard } from '../../security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../security/guards/roles.guard';
 import { Roles } from '../../security/decorators/roles.decorator';
 import {
   CreateAlertDto,
-  UpdateAlertDto,
   AlertQueryDto,
   AcknowledgeAlertDto,
   SuppressAlertDto,
   AlertStatisticsDto,
   AlertResponseDto,
-  AlertListResponseDto
+  AlertListResponseDto,
+  AlertSeverity,
+  AlertStatus,
+  AlertCategory
 } from './dto/alert.dto';
+
+// Helper functions to convert between Alert interface and DTOs
+function alertToResponseDto(alert: Alert): AlertResponseDto {
+  return {
+    ...alert,
+    severity: alert.severity as AlertSeverity,
+    status: alert.status as AlertStatus,
+    category: alert.category as AlertCategory,
+    threshold: alert.threshold ? {
+      ...alert.threshold,
+      severity: alert.threshold.severity as AlertSeverity,
+    } : undefined,
+  };
+}
+
+function alertsToResponseDto(alerts: Alert[]): AlertResponseDto[] {
+  return alerts.map(alert => alertToResponseDto(alert));
+}
 
 @ApiTags('Alerting')
 @Controller('monitoring/alerts')
@@ -55,7 +74,13 @@ export class AlertController {
       offset: query.offset ? parseInt(query.offset.toString()) : 0,
     };
 
-    return this.alertService.getAlerts(filters);
+    const result = this.alertService.getAlerts(filters);
+
+    return {
+      alerts: alertsToResponseDto(result.alerts),
+      total: result.total,
+      hasMore: result.hasMore,
+    };
   }
 
   @Get('active')
@@ -68,7 +93,8 @@ export class AlertController {
   })
   async getActiveAlerts(): Promise<AlertResponseDto[]> {
     this.logger.log('Getting active alerts');
-    return this.alertService.getActiveAlerts();
+    const alerts = this.alertService.getActiveAlerts();
+    return alertsToResponseDto(alerts);
   }
 
   @Get('statistics')
@@ -102,7 +128,7 @@ export class AlertController {
     const alerts = this.alertService.getAlerts();
     const alert = alerts.alerts.find(a => a.id === id);
 
-    return alert || null;
+    return alert ? alertToResponseDto(alert) : null;
   }
 
   @Post()
@@ -116,7 +142,8 @@ export class AlertController {
   async createAlert(@Body() createAlertDto: CreateAlertDto): Promise<AlertResponseDto> {
     this.logger.log(`Creating alert: ${createAlertDto.name}`);
 
-    return this.alertService.createAlert(createAlertDto);
+    const alert = await this.alertService.createAlert(createAlertDto);
+    return alertToResponseDto(alert);
   }
 
   @Put(':id/resolve')
@@ -134,7 +161,8 @@ export class AlertController {
   ): Promise<AlertResponseDto | null> {
     this.logger.log(`Resolving alert: ${id} by ${resolveDto.resolvedBy || 'unknown'}`);
 
-    return this.alertService.resolveAlert(id, resolveDto.resolvedBy, resolveDto.notes);
+    const alert = await this.alertService.resolveAlert(id, resolveDto.resolvedBy, resolveDto.notes);
+    return alert ? alertToResponseDto(alert) : null;
   }
 
   @Put(':id/acknowledge')
@@ -152,11 +180,12 @@ export class AlertController {
   ): Promise<AlertResponseDto | null> {
     this.logger.log(`Acknowledging alert: ${id} by ${acknowledgeDto.acknowledgedBy}`);
 
-    return this.alertService.acknowledgeAlert(
+    const alert = await this.alertService.acknowledgeAlert(
       id,
       acknowledgeDto.acknowledgedBy,
       acknowledgeDto.notes
     );
+    return alert ? alertToResponseDto(alert) : null;
   }
 
   @Put(':id/suppress')
@@ -174,11 +203,12 @@ export class AlertController {
   ): Promise<AlertResponseDto | null> {
     this.logger.log(`Suppressing alert: ${id} for ${suppressDto.duration} minutes`);
 
-    return this.alertService.suppressAlert(
+    const alert = await this.alertService.suppressAlert(
       id,
       suppressDto.duration,
       suppressDto.reason
     );
+    return alert ? alertToResponseDto(alert) : null;
   }
 
   @Post('check')

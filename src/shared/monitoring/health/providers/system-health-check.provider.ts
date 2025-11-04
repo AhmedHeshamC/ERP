@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { HealthCheck, SystemMetrics } from '../interfaces/health-check.interface';
 import { IHealthCheckProvider, IHealthMetricsCollector } from '../interfaces/health-check-provider.interface';
 import * as os from 'os';
@@ -11,7 +11,7 @@ import * as process from 'process';
  */
 @Injectable()
 export class SystemHealthCheckProvider implements IHealthCheckProvider {
-  constructor(private readonly metricsCollector: IHealthMetricsCollector) {}
+  constructor(@Inject('IHealthMetricsCollector') private readonly metricsCollector: IHealthMetricsCollector) {}
 
   async performCheck(): Promise<HealthCheck> {
     const startTime = Date.now();

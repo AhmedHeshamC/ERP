@@ -28,11 +28,11 @@ export enum AlertStatus {
 export class CreateAlertDto {
   @ApiProperty({ description: 'Alert name' })
   @IsString()
-  name: string;
+  name!: string;
 
   @ApiProperty({ description: 'Alert description' })
   @IsString()
-  description: string;
+  description!: string;
 
   @ApiPropertyOptional({ enum: AlertSeverity, description: 'Alert severity' })
   @IsOptional()
@@ -149,7 +149,7 @@ export class AlertQueryDto {
 export class AcknowledgeAlertDto {
   @ApiProperty({ description: 'User acknowledging the alert' })
   @IsString()
-  acknowledgedBy: string;
+  acknowledgedBy!: string;
 
   @ApiPropertyOptional({ description: 'Acknowledgment notes' })
   @IsOptional()
@@ -162,7 +162,7 @@ export class SuppressAlertDto {
   @IsNumber()
   @Min(1)
   @Max(10080) // Max 7 days
-  duration: number;
+  duration!: number;
 
   @ApiPropertyOptional({ description: 'Reason for suppression' })
   @IsOptional()
@@ -173,28 +173,28 @@ export class SuppressAlertDto {
 // Response DTOs
 export class AlertResponseDto {
   @ApiProperty({ description: 'Alert ID' })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Alert name' })
-  name: string;
+  name!: string;
 
   @ApiProperty({ description: 'Alert description' })
-  description: string;
+  description!: string;
 
   @ApiProperty({ enum: AlertSeverity, description: 'Alert severity' })
-  severity: AlertSeverity;
+  severity!: AlertSeverity;
 
   @ApiProperty({ enum: AlertStatus, description: 'Alert status' })
-  status: AlertStatus;
+  status!: AlertStatus;
 
   @ApiProperty({ enum: AlertCategory, description: 'Alert category' })
-  category: AlertCategory;
+  category!: AlertCategory;
 
   @ApiProperty({ description: 'Alert source' })
-  source: string;
+  source!: string;
 
   @ApiProperty({ description: 'Alert timestamp' })
-  timestamp: Date;
+  timestamp!: Date;
 
   @ApiPropertyOptional({ description: 'Alert resolution timestamp' })
   resolvedAt?: Date;
@@ -211,7 +211,7 @@ export class AlertResponseDto {
   };
 
   @ApiProperty({ description: 'Alert tags', type: [String] })
-  tags: string[];
+  tags!: string[];
 
   @ApiPropertyOptional({ description: 'Alert metadata' })
   metadata?: Record<string, any>;
@@ -231,49 +231,49 @@ export class AlertResponseDto {
 
 export class AlertListResponseDto {
   @ApiProperty({ description: 'Array of alerts', type: [AlertResponseDto] })
-  alerts: AlertResponseDto[];
+  alerts!: AlertResponseDto[];
 
   @ApiProperty({ description: 'Total number of alerts matching the filter' })
-  total: number;
+  total!: number;
 
   @ApiProperty({ description: 'Whether there are more alerts available' })
-  hasMore: boolean;
+  hasMore!: boolean;
 }
 
 export class AlertStatisticsDto {
   @ApiProperty({ description: 'Total number of alerts' })
-  total: number;
+  total!: number;
 
   @ApiProperty({ description: 'Number of active alerts' })
-  active: number;
+  active!: number;
 
   @ApiProperty({ description: 'Number of resolved alerts' })
-  resolved: number;
+  resolved!: number;
 
   @ApiProperty({ description: 'Number of suppressed alerts' })
-  suppressed: number;
+  suppressed!: number;
 
   @ApiProperty({ description: 'Alerts grouped by severity' })
-  bySeverity: Record<string, number>;
+  bySeverity!: Record<string, number>;
 
   @ApiProperty({ description: 'Alerts grouped by category' })
-  byCategory: Record<string, number>;
+  byCategory!: Record<string, number>;
 
   @ApiProperty({ description: 'Alerts grouped by source' })
-  bySource: Record<string, number>;
+  bySource!: Record<string, number>;
 
   @ApiProperty({ description: 'Recent alerts', type: [AlertResponseDto] })
-  recentAlerts: AlertResponseDto[];
+  recentAlerts!: AlertResponseDto[];
 
   @ApiProperty({ description: 'Top occurring alerts' })
-  topAlerts: Array<{
+  topAlerts!: Array<{
     name: string;
     count: number;
     lastOccurred: Date;
   }>;
 
   @ApiProperty({ description: 'Average resolution times by category' })
-  resolutionTimes: Array<{
+  resolutionTimes!: Array<{
     category: string;
     avgTime: number;
     count: number;
@@ -282,22 +282,22 @@ export class AlertStatisticsDto {
 
 export class NotificationChannelDto {
   @ApiProperty({ description: 'Channel ID' })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Channel name' })
-  name: string;
+  name!: string;
 
   @ApiProperty({ description: 'Channel type' })
-  type: 'EMAIL' | 'SMS' | 'WEBHOOK' | 'SLACK' | 'TEAMS' | 'PAGERDUTY';
+  type!: 'EMAIL' | 'SMS' | 'WEBHOOK' | 'SLACK' | 'TEAMS' | 'PAGERDUTY';
 
   @ApiProperty({ description: 'Channel configuration' })
-  config: Record<string, any>;
+  config!: Record<string, any>;
 
   @ApiProperty({ description: 'Whether the channel is enabled' })
-  enabled: boolean;
+  enabled!: boolean;
 
   @ApiProperty({ description: 'Channel filters' })
-  filters: {
+  filters!: {
     severities: string[];
     categories: string[];
     sources: string[];
@@ -306,19 +306,19 @@ export class NotificationChannelDto {
 
 export class AlertRuleDto {
   @ApiProperty({ description: 'Rule ID' })
-  id: string;
+  id!: string;
 
   @ApiProperty({ description: 'Rule name' })
-  name: string;
+  name!: string;
 
   @ApiProperty({ description: 'Rule description' })
-  description: string;
+  description!: string;
 
   @ApiProperty({ description: 'Whether the rule is enabled' })
-  enabled: boolean;
+  enabled!: boolean;
 
   @ApiProperty({ description: 'Rule thresholds' })
-  thresholds: Array<{
+  thresholds!: Array<{
     metric: string;
     operator: string;
     value: number;
@@ -326,7 +326,7 @@ export class AlertRuleDto {
   }>;
 
   @ApiProperty({ description: 'Rule conditions' })
-  conditions: Array<{
+  conditions!: Array<{
     metric: string;
     operator: string;
     value: any;
@@ -335,14 +335,14 @@ export class AlertRuleDto {
   }>;
 
   @ApiProperty({ description: 'Notification channels' })
-  notifications: NotificationChannelDto[];
+  notifications!: NotificationChannelDto[];
 
   @ApiProperty({ description: 'Cooldown period in minutes' })
-  cooldown: number;
+  cooldown!: number;
 
   @ApiProperty({ description: 'Suppression duration in minutes' })
-  suppressDuration: number;
+  suppressDuration!: number;
 
   @ApiProperty({ description: 'Rule tags', type: [String] })
-  tags: string[];
+  tags!: string[];
 }

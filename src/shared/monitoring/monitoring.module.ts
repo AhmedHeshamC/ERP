@@ -39,6 +39,10 @@ import { PrismaModule } from '../database/prisma.module';
     // Health infrastructure
     HealthStatusCalculator,
     DefaultHealthMetricsCollector,
+    {
+      provide: 'IHealthMetricsCollector',
+      useClass: DefaultHealthMetricsCollector,
+    },
 
     // Logging infrastructure
     EnhancedLoggerService,

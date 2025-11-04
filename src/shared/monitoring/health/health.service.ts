@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CacheService } from '../../cache/cache.service';
 import { ConfigService } from '@nestjs/config';
@@ -6,7 +6,7 @@ import { HealthCheckResult, HealthCheck } from './interfaces/health-check.interf
 import { IHealthCheckProvider, IHealthMetricsCollector } from './interfaces/health-check-provider.interface';
 import { DatabaseHealthCheckProvider } from './providers/database-health-check.provider';
 import { CacheHealthCheckProvider } from './providers/cache-health-check.provider';
-import { SystemHealthCheckProvider, DefaultHealthMetricsCollector } from './providers/system-health-check.provider';
+import { SystemHealthCheckProvider } from './providers/system-health-check.provider';
 import { HealthStatusCalculator } from './calculators/health-status.calculator';
 
 @Injectable()
@@ -23,8 +23,8 @@ export class HealthService implements OnModuleInit {
     private readonly prismaService: PrismaService,
     private readonly cacheService: CacheService,
     private readonly configService: ConfigService,
-    private readonly metricsCollector: IHealthMetricsCollector = new DefaultHealthMetricsCollector(),
-    private readonly statusCalculator: HealthStatusCalculator = new HealthStatusCalculator(),
+    @Inject('IHealthMetricsCollector') private readonly metricsCollector: IHealthMetricsCollector,
+    private readonly statusCalculator: HealthStatusCalculator,
   ) {
     // Initialize health check providers - following Open/Closed Principle
     this.healthCheckProviders = [

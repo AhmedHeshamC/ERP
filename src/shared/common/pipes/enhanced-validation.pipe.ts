@@ -4,6 +4,8 @@ import {
   ArgumentMetadata,
   HttpException,
   HttpStatus,
+  Inject,
+  Optional,
 } from '@nestjs/common';
 import { SecurityValidationService, InputValidationRules, SecurityValidationContext } from '../../security/services/security-validation.service';
 import { ApiResponseBuilder } from '../interfaces/api-response.interface';
@@ -37,7 +39,7 @@ export interface ValidationPipeOptions {
 export class EnhancedValidationPipe implements PipeTransform {
   constructor(
     private readonly securityValidationService: SecurityValidationService,
-    private readonly options: ValidationPipeOptions = {},
+    @Optional() @Inject('ValidationPipeOptions') private readonly options: ValidationPipeOptions = {},
   ) {}
 
   async transform(value: any, metadata: ArgumentMetadata, context?: any): Promise<any> {

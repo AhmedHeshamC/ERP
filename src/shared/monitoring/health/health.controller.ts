@@ -11,7 +11,8 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
-import { HealthService, HealthCheckResult } from './health.service';
+import { HealthService } from './health.service';
+import { HealthCheckResult } from './interfaces/health-check.interface';
 
 @ApiTags('Health Monitoring')
 @Controller('health')
@@ -169,7 +170,7 @@ export class HealthController {
         checks: [{
           name: 'readiness_check',
           ready: false,
-          message: `Readiness check failed: ${error.message}`,
+          message: `Readiness check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         }],
       };
     }

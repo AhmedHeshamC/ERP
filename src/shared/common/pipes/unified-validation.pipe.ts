@@ -4,6 +4,8 @@ import {
   ArgumentMetadata,
   HttpException,
   HttpStatus,
+  Inject,
+  Optional,
 } from '@nestjs/common';
 import { SecurityValidationService, InputValidationRules, SecurityValidationContext } from '../../security/services/security-validation.service';
 import { ApiResponseBuilder } from '../interfaces/api-response.interface';
@@ -50,7 +52,7 @@ export class UnifiedValidationPipe implements PipeTransform<any> {
 
   constructor(
     private readonly securityValidationService: SecurityValidationService,
-    private readonly options: UnifiedValidationOptions = {},
+    @Optional() @Inject('UnifiedValidationOptions') private readonly options: UnifiedValidationOptions = {},
   ) {}
 
   async transform(value: any, metadata: ArgumentMetadata, context?: any): Promise<any> {

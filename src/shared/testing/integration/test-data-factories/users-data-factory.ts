@@ -1,7 +1,7 @@
 import { BaseDataFactory, ITestDataFactory } from './base-data-factory';
-import { UserRole, CreateUserDto, UpdateUserDto, UserPasswordChangeDto } from '../../../modules/users/dto/user.dto';
-import { PrismaService } from '../../../database/prisma.service';
-import { SecurityService } from '../../../security/security.service';
+import { UserRole, CreateUserDto, UpdateUserDto, UserPasswordChangeDto } from '../../../../modules/users/dto/user.dto';
+import { PrismaService } from '../../../../shared/database/prisma.service';
+import { SecurityService } from '../../../../shared/security/security.service';
 
 /**
  * Users Data Factory
@@ -44,7 +44,7 @@ export class UsersDataFactory extends BaseDataFactory implements ITestDataFactor
   /**
    * Clean up all test data created by this factory
    */
-  async cleanupTestData(): Promise<void> {
+  override async cleanupTestData(): Promise<void> {
     await super.cleanupTestData(['integration-test.com', '@test-users', 'user-factory']);
   }
 
@@ -73,7 +73,7 @@ export class UsersDataFactory extends BaseDataFactory implements ITestDataFactor
   /**
    * Create a test user with hashed password
    */
-  async createTestUser(role: string, overrides?: any): Promise<any> {
+  override async createTestUser(role: string, overrides?: any): Promise<any> {
     const timestamp = Date.now();
     const userData = {
       email: this.generateTestEmail(`${role}-${timestamp}`),
@@ -398,7 +398,7 @@ export class UsersDataFactory extends BaseDataFactory implements ITestDataFactor
     const roles = Object.values(UserRole);
 
     for (let i = 0; i < count; i++) {
-      const role = this.selectRandom(roles);
+      const role = this.selectRandom(roles) as string;
       const user = await this.createTestUser(role, {
         firstName: `Perf${i}`,
         lastName: 'User',

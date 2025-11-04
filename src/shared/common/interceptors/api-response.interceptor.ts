@@ -4,6 +4,8 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
+  Inject,
+  Optional,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -38,7 +40,9 @@ export interface ResponseInterceptorOptions {
 export class ApiResponseInterceptor implements NestInterceptor {
   private readonly logger = new Logger(ApiResponseInterceptor.name);
 
-  constructor(private readonly options: ResponseInterceptorOptions = {}) {}
+  constructor(
+    @Optional() @Inject('ResponseInterceptorOptions') private readonly options: ResponseInterceptorOptions = {}
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const startTime = Date.now();
