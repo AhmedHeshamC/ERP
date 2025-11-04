@@ -3,7 +3,7 @@
  * REST API endpoints for purchase requisition management
  */
 
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../shared/security/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../shared/security/guards/roles.guard';
@@ -12,8 +12,7 @@ import { PurchaseRequisitionService } from '../services/requisition.service';
 import {
   CreateRequisitionDto,
   UpdateRequisitionDto,
-  RequisitionQueryDto,
-  P2PProcessState
+  RequisitionQueryDto
 } from '../types/p2p.types';
 
 @ApiTags('purchase-requisitions')

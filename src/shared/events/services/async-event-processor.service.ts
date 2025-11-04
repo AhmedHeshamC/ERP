@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { JobService, JobProcessor } from '../../queue/job.service';
+import { JobService } from '../../queue/job.service';
 import { IEventBus } from '../interfaces/event-bus.interface';
 import { IEventMiddleware } from '../interfaces/event-handler.interface';
 import { IDomainEvent } from '../types/event.types';
@@ -304,6 +304,8 @@ export interface AsyncPublishOptions {
   timeout?: number;
   /** Schedule processing for specific time */
   scheduledAt?: Date;
+  /** Correlation ID for tracking */
+  correlationId?: string;
   /** Custom headers for job */
   headers?: Record<string, string>;
 }

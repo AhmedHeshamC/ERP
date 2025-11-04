@@ -8,57 +8,57 @@ import { IP2PAnalyticsService } from '../interfaces/p2p.service.interface';
 
 @Injectable()
 export class P2PAnalyticsService implements IP2PAnalyticsService {
-  async getProcurementMetrics(filters?: any): Promise<any> {
+  async getProcurementMetrics(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getSupplierMetrics(supplierId?: string, filters?: any): Promise<any> {
+  async getSupplierMetrics(_supplierId?: string, _filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getProcessMetrics(processType: string, filters?: any): Promise<any> {
+  async getProcessMetrics(_processType: string, _filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getSpendAnalysis(filters?: any): Promise<any> {
+  async getSpendAnalysis(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getPriceVarianceAnalysis(filters?: any): Promise<any> {
+  async getPriceVarianceAnalysis(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getCostSavingsOpportunities(filters?: any): Promise<any> {
+  async getCostSavingsOpportunities(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getProcurementCycleTime(filters?: any): Promise<any> {
+  async getProcurementCycleTime(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getApprovalEfficiencyMetrics(filters?: any): Promise<any> {
+  async getApprovalEfficiencyMetrics(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async getMatchingEfficiencyMetrics(filters?: any): Promise<any> {
+  async getMatchingEfficiencyMetrics(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async forecastSpend(category?: string, period?: number): Promise<any> {
+  async forecastSpend(_category?: string, _period?: number): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async predictSupplierPerformance(supplierId: string): Promise<any> {
+  async predictSupplierPerformance(_supplierId: string): Promise<any> {
     // Stub implementation
     return {};
   }

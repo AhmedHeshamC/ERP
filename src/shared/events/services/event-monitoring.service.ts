@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { IDomainEvent, IEventStatistics } from '../types/event.types';
-import { PerformanceService } from '../../monitoring/performance.service';
+import { IDomainEvent } from '../types/event.types';
 
 /**
  * Event Monitoring and Metrics Service
@@ -77,7 +76,7 @@ export class EventMonitoringService implements OnModuleInit, OnModuleDestroy {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private cleanupInterval: NodeJS.Timeout | null = null;
 
-  constructor(private readonly performanceService: PerformanceService) {}
+  constructor() {}
 
   async onModuleInit(): Promise<void> {
     this.logger.log('Initializing Event Monitoring service');

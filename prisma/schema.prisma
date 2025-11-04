@@ -1547,3 +1547,92 @@ model P2PPayment {
   @@index([scheduledDate])
   @@map("p2p_payments")
 }
+
+// Event Store Models for Phase 6 Event Bus System
+model Event {
+  id          String   @id @default(cuid())
+  aggregateId String
+  aggregateType String
+  eventType   String
+  eventData   Json
+  eventDataV2 Json?   // For event versioning
+  eventVersion Int    @default(1)
+  metadata    Json?
+  causationId String? // For event causation
+  correlationId String?
+  eventId     String   @unique
+  occurredAt  DateTime @default(now())
+  processedAt DateTime?
+  streamId    String?
+  stream      EventStream? @relation(fields: [streamId], references: [id])
+
+  @@index([aggregateId, aggregateType])
+  @@index([eventType])
+  @@index([occurredAt])
+  @@index([eventId])
+  @@index([streamId])
+  @@map("events")
+}
+
+model EventStream {
+  id          String   @id @default(cuid())
+  streamId    String   @unique
+  aggregateId String
+  aggregateType String
+  version     Int      @default(0)
+  events      Event[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([aggregateId, aggregateType])
+  @@index([streamId])
+  @@map("event_streams")
+}
+
+model EventSnapshot {
+  id          String   @id @default(cuid())
+  aggregateId String
+  aggregateType String
+  version     Int
+  data        Json
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([aggregateId, aggregateType])
+  @@index([version])
+  @@map("event_snapshots")
+}
+
+model DeadLetterEvent {
+  id             String   @id @default(cuid())
+  eventId        String   @unique
+  eventType      String
+  eventData      Json
+  aggregateId    String
+  aggregateType  String
+  errorType      String
+  errorMessage   String?
+  errorStack     String?
+  handlerName    String?
+  retryCount     Int      @default(0)
+  maxRetries     Int      @default(3)
+  retryAfter     DateTime?
+  lastRetryAt    DateTime?
+  failureContext Json?
+  metadata       Json?
+  severity       String   @default("low")
+  status         String   @default("pending")
+  removedAt      DateTime?
+  removalReason  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([eventType])
+  @@index([aggregateId, aggregateType])
+  @@index([severity])
+  @@index([status])
+  @@index([retryCount])
+  @@index([retryAfter])
+  @@index([createdAt])
+  @@map("dead_letter_events")
+}

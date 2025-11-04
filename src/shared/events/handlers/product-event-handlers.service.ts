@@ -183,31 +183,31 @@ export class ProductEventHandlersService {
 
   // Private helper methods
 
-  private async updateSearchIndex(productId: string, name?: string, sku?: string): Promise<void> {
+  private async updateSearchIndex(productId: string, _name?: string, _sku?: string): Promise<void> {
     this.logger.debug(`Updating search index for product: ${productId}`);
     // TODO: Update Elasticsearch or other search service
     // await this.searchService.updateProduct(productId, { name, sku });
   }
 
-  private async createInventoryRecord(productId: string, initialStock: number): Promise<void> {
+  private async createInventoryRecord(productId: string, _initialStock: number): Promise<void> {
     this.logger.debug(`Creating inventory record for product: ${productId}`);
     // TODO: Create inventory record
     // await this.inventoryService.createRecord(productId, initialStock);
   }
 
-  private async updateProductCatalog(productId: string, productData: Record<string, any>): Promise<void> {
+  private async updateProductCatalog(productId: string, _productData: Record<string, any>): Promise<void> {
     this.logger.debug(`Updating product catalog for product: ${productId}`);
     // TODO: Update product catalog
     // await this.catalogService.updateProduct(productId, productData);
   }
 
-  private async initializePricingRules(productId: string, basePrice: number): Promise<void> {
+  private async initializePricingRules(productId: string, _basePrice: number): Promise<void> {
     this.logger.debug(`Initializing pricing rules for product: ${productId}`);
     // TODO: Set up default pricing rules
     // await this.pricingService.initializeRules(productId, basePrice);
   }
 
-  private async notifySalesTeam(eventType: string, data: Record<string, any>): Promise<void> {
+  private async notifySalesTeam(eventType: string, _data: Record<string, any>): Promise<void> {
     this.logger.debug(`Notifying sales team about ${eventType}`);
     // TODO: Send notification to sales team
     // await this.notificationService.notifySalesTeam(eventType, data);
@@ -216,27 +216,27 @@ export class ProductEventHandlersService {
   private async createAuditLog(
     action: string,
     productId: string,
-    data: Record<string, any>
+    _data: Record<string, any>
   ): Promise<void> {
     this.logger.debug(`Creating audit log for action: ${action} on product: ${productId}`);
     // TODO: Create audit log entry
     // await this.auditService.log(action, 'Product', productId, data);
   }
 
-  private async handlePriceChange(productId: string, newPrice: number): Promise<void> {
+  private async handlePriceChange(productId: string, _newPrice: number): Promise<void> {
     this.logger.debug(`Handling price change for product: ${productId}`);
     // TODO: Handle price change logic
     // await this.pricingService.updatePrice(productId, newPrice);
     // await this.notifyPriceChange(productId, newPrice);
   }
 
-  private async updateInventoryLevel(productId: string, newStock: number): Promise<void> {
+  private async updateInventoryLevel(productId: string, _newStock: number): Promise<void> {
     this.logger.debug(`Updating inventory level for product: ${productId}`);
     // TODO: Update inventory level
     // await this.inventoryService.updateLevel(productId, newStock);
   }
 
-  private async notifyProductChanges(productId: string, changes: Record<string, any>): Promise<void> {
+  private async notifyProductChanges(productId: string, _changes: Record<string, any>): Promise<void> {
     this.logger.debug(`Notifying systems about product changes: ${productId}`);
     // TODO: Notify relevant systems about product changes
     // await this.notificationService.notifyProductChanges(productId, changes);
@@ -244,9 +244,9 @@ export class ProductEventHandlersService {
 
   private async updateInventorySystem(
     productId: string,
-    newStock: number,
-    adjustment: number,
-    reason: string
+    _newStock: number,
+    _adjustment: number,
+    _reason: string
   ): Promise<void> {
     this.logger.debug(`Updating inventory system for product: ${productId}`);
     // TODO: Update inventory system
@@ -260,13 +260,13 @@ export class ProductEventHandlersService {
     return 10; // Default threshold
   }
 
-  private async triggerLowStockAlert(productId: string, currentStock: number, previousStock: number): Promise<void> {
+  private async triggerLowStockAlert(productId: string, _currentStock: number, _previousStock: number): Promise<void> {
     this.logger.debug(`Triggering low stock alert for product: ${productId}`);
     // TODO: Send low stock alert
     // await this.alertService.sendLowStockAlert(productId, currentStock, previousStock);
   }
 
-  private async updateProductAvailability(productId: string, available: boolean): Promise<void> {
+  private async updateProductAvailability(productId: string, _available: boolean): Promise<void> {
     this.logger.debug(`Updating product availability for product: ${productId}`);
     // TODO: Update product availability status
     // await this.catalogService.updateAvailability(productId, available);
@@ -279,7 +279,7 @@ export class ProductEventHandlersService {
     // await this.notificationService.notifyStockOut(productId);
   }
 
-  private async notifyRestock(productId: string, newStock: number): Promise<void> {
+  private async notifyRestock(productId: string, _newStock: number): Promise<void> {
     this.logger.debug(`Notifying restock for product: ${productId}`);
     // TODO: Notify about restock
     // await this.notificationService.notifyRestock(productId, newStock);
@@ -287,8 +287,8 @@ export class ProductEventHandlersService {
 
   private async updateInventoryAnalytics(
     productId: string,
-    adjustment: number,
-    reason: string
+    _adjustment: number,
+    _reason: string
   ): Promise<void> {
     this.logger.debug(`Updating inventory analytics for product: ${productId}`);
     // TODO: Update analytics data

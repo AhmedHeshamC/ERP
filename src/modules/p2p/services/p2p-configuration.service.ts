@@ -10,7 +10,7 @@ import { IP2PConfigurationService } from '../interfaces/p2p.service.interface';
 export class P2PConfigurationService implements IP2PConfigurationService {
   async getConfiguration(key?: string): Promise<any> {
     // Stub implementation - would return actual configuration
-    const defaultConfig = {
+    const defaultConfig: Record<string, any> = {
       approvalRules: [
         {
           processType: 'REQUISITION',
@@ -28,28 +28,28 @@ export class P2PConfigurationService implements IP2PConfigurationService {
     return key ? defaultConfig[key] : defaultConfig;
   }
 
-  async updateConfiguration(key: string, value: any): Promise<void> {
+  async updateConfiguration(_key: string, _value: any): Promise<void> {
     // Stub implementation
   }
 
-  async resetConfiguration(key: string): Promise<void> {
+  async resetConfiguration(_key: string): Promise<void> {
     // Stub implementation
   }
 
-  async getApprovalRules(processType: string): Promise<any[]> {
+  async getApprovalRules(_processType: string): Promise<any[]> {
     // Stub implementation
     return [];
   }
 
-  async updateApprovalRule(ruleId: string, rule: any): Promise<void> {
+  async updateApprovalRule(_ruleId: string, _rule: any): Promise<void> {
     // Stub implementation
   }
 
-  async activateApprovalRule(ruleId: string): Promise<void> {
+  async activateApprovalRule(_ruleId: string): Promise<void> {
     // Stub implementation
   }
 
-  async deactivateApprovalRule(ruleId: string): Promise<void> {
+  async deactivateApprovalRule(_ruleId: string): Promise<void> {
     // Stub implementation
   }
 
@@ -58,21 +58,21 @@ export class P2PConfigurationService implements IP2PConfigurationService {
     return {};
   }
 
-  async updateIntegrationSettings(settings: any): Promise<void> {
+  async updateIntegrationSettings(_settings: any): Promise<void> {
     // Stub implementation
   }
 
-  async testIntegration(integrationType: string): Promise<{ success: boolean; message: string }> {
+  async testIntegration(_integrationType: string): Promise<{ success: boolean; message: string }> {
     // Stub implementation
     return { success: true, message: 'Integration test passed' };
   }
 
-  async getUserPreferences(userId: string): Promise<any> {
+  async getUserPreferences(_userId: string): Promise<any> {
     // Stub implementation
     return {};
   }
 
-  async updateUserPreferences(userId: string, preferences: any): Promise<void> {
+  async updateUserPreferences(_userId: string, _preferences: any): Promise<void> {
     // Stub implementation
   }
 }

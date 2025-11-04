@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { IDomainEvent, IEventFilter, IEventStatistics } from '../types/event.types';
+import { IDomainEvent } from '../types/event.types';
 
 /**
  * Dead Letter Queue Service
@@ -60,7 +60,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
 
     const dlqId = this.generateDLQId();
 
-    await this.prisma.deadLetterQueue.create({
+    await this.prisma.deadLetterEvent.create({
       data: {
         id: dlqId,
         eventId: event.id,
@@ -127,7 +127,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const failedEvents = await this.prisma.deadLetterQueue.findMany({
+    const failedEvents = await this.prisma.deadLetterEvent.findMany({
       where,
       orderBy: [
         { severity: 'desc' },
@@ -137,7 +137,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
       take: limit
     });
 
-    return failedEvents.map(event => this.mapToFailedEvent(event));
+    return failedEvents.map((event: any) => this.mapToFailedEvent(event));
   }
 
   /**
@@ -149,7 +149,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
   async retryFailedEvent(dlqId: string, options: RetryOptions = {}): Promise<boolean> {
     this.logger.debug(`Retrying failed event: ${dlqId}`);
 
-    const dlqRecord = await this.prisma.deadLetterQueue.findUnique({
+    const dlqRecord = await this.prisma.deadLetterEvent.findUnique({
       where: { id: dlqId }
     });
 
@@ -174,7 +174,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
     const newRetryCount = dlqRecord.retryCount + 1;
     const retryAfter = this.calculateRetryAfter(newRetryCount);
 
-    await this.prisma.deadLetterQueue.update({
+    await this.prisma.deadLetterEvent.update({
       where: { id: dlqId },
       data: {
         retryCount: newRetryCount,
@@ -244,7 +244,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`Removing failed event from DLQ: ${dlqId}`);
 
     try {
-      await this.prisma.deadLetterQueue.update({
+      await this.prisma.deadLetterEvent.update({
         where: { id: dlqId },
         data: {
           status: 'removed',
@@ -276,17 +276,17 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
       severityStats,
       eventTypeStats
     ] = await Promise.all([
-      this.prisma.deadLetterQueue.count(),
-      this.prisma.deadLetterQueue.count({ where: { status: 'pending' } }),
-      this.prisma.deadLetterQueue.count({ where: { status: 'retrying' } }),
-      this.prisma.deadLetterQueue.count({ where: { status: 'exhausted' } }),
-      this.prisma.deadLetterQueue.count({ where: { status: 'removed' } }),
-      this.prisma.deadLetterQueue.count({ where: { status: 'resolved' } }),
-      this.prisma.deadLetterQueue.groupBy({
+      this.prisma.deadLetterEvent.count(),
+      this.prisma.deadLetterEvent.count({ where: { status: 'pending' } }),
+      this.prisma.deadLetterEvent.count({ where: { status: 'retrying' } }),
+      this.prisma.deadLetterEvent.count({ where: { status: 'exhausted' } }),
+      this.prisma.deadLetterEvent.count({ where: { status: 'removed' } }),
+      this.prisma.deadLetterEvent.count({ where: { status: 'resolved' } }),
+      this.prisma.deadLetterEvent.groupBy({
         by: ['severity'],
         _count: { severity: true }
       }),
-      this.prisma.deadLetterQueue.groupBy({
+      this.prisma.deadLetterEvent.groupBy({
         by: ['eventType'],
         _count: { eventType: true },
         orderBy: { _count: { eventType: 'desc' } },
@@ -306,7 +306,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Get average retry count
-    const avgRetryCountResult = await this.prisma.deadLetterQueue.aggregate({
+    const avgRetryCountResult = await this.prisma.deadLetterEvent.aggregate({
       _avg: { retryCount: true }
     });
 
@@ -332,7 +332,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
   async processRetries(): Promise<number> {
     this.logger.debug('Processing DLQ retries');
 
-    const readyForRetry = await this.prisma.deadLetterQueue.findMany({
+    const readyForRetry = await this.prisma.deadLetterEvent.findMany({
       where: {
         status: 'retrying',
         retryAfter: { lte: new Date() }
@@ -366,7 +366,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
    * @param status New status
    */
   private async updateDLQStatus(dlqId: string, status: string): Promise<void> {
-    await this.prisma.deadLetterQueue.update({
+    await this.prisma.deadLetterEvent.update({
       where: { id: dlqId },
       data: { status }
     });
@@ -411,7 +411,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
    * @param context Failure context
    * @returns Severity level
    */
-  private determineSeverity(error: Error, context: FailureContext): 'low' | 'medium' | 'high' | 'critical' {
+  private determineSeverity(error: Error, _context: FailureContext): 'low' | 'medium' | 'high' | 'critical' {
     // Critical errors
     if (error.message.includes('database') || error.message.includes('connection')) {
       return 'critical';
@@ -469,7 +469,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
    * Get oldest failure timestamp
    */
   private async getOldestFailure(): Promise<Date | null> {
-    const oldest = await this.prisma.deadLetterQueue.findFirst({
+    const oldest = await this.prisma.deadLetterEvent.findFirst({
       orderBy: { createdAt: 'asc' },
       select: { createdAt: true }
     });
@@ -480,7 +480,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
    * Get newest failure timestamp
    */
   private async getNewestFailure(): Promise<Date | null> {
-    const newest = await this.prisma.deadLetterQueue.findFirst({
+    const newest = await this.prisma.deadLetterEvent.findFirst({
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true }
     });
@@ -504,7 +504,7 @@ export class DeadLetterQueueService implements OnModuleInit, OnModuleDestroy {
     cutoffDate.setDate(cutoffDate.getDate() - 7); // Keep for 7 days
 
     try {
-      const result = await this.prisma.deadLetterQueue.deleteMany({
+      const result = await this.prisma.deadLetterEvent.deleteMany({
         where: {
           status: 'resolved',
           updatedAt: { lt: cutoffDate }

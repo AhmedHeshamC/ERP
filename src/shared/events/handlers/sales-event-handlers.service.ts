@@ -218,7 +218,7 @@ export class SalesEventHandlersService {
     // await this.analyticsService.trackOrderDelivery(orderId);
   }
 
-  private async handleOrderCancelled(orderId: string, previousStatus: string, reason?: string): Promise<void> {
+  private async handleOrderCancelled(orderId: string, previousStatus: string, _reason?: string): Promise<void> {
     this.logger.debug(`Handling order cancelled: ${orderId}`);
     // TODO: Process order cancellation
     // await this.fulfillmentService.cancelOrder(orderId);

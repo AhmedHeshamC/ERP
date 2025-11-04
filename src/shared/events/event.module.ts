@@ -19,10 +19,7 @@ import { ProductEventHandlersService } from './handlers/product-event-handlers.s
 import { SalesEventHandlersService } from './handlers/sales-event-handlers.service';
 import { WorkflowEventHandlersService } from './handlers/workflow-event-handlers.service';
 
-// Interfaces
-import { IEventBus } from './interfaces/event-bus.interface';
-import { IEventStore } from './interfaces/event-store.interface';
-import { IEventMiddleware } from './interfaces/event-handler.interface';
+// Interfaces will be imported as needed
 
 /**
  * Event System Module Configuration
@@ -93,7 +90,7 @@ export class EventModule {
       providers.push(eventStoreProvider);
     } else if (enablePersistence) {
       providers.push({
-        provide: IEventStore,
+        provide: 'EventStore',
         useClass: EventStoreService
       });
     }
@@ -102,7 +99,7 @@ export class EventModule {
       providers.push(middlewareProvider);
     } else {
       providers.push({
-        provide: IEventMiddleware,
+        provide: 'EventMiddleware',
         useClass: EventMiddlewareService
       });
     }
@@ -111,7 +108,7 @@ export class EventModule {
       providers.push(eventBusProvider);
     } else {
       providers.push({
-        provide: IEventBus,
+        provide: 'EventBus',
         useClass: EventBusService
       });
     }
@@ -168,10 +165,7 @@ export class EventModule {
       imports.push(WorkflowModule);
     }
 
-    const exports = [
-      IEventBus,
-      IEventStore,
-      IEventMiddleware,
+    const exports: any[] = [
       EventBusService,
       EventStoreService,
       EventMiddlewareService

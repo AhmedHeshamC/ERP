@@ -4,7 +4,8 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { IP2PEventService, P2PEvent } from '../interfaces/p2p.service.interface';
+import { IP2PEventService } from '../interfaces/p2p.service.interface';
+import { P2PEvent } from '../types/p2p.types';
 
 @Injectable()
 export class P2PEventService implements IP2PEventService {
@@ -13,30 +14,30 @@ export class P2PEventService implements IP2PEventService {
     console.log(`Publishing event: ${event.eventType} for entity: ${event.entityId}`);
   }
 
-  async subscribeToEvents(eventType: string, handler: (event: P2PEvent) => Promise<void>): Promise<string> {
+  async subscribeToEvents(_eventType: string, _handler: (event: P2PEvent) => Promise<void>): Promise<string> {
     // Stub implementation
     return `subscription-${Date.now()}`;
   }
 
-  async unsubscribeFromEvents(subscriptionId: string): Promise<void> {
+  async unsubscribeFromEvents(_subscriptionId: string): Promise<void> {
     // Stub implementation
   }
 
-  async getEvents(filters: any): Promise<P2PEvent[]> {
-    // Stub implementation
-    return [];
-  }
-
-  async getEventTimeline(entityId: string, entityType: string): Promise<P2PEvent[]> {
+  async getEvents(_filters: any): Promise<P2PEvent[]> {
     // Stub implementation
     return [];
   }
 
-  async replayEvents(fromDate: Date, toDate: Date, eventType?: string): Promise<void> {
+  async getEventTimeline(_entityId: string, _entityType: string): Promise<P2PEvent[]> {
+    // Stub implementation
+    return [];
+  }
+
+  async replayEvents(_fromDate: Date, _toDate: Date, _eventType?: string): Promise<void> {
     // Stub implementation
   }
 
-  async getEventStatistics(filters?: any): Promise<any> {
+  async getEventStatistics(_filters?: any): Promise<any> {
     // Stub implementation
     return {};
   }

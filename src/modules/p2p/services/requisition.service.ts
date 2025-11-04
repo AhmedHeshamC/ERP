@@ -21,18 +21,17 @@ import {
   P2P_CONSTANTS,
   P2PWorkflowContext
 } from '../types/p2p.types';
-import { Decimal } from '@prisma/client';
 
 @Injectable()
 export class PurchaseRequisitionService {
   private readonly logger = new Logger(PurchaseRequisitionService.name);
 
   constructor(
-    @Inject('PrismaService') private readonly prismaService: PrismaService,
-    @Inject('IP2PWorkflowService') private readonly workflowService: IP2PWorkflowService,
-    @Inject('IP2PEventService') private readonly eventService: IP2PEventService,
-    @Inject('IP2PConfigurationService') private readonly configService: IP2PConfigurationService,
-    @Inject('AuditService') private readonly auditService: any
+    private readonly prismaService: PrismaService,
+    private readonly workflowService: IP2PWorkflowService,
+    private readonly eventService: IP2PEventService,
+    private readonly configService: IP2PConfigurationService,
+    private readonly auditService: any
   ) {}
 
   /**
@@ -240,12 +239,12 @@ export class PurchaseRequisitionService {
   async approveRequisition(id: string, approverId: string, comments?: string): Promise<PurchaseRequisition> {
     this.logger.log(`Approving requisition ${id} by user ${approverId}`);
 
-    const requisition = await this.getRequisitionEntity(id);
-    if (!requisition) {
+    const requisitionData = await this.getRequisitionEntity(id);
+    if (!requisitionData) {
       throw new NotFoundException(`Requisition with id ${id} not found`);
     }
 
-    if (requisition.status !== P2PProcessState.SUBMITTED) {
+    if (requisitionData.status !== P2PProcessState.SUBMITTED) {
       throw new ConflictException(`Requisition is not in submitted status`);
     }
 
@@ -322,7 +321,7 @@ export class PurchaseRequisitionService {
     return {
       ...requisition,
       totalAmount: Number(requisition.totalAmount),
-      approvals: requisition.approvals.map(approval => ({
+      approvals: requisition.approvals.map((approval: any) => ({
         ...approval
       }))
     } as PurchaseRequisition;
@@ -332,7 +331,7 @@ export class PurchaseRequisitionService {
    * Get a specific requisition
    */
   async getRequisition(id: string): Promise<PurchaseRequisition> {
-    const requisition = await this.prismaService.purchaseRequisition.findUnique({
+    const requisitionData = await this.prismaService.purchaseRequisition.findUnique({
       where: { id },
       include: {
         items: true,
@@ -340,11 +339,21 @@ export class PurchaseRequisitionService {
       }
     });
 
-    if (!requisition) {
+    if (!requisitionData) {
       throw new NotFoundException(`Requisition with id ${id} not found`);
     }
 
-    return requisition as PurchaseRequisition;
+    return {
+      ...requisitionData,
+      totalAmount: Number(requisitionData.totalAmount),
+      items: requisitionData.items?.map((item: any) => ({
+        ...item,
+        unitPrice: item.unitPrice ? Number(item.unitPrice) : undefined,
+        estimatedPrice: item.estimatedPrice ? Number(item.estimatedPrice) : undefined
+      })) || [],
+      approvals: requisitionData.approvals || [],
+      attachments: []
+    } as unknown as PurchaseRequisition;
   }
 
   /**
@@ -410,8 +419,13 @@ export class PurchaseRequisitionService {
       items: items.map(item => ({
         ...item,
         totalAmount: Number(item.totalAmount),
+        items: item.items?.map((reqItem: any) => ({
+          ...reqItem,
+          unitPrice: reqItem.unitPrice ? Number(reqItem.unitPrice) : undefined,
+          estimatedPrice: reqItem.estimatedPrice ? Number(reqItem.estimatedPrice) : undefined
+        })) || [],
         approvals: item.approvals || [],
-        attachments: item.attachments || []
+        attachments: []
       })) as PurchaseRequisition[],
       total
     };
@@ -504,7 +518,9 @@ export class PurchaseRequisitionService {
 
     // Validate items
     if (dto.items) {
-      for (const [index, item] of dto.items.entries()) {
+      for (let i = 0; i < dto.items.length; i++) {
+      const index = i;
+      const item = dto.items[i];
         if (!item.description || item.description.trim().length === 0) {
           errors.push(`Item ${index + 1}: Description is required`);
         }

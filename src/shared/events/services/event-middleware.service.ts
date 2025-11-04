@@ -68,13 +68,17 @@ export class EventMiddlewareService implements IEventMiddleware {
       const pipeline = this.createPipeline(middlewareList, event);
 
       // Execute pipeline
-      const result = await pipeline(event);
+      const result = await pipeline(event, async (e?: IDomainEvent) => e || event);
 
       // Update metrics
       const duration = Date.now() - startTime;
       this.updateMetrics(duration, true);
 
       this.logger.debug(`Successfully processed event: ${event.type} in ${duration}ms`);
+
+      // Publish the processed event to the event bus
+      await this.eventBus.publish(result);
+
       return result;
 
     } catch (error) {
@@ -165,7 +169,7 @@ export class EventMiddlewareService implements IEventMiddleware {
       filter?: IEventFilter;
       retryPolicy?: IRetryPolicy;
     }>,
-    originalEvent: IDomainEvent
+    _originalEvent: IDomainEvent
   ): EventMiddlewareFunction {
     return async (event: IDomainEvent): Promise<IDomainEvent> => {
       let currentEvent = event;

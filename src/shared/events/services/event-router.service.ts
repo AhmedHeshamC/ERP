@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IDomainEvent, IEventFilter, IEventSubscription } from '../types/event.types';
+import { IDomainEvent, IEventFilter } from '../types/event.types';
 
 /**
  * Event Router Service
@@ -407,7 +407,7 @@ export interface RoutingStrategy {
  * Broadcast routing strategy - sends to all active handlers
  */
 class BroadcastRoutingStrategy implements RoutingStrategy {
-  async selectHandlers(event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
+  async selectHandlers(_event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
     return route.handlers.filter(handler => handler.active !== false);
   }
 }
@@ -418,7 +418,7 @@ class BroadcastRoutingStrategy implements RoutingStrategy {
 class RoundRobinRoutingStrategy implements RoutingStrategy {
   private counters = new Map<string, number>();
 
-  async selectHandlers(event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
+  async selectHandlers(_event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
     const activeHandlers = route.handlers.filter(handler => handler.active !== false);
     if (activeHandlers.length === 0) {
       return [];
@@ -438,7 +438,7 @@ class RoundRobinRoutingStrategy implements RoutingStrategy {
  * Priority routing strategy - sends to highest priority handlers
  */
 class PriorityRoutingStrategy implements RoutingStrategy {
-  async selectHandlers(event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
+  async selectHandlers(_event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
     return route.handlers
       .filter(handler => handler.active !== false)
       .sort((a, b) => (b.priority || 0) - (a.priority || 0));
@@ -451,7 +451,7 @@ class PriorityRoutingStrategy implements RoutingStrategy {
 class LoadBalancedRoutingStrategy implements RoutingStrategy {
   private handlerLoads = new Map<string, number>();
 
-  async selectHandlers(event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
+  async selectHandlers(_event: IDomainEvent, route: EventRoute): Promise<HandlerConfiguration[]> {
     const activeHandlers = route.handlers.filter(handler => handler.active !== false);
     if (activeHandlers.length === 0) {
       return [];

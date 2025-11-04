@@ -188,7 +188,7 @@ export interface PurchaseOrderEnhanced {
   items: PurchaseOrderItemEnhanced[];
   approvals: PurchaseOrderApproval[];
   receipts: PurchaseReceiptEnhanced[];
-  invoices: Invoice[];
+  invoices: InvoiceEnhanced[];
   createdAt: Date;
   updatedAt: Date;
   approvedAt?: Date;

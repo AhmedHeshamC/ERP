@@ -9,8 +9,8 @@ import { CommonModule } from '../../shared/common/common.module';
 import { SecurityModule } from '../../shared/security/security.module';
 import { AuditModule } from '../../shared/audit/audit.module';
 import { WorkflowModule } from '../../shared/workflow/workflow.module';
-import { RulesEngineModule } from '../../shared/rules/rules.module';
-import { EventBusModule } from '../../shared/events/event.module';
+import { RulesModule } from '../../shared/rules/rules.module';
+import { EventModule } from '../../shared/events/event.module';
 
 // Import existing modules for integration
 import { PurchasingModule } from '../purchasing/purchasing.module';
@@ -50,8 +50,8 @@ import { P2PConfigurationService } from './services/p2p-configuration.service';
 
     // Integration modules
     WorkflowModule,
-    RulesEngineModule,
-    EventBusModule,
+    RulesModule,
+    EventModule.forRoot(),
 
     // Existing business modules
     PurchasingModule,

@@ -18,7 +18,7 @@ describe('EventStoreService - TDD Tests', () => {
         count: async () => 0,
         groupBy: async () => []
       },
-      $transaction: async (callback) => callback(mockPrisma)
+      $transaction: async (callback: any) => callback(mockPrisma)
     };
 
     // This will fail initially since EventStoreService doesn't exist yet
@@ -211,7 +211,7 @@ describe('EventStoreService - TDD Tests', () => {
       const eventId = 'event-123';
       const newRetryCount = 3;
 
-      mockPrisma.event.update = async ({ where, data }) => {
+      mockPrisma.event.update = async ({ where, data }: { where: any; data: any }) => {
         expect(where.eventId).to.equal(eventId);
         expect(data.retryCount).to.equal(newRetryCount);
         return {};
@@ -236,9 +236,9 @@ describe('EventStoreService - TDD Tests', () => {
         averageProcessingTime: 150
       };
 
-      mockPrisma.event.count = async ({ where }) => {
+      mockPrisma.event.count = async ({ where }: { where?: any }) => {
         if (!where) return 100; // total events
-        if (where.retryCount.equals(0)) return 95; // successful events
+        if (where.retryCount?.equals(0)) return 95; // successful events
         return 5; // failed events
       };
 
@@ -292,12 +292,12 @@ describe('EventStoreService - TDD Tests', () => {
       ];
 
       // Mock transaction handling
-      mockPrisma.$transaction = async (callback) => {
+      mockPrisma.$transaction = async (callback: any) => {
         return callback(mockPrisma);
       };
 
       // Save events concurrently
-      const promises = events.map((event, index) =>
+      const promises = events.map((event) =>
         eventStore.saveEvent(event, `User-${event.aggregateId}`, 1)
       );
 

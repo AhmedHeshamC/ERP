@@ -4,28 +4,29 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { IP2PWorkflowService, P2PWorkflowContext } from '../interfaces/p2p.service.interface';
+import { IP2PWorkflowService } from '../interfaces/p2p.service.interface';
+import { P2PWorkflowContext } from '../types/p2p.types';
 
 @Injectable()
 export class P2PWorkflowService implements IP2PWorkflowService {
-  async startWorkflow(context: P2PWorkflowContext): Promise<string> {
+  async startWorkflow(_context: P2PWorkflowContext): Promise<string> {
     // Stub implementation - would integrate with actual workflow engine
     return `workflow-${Date.now()}`;
   }
 
-  async advanceWorkflow(instanceId: string, action: string, data?: any): Promise<void> {
+  async advanceWorkflow(_instanceId: string, _action: string, _data?: any): Promise<void> {
     // Stub implementation
   }
 
-  async suspendWorkflow(instanceId: string, reason: string): Promise<void> {
+  async suspendWorkflow(_instanceId: string, _reason: string): Promise<void> {
     // Stub implementation
   }
 
-  async resumeWorkflow(instanceId: string, userId: string): Promise<void> {
+  async resumeWorkflow(_instanceId: string, _userId: string): Promise<void> {
     // Stub implementation
   }
 
-  async terminateWorkflow(instanceId: string, reason: string): Promise<void> {
+  async terminateWorkflow(_instanceId: string, _reason: string): Promise<void> {
     // Stub implementation
   }
 
@@ -34,29 +35,29 @@ export class P2PWorkflowService implements IP2PWorkflowService {
     return { status: 'active', instanceId };
   }
 
-  async getWorkflowHistory(instanceId: string): Promise<any[]> {
+  async getWorkflowHistory(_instanceId: string): Promise<any[]> {
     // Stub implementation
     return [];
   }
 
-  async getPendingWorkflows(userId: string): Promise<any[]> {
+  async getPendingWorkflows(_userId: string): Promise<any[]> {
     // Stub implementation
     return [];
   }
 
-  async defineWorkflow(definition: any): Promise<void> {
+  async defineWorkflow(_definition: any): Promise<void> {
     // Stub implementation
   }
 
-  async updateWorkflowDefinition(workflowId: string, updates: any): Promise<void> {
+  async updateWorkflowDefinition(_workflowId: string, _updates: any): Promise<void> {
     // Stub implementation
   }
 
-  async activateWorkflow(workflowId: string): Promise<void> {
+  async activateWorkflow(_workflowId: string): Promise<void> {
     // Stub implementation
   }
 
-  async deactivateWorkflow(workflowId: string): Promise<void> {
+  async deactivateWorkflow(_workflowId: string): Promise<void> {
     // Stub implementation
   }
 }

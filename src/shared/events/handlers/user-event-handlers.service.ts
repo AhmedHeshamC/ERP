@@ -149,7 +149,7 @@ export class UserEventHandlersService {
 
   // Private helper methods
 
-  private async sendWelcomeEmail(email: string, firstName: string, lastName: string): Promise<void> {
+  private async sendWelcomeEmail(email: string, _firstName: string, _lastName: string): Promise<void> {
     this.logger.debug(`Sending welcome email to: ${email}`);
     // TODO: Integrate with email service
     // await this.emailService.sendWelcomeEmail(email, firstName, lastName);
@@ -157,10 +157,10 @@ export class UserEventHandlersService {
 
   private async createUserProfile(
     userId: string,
-    email: string,
-    firstName: string,
-    lastName: string,
-    role: string
+    _email: string,
+    _firstName: string,
+    _lastName: string,
+    _role: string
   ): Promise<void> {
     this.logger.debug(`Creating profile for user: ${userId}`);
     // TODO: Create user profile in CRM or other external systems
@@ -173,8 +173,8 @@ export class UserEventHandlersService {
     // await this.userPreferencesService.initializeDefaults(userId);
   }
 
-  private async logUserCreation(event: UserCreatedEvent): Promise<void> {
-    this.logger.debug(`Logging user creation for analytics: ${event.aggregateId}`);
+  private async logUserCreation(_event: UserCreatedEvent): Promise<void> {
+    this.logger.debug(`Logging user creation for analytics: ${_event.aggregateId}`);
     // TODO: Send analytics data
     // await this.analyticsService.trackUserCreation(event);
   }
@@ -182,27 +182,27 @@ export class UserEventHandlersService {
   private async createAuditLog(
     action: string,
     userId: string,
-    data: Record<string, any>
+    _data: Record<string, any>
   ): Promise<void> {
     this.logger.debug(`Creating audit log for action: ${action} on user: ${userId}`);
     // TODO: Create audit log entry
     // await this.auditService.log(action, 'User', userId, data);
   }
 
-  private async updateEmailInExternalSystems(userId: string, newEmail: string): Promise<void> {
+  private async updateEmailInExternalSystems(userId: string, _newEmail: string): Promise<void> {
     this.logger.debug(`Updating email in external systems for user: ${userId}`);
     // TODO: Update email in CRM, newsletter, etc.
     // await this.crmService.updateEmail(userId, newEmail);
     // await this.newsletterService.updateEmail(userId, newEmail);
   }
 
-  private async updateUserRoleInExternalSystems(userId: string, newRole: string): Promise<void> {
+  private async updateUserRoleInExternalSystems(userId: string, _newRole: string): Promise<void> {
     this.logger.debug(`Updating role in external systems for user: ${userId}`);
     // TODO: Update role in external systems
     // await this.rbacService.updateUserRole(userId, newRole);
   }
 
-  private async notifyUserChanges(userId: string, changes: Record<string, any>): Promise<void> {
+  private async notifyUserChanges(userId: string, _changes: Record<string, any>): Promise<void> {
     this.logger.debug(`Notifying systems about user changes: ${userId}`);
     // TODO: Notify relevant systems about user changes
     // await this.notificationService.notifyUserChanges(userId, changes);
@@ -227,7 +227,7 @@ export class UserEventHandlersService {
     // await this.marketingService.removeUser(userId);
   }
 
-  private async sendDeletionNotification(userId: string, deletedBy: string): Promise<void> {
+  private async sendDeletionNotification(userId: string, _deletedBy: string): Promise<void> {
     this.logger.debug(`Sending deletion notification for user: ${userId}`);
     // TODO: Send notification to compliance team or deletedBy user
     // await this.notificationService.notifyUserDeletion(userId, deletedBy);

@@ -21,8 +21,7 @@ export class EventBusService implements IEventBus {
   private readonly subscriptions = new Map<string, IEventSubscription>();
   private readonly errorHandlers: ErrorHandler[] = [];
   private readonly eventHandlers = new Map<string, Array<{ handler: EventHandler; filter?: IEventFilter }>>();
-  private subscriptionCounter = 0;
-
+  
   constructor(
     private readonly eventStore: IEventStore,
     private readonly middlewareService: IEventMiddleware,
