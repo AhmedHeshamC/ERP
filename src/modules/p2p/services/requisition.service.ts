@@ -4,7 +4,7 @@
  * GREEN PHASE: Implementation to pass TDD tests
  */
 
-import { Injectable, Inject, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { IP2PWorkflowService } from '../interfaces/p2p.service.interface';
 import { IP2PEventService } from '../interfaces/p2p.service.interface';

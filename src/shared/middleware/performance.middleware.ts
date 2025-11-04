@@ -203,9 +203,11 @@ export class PerformanceMiddleware implements NestMiddleware {
       );
     }
 
-    // Add performance metrics to response headers
-    res.setHeader('X-Response-Time', `${duration}ms`);
-    res.setHeader('X-Content-Length', `${contentLength}`);
+    // Add performance metrics to response headers (KISS: only if headers not sent)
+    if (!res.headersSent) {
+      res.setHeader('X-Response-Time', `${duration}ms`);
+      res.setHeader('X-Content-Length', `${contentLength}`);
+    }
   }
 
   /**

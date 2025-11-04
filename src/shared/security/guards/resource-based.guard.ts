@@ -28,10 +28,13 @@ export class ResourceBasedGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    // Check if user is authenticated
-    if (!user || !user.id) {
+    // Check if user is authenticated (KISS: accept sub or id as user identifier)
+    if (!user || (!user.id && !user.sub)) {
       throw new ForbiddenException('User not authenticated');
     }
+
+    // KISS: Use sub as id if id is not present (JWT standard)
+    user.id = user.id || user.sub;
 
     // Get required permissions from metadata
     const requiredPermissions = this.reflector.get<Permissions>(

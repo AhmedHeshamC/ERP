@@ -156,23 +156,22 @@ describe('Event Workflow Integration Tests', () => {
           return event;
         }
 
-        // Special handling for the middleware test
-        if (eventMiddleware.length === 2 && event.type === 'UserCreated') {
-          // Execute the second middleware (error handler) first
-          // It should internally call the first middleware via next()
-          return await eventMiddleware[1](event, async () => {
-            // This is the next() function that should be called by the error handler
-            // It calls the first middleware (which will fail)
-            return await eventMiddleware[0](event, async () => event);
-          });
-        }
+        // Create proper middleware chain with next() function chaining
+        const buildChain = async (index: number, currentEvent: IDomainEvent): Promise<IDomainEvent> => {
+          if (index >= eventMiddleware.length) {
+            // End of chain, return the event
+            return Promise.resolve(currentEvent);
+          }
 
-        // Normal processing for other cases
-        let processedEvent = event;
-        for (const middleware of eventMiddleware) {
-          processedEvent = await middleware(processedEvent, async () => processedEvent);
-        }
-        return processedEvent;
+          const middleware = eventMiddleware[index];
+
+          // Execute current middleware with next function that continues chain
+          return await middleware(currentEvent, async (nextEvent?: IDomainEvent) => {
+            return buildChain(index + 1, nextEvent || currentEvent);
+          });
+        };
+
+        return buildChain(0, event);
       },
       addMiddleware: async (eventType: string, middleware: any, _filter?: any, _retryPolicy?: any) => {
         if (!middlewareFunctions.has(eventType)) {
@@ -738,7 +737,7 @@ describe('Event Workflow Integration Tests', () => {
   });
 
   describe('Error Handling and Recovery', () => {
-    it.skip('should handle middleware failures gracefully - TODO: Fix middleware chain execution order', async () => {
+    it('should handle middleware failures gracefully', async () => {
       // Arrange
       const userEvent = new UserCreatedEvent({
         aggregateId: 'middleware-error-123',
@@ -751,19 +750,19 @@ describe('Event Workflow Integration Tests', () => {
       let eventProcessed = false;
       let errorHandled = false;
 
-      // Add failing middleware
-      await middlewareService.addMiddleware('UserCreated', async (_event: IDomainEvent, _next: NextFunction) => {
-        throw new Error('Middleware failure');
-      });
-
-      // Add error handling middleware
+      // Add error handling middleware first (wraps subsequent middleware)
       await middlewareService.addMiddleware('UserCreated', async (event: IDomainEvent, next: NextFunction) => {
         try {
-          return next(event);
+          return await next(event);
         } catch (error) {
           errorHandled = true;
-          return event; // Continue pipeline
+          return event; // Continue pipeline despite error
         }
+      });
+
+      // Add failing middleware (will be wrapped by error handler)
+      await middlewareService.addMiddleware('UserCreated', async (_event: IDomainEvent, _next: NextFunction) => {
+        throw new Error('Middleware failure');
       });
 
       // Subscribe to event

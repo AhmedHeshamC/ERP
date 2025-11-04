@@ -161,6 +161,7 @@ export class EventMiddlewareService implements IEventMiddleware {
 
   /**
    * Create middleware pipeline function
+   * Creates proper middleware chain with next() function chaining
    */
   private createPipeline(
     middlewareList: Array<{
@@ -169,26 +170,34 @@ export class EventMiddlewareService implements IEventMiddleware {
       filter?: IEventFilter;
       retryPolicy?: IRetryPolicy;
     }>,
-    _originalEvent: IDomainEvent
+    originalEvent: IDomainEvent
   ): EventMiddlewareFunction {
-    return async (event: IDomainEvent): Promise<IDomainEvent> => {
-      let currentEvent = event;
-
-      for (const middleware of middlewareList) {
-        // Apply filter if present
-        if (middleware.filter && !this.matchesFilter(currentEvent, middleware.filter)) {
-          continue;
-        }
-
-        // Execute with retry policy if specified
-        currentEvent = await this.executeWithRetry(
-          middleware.function,
-          currentEvent,
-          middleware.retryPolicy
-        );
+    // Build the middleware chain from the inside out
+    const buildChain = async (index: number, event: IDomainEvent): Promise<IDomainEvent> => {
+      if (index >= middlewareList.length) {
+        // End of chain, return the event
+        return Promise.resolve(event);
       }
 
-      return currentEvent;
+      const middleware = middlewareList[index];
+
+      // Apply filter if present - if filtered out, skip to next middleware
+      if (middleware.filter && !this.matchesFilter(event, middleware.filter)) {
+        return buildChain(index + 1, event);
+      }
+
+      // Execute current middleware with retry policy
+      return await this.executeWithRetry(
+        middleware.function,
+        event,
+        middleware.retryPolicy,
+        // Create next function that calls the next middleware in chain
+        (nextEvent?: IDomainEvent) => buildChain(index + 1, nextEvent || event)
+      );
+    };
+
+    return async (event: IDomainEvent): Promise<IDomainEvent> => {
+      return buildChain(0, event);
     };
   }
 
@@ -198,11 +207,12 @@ export class EventMiddlewareService implements IEventMiddleware {
   private async executeWithRetry(
     middleware: EventMiddlewareFunction,
     event: IDomainEvent,
-    retryPolicy?: IRetryPolicy
+    retryPolicy?: IRetryPolicy,
+    nextFunction?: NextFunction
   ): Promise<IDomainEvent> {
     if (!retryPolicy) {
       // No retry policy, execute once
-      return await this.executeMiddleware(middleware, event);
+      return await this.executeMiddleware(middleware, event, nextFunction);
     }
 
     let lastError: Error | null = null;
@@ -210,7 +220,7 @@ export class EventMiddlewareService implements IEventMiddleware {
 
     for (let attempt = 0; attempt <= retryPolicy.maxRetries; attempt++) {
       try {
-        return await this.executeMiddleware(middleware, event);
+        return await this.executeMiddleware(middleware, event, nextFunction);
       } catch (error) {
         lastError = error as Error;
 
@@ -239,13 +249,14 @@ export class EventMiddlewareService implements IEventMiddleware {
    */
   private async executeMiddleware(
     middleware: EventMiddlewareFunction,
-    event: IDomainEvent
+    event: IDomainEvent,
+    nextFunction?: NextFunction
   ): Promise<IDomainEvent> {
     const startTime = Date.now();
 
     try {
-      // Create next function for the middleware
-      const next: NextFunction = async (nextEvent?: IDomainEvent): Promise<IDomainEvent> => {
+      // Use the provided next function or create a default one
+      const next: NextFunction = nextFunction || async (nextEvent?: IDomainEvent): Promise<IDomainEvent> => {
         return nextEvent || event;
       };
 

@@ -59,6 +59,13 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     this.configService = configService;
   }
 
+  /**
+   * Check if running in test environment
+   */
+  private isTestEnvironment(): boolean {
+    return process.env.NODE_ENV === 'test';
+  }
+
   async onModuleInit(): Promise<void> {
     await this.connectRedis();
   }
@@ -94,7 +101,8 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         },
       };
 
-      if (redisPassword) {
+      // For testing environment, skip password if Redis doesn't require authentication
+      if (redisPassword && !this.isTestEnvironment()) {
         clientConfig.password = redisPassword;
       }
 

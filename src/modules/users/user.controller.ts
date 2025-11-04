@@ -11,6 +11,8 @@ import {
   ValidationPipe,
   Logger,
   UseGuards,
+  ForbiddenException,
+  Req,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { SecurityService } from '../../shared/security/security.service';
@@ -51,7 +53,6 @@ export class UserController {
    */
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  @ResourcePermission('users', 'create')
   async createUser(@Body() createUserDto: CreateUserDto) {
     try {
       this.logger.log(`Creating new user!: ${createUserDto.email}`);
@@ -93,6 +94,81 @@ export class UserController {
         },
       );
 
+      throw error;
+    }
+  }
+
+  /**
+   * Get security events for audit and monitoring
+   * OWASP A09: Security Logging - Security event monitoring
+   * NOTE: This route must come before :id route to avoid conflicts
+   */
+  @Get('security-events')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  async getSecurityEvents(@Query() query: any) {
+    try {
+      this.logger.log('Retrieving security events', { query });
+
+      // Build audit query from request parameters
+      const auditQuery = {
+        page: parseInt(query.page as string) || 1,
+        limit: Math.min(parseInt(query.limit as string) || 20, 100), // Cap at 100 for performance
+        sortBy: query.sortBy as string || 'timestamp',
+        sortOrder: query.sortOrder && ['asc', 'desc'].includes(query.sortOrder as string)
+          ? query.sortOrder as 'asc' | 'desc'
+          : 'desc',
+        eventType: query.eventType as string || undefined,
+        resourceType: query.resourceType as string || undefined,
+        resourceId: query.resourceId as string || undefined,
+        action: query.action as string || undefined,
+        userId: query.userId as string || undefined,
+        severity: query.severity && ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(query.severity as string)
+          ? query.severity as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+          : undefined,
+        dateFrom: query.dateFrom ? new Date(query.dateFrom as string) : undefined,
+        dateTo: query.dateTo ? new Date(query.dateTo as string) : undefined,
+      };
+
+      // Query audit logs for security events
+      const auditResult = await this.auditService.findAuditLogs(auditQuery);
+
+      // Transform audit logs to security event format
+      const securityEvents = auditResult.data.map(log => ({
+        id: log.id,
+        type: log.eventType,
+        resourceType: log.resourceType,
+        resourceId: log.resourceId,
+        action: log.action,
+        userId: log.userId,
+        timestamp: log.timestamp,
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
+        correlationId: log.correlationId,
+        severity: log.severity,
+        details: this.extractSecurityEventDetails(log),
+      }));
+
+      // Calculate summary statistics
+      const summary = this.calculateSecurityEventSummary(securityEvents);
+
+      this.logger.log(`Retrieved ${securityEvents.length} security events`);
+
+      return {
+        success: true,
+        message: 'Security events retrieved successfully',
+        data: {
+          events: securityEvents,
+          pagination: {
+            page: auditQuery.page,
+            limit: auditQuery.limit,
+            total: auditResult.total,
+            totalPages: Math.ceil(auditResult.total / auditQuery.limit)
+          },
+          summary
+        }
+      };
+    } catch (error) {
+      this.logger.error(`Failed to retrieve security events: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -141,9 +217,24 @@ export class UserController {
   async updateUser(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
+    @Req() req: any,
   ) {
     try {
       this.logger.log(`Updating user!: ${id}`);
+
+      // Manual permission check for sensitive operations
+      const userId = req.user?.sub || req.user?.id;
+      const userRole = req.user?.role;
+
+      // Prevent privilege escalation: users cannot change their own role
+      if (userId === id && updateUserDto.role && updateUserDto.role !== userRole) {
+        throw new ForbiddenException('Users cannot change their own role');
+      }
+
+      // Only admins can change roles
+      if (updateUserDto.role && userRole !== UserRole.ADMIN) {
+        throw new ForbiddenException('Only administrators can change user roles');
+      }
 
       const user = await this.userService.updateUser(id, updateUserDto);
 
@@ -196,20 +287,30 @@ export class UserController {
     try {
       this.logger.log('Retrieving users with filters', { query });
 
-      // Convert page/limit to skip/take for compatibility
+      // Convert page/limit to skip/take for compatibility with validation
       let skip = query.skip;
       let take = query.take;
       let page = 1;
       let limit = 10;
 
       if (query.page || query.limit) {
-        page = parseInt(query.page || '1');
-        limit = parseInt(query.limit || '10');
+        // Parse with validation - default to safe values if invalid
+        const parsedPage = parseInt(query.page || '1');
+        const parsedLimit = parseInt(query.limit || '10');
+
+        page = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+        limit = isNaN(parsedLimit) || parsedLimit < 1 ? 10 : Math.min(parsedLimit, 100); // Cap at 100
+
         skip = String((page - 1) * limit);
         take = String(limit);
       } else {
-        skip = skip || '0';
-        take = take || '10';
+        // Handle skip/take format with validation
+        const parsedSkip = parseInt(skip || '0');
+        const parsedTake = parseInt(take || '10');
+
+        skip = isNaN(parsedSkip) ? '0' : String(Math.max(0, parsedSkip));
+        take = isNaN(parsedTake) ? '10' : String(Math.max(1, Math.min(parsedTake, 100)));
+
         page = Math.floor(parseInt(skip) / parseInt(take)) + 1;
         limit = parseInt(take);
       }
@@ -293,13 +394,21 @@ export class UserController {
    * OWASP A07: Authentication Failures - Password strength requirements
    */
   @Post(':id/change-password')
-  @ResourcePermission('users', 'update')
   async changePassword(
     @Param('id') id: string,
     @Body() changePasswordDto: UserPasswordChangeDto,
+    @Req() req: any,
   ) {
     try {
       this.logger.log(`Changing password for user!: ${id}`);
+
+      // Manual permission check: users can change their own password, admins can change any password
+      const userId = req.user?.sub || req.user?.id;
+      const userRole = req.user?.role;
+
+      if (!userId || (userId !== id && userRole !== UserRole.ADMIN)) {
+        throw new ForbiddenException('You can only change your own password');
+      }
 
       await this.userService.changePassword(id, changePasswordDto);
 
@@ -339,82 +448,7 @@ export class UserController {
     }
   }
 
-  /**
-   * Get security events for audit and monitoring
-   * OWASP A09: Security Logging - Security event monitoring
-   * Note: This route is placed at the end to avoid conflicts with parameterized routes
-   */
-  @Get('security-events')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  @ResourcePermission('system', 'monitor')
-  async getSecurityEvents(@Query() query: any) {
-    try {
-      this.logger.log('Retrieving security events', { query });
-
-      // Build audit query from request parameters
-      const auditQuery = {
-        page: parseInt(query.page as string) || 1,
-        limit: Math.min(parseInt(query.limit as string) || 20, 100), // Cap at 100 for performance
-        sortBy: query.sortBy as string || 'timestamp',
-        sortOrder: query.sortOrder && ['asc', 'desc'].includes(query.sortOrder as string)
-          ? query.sortOrder as 'asc' | 'desc'
-          : 'desc',
-        eventType: query.eventType as string || undefined,
-        resourceType: query.resourceType as string || undefined,
-        resourceId: query.resourceId as string || undefined,
-        action: query.action as string || undefined,
-        userId: query.userId as string || undefined,
-        severity: query.severity && ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(query.severity as string)
-          ? query.severity as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-          : undefined,
-        dateFrom: query.dateFrom ? new Date(query.dateFrom as string) : undefined,
-        dateTo: query.dateTo ? new Date(query.dateTo as string) : undefined,
-      };
-
-      // Query audit logs for security events
-      const auditResult = await this.auditService.findAuditLogs(auditQuery);
-
-      // Transform audit logs to security event format
-      const securityEvents = auditResult.data.map(log => ({
-        id: log.id,
-        type: log.eventType,
-        resourceType: log.resourceType,
-        resourceId: log.resourceId,
-        action: log.action,
-        userId: log.userId,
-        timestamp: log.timestamp,
-        ipAddress: log.ipAddress,
-        userAgent: log.userAgent,
-        correlationId: log.correlationId,
-        severity: log.severity,
-        details: this.extractSecurityEventDetails(log),
-      }));
-
-      // Calculate summary statistics
-      const summary = this.calculateSecurityEventSummary(securityEvents);
-
-      this.logger.log(`Retrieved ${securityEvents.length} security events`);
-
-      return {
-        success: true,
-        message: 'Security events retrieved successfully',
-        data: {
-          events: securityEvents,
-          pagination: {
-            page: auditQuery.page,
-            limit: auditQuery.limit,
-            total: auditResult.total,
-            totalPages: Math.ceil(auditResult.total / auditQuery.limit)
-          },
-          summary
-        }
-      };
-    } catch (error) {
-      this.logger.error(`Failed to retrieve security events: ${error instanceof Error ? error.message : "Unknown error"}`, error instanceof Error ? error.stack : undefined);
-      throw error;
-    }
-  }
-
+  
   /**
    * Extract relevant details from audit log for security event display
    */

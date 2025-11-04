@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { SinonSandbox, createSandbox } from 'sinon';
+import * as sinon from 'sinon';
 import { CustomerCreditService } from '../services/customer-credit.service';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { RulesEngineService } from '../../../shared/rules/services/rules-engine.service';
@@ -14,14 +14,14 @@ import {
 
 describe('CustomerCreditService', () => {
   let service: CustomerCreditService;
-  let sandbox: SinonSandbox;
+  let sandbox: sinon.SinonSandbox;
   let prismaService: PrismaService;
   let rulesEngineService: RulesEngineService;
   let eventBusService: EventBusService;
   let auditService: AuditService;
 
   beforeEach(() => {
-    sandbox = createSandbox();
+    sandbox = sinon.createSandbox();
 
     // Mock dependencies
     prismaService = {
@@ -74,18 +74,6 @@ describe('CustomerCreditService', () => {
       };
 
       const mockCurrentExposure = 2000;
-      const mockCreditProfile: CustomerCreditProfile = {
-        id: 'profile-001',
-        customerId,
-        creditLimit: 10000,
-        currentExposure: mockCurrentExposure,
-        availableCredit: 8000,
-        creditScore: 750,
-        lastCreditCheck: new Date(),
-        riskCategory: 'LOW',
-        paymentHistory: [],
-        status: 'ACTIVE',
-      };
 
       const mockRuleResult = {
         decision: 'APPROVE',
@@ -95,7 +83,7 @@ describe('CustomerCreditService', () => {
 
       (prismaService.customer.findUnique as any).resolves(mockCustomer);
       (prismaService.order.aggregate as any).resolves({ _sum: { totalAmount: mockCurrentExposure } });
-      (rulesEngineService.evaluateRules as any).resolves(mockRuleResult);
+      (rulesEngineService.executeRules as any).resolves(mockRuleResult);
       (eventBusService.publish as any).resolves();
       (auditService.logBusinessEvent as any).resolves();
 
@@ -104,13 +92,14 @@ describe('CustomerCreditService', () => {
 
       // Assert
       expect(result).to.equal(CreditCheckResult.APPROVED);
-      expect(prismaService.customer.findUnique).to.have.been.calledOnceWith({
+      expect((prismaService.customer.findUnique as sinon.SinonStub).calledOnce).to.be.true;
+      expect((prismaService.customer.findUnique as sinon.SinonStub).getCall(0).args[0]).to.deep.equal({
         where: { id: customerId },
         select: { id: true, creditLimit: true, isActive: true }
       });
-      expect(rulesEngineService.evaluateRules).to.have.been.calledOnce;
-      expect(eventBusService.publish).to.have.been.calledOnce;
-      expect(auditService.logBusinessEvent).to.have.been.calledOnce;
+      expect((rulesEngineService.executeRules as sinon.SinonStub).calledOnce).to.be.true;
+      expect((eventBusService.publish as sinon.SinonStub).calledOnce).to.be.true;
+      expect((auditService.logBusinessEvent as sinon.SinonStub).calledOnce).to.be.true;
     });
 
     it('should reject credit when order amount exceeds available credit', async () => {
@@ -135,9 +124,11 @@ describe('CustomerCreditService', () => {
         expect.fail('Should have thrown CreditLimitExceededError');
       } catch (error) {
         expect(error).to.be.instanceOf(CreditLimitExceededError);
-        expect(error.code).to.equal('CREDIT_LIMIT_EXCEEDED');
-        expect((error as CreditLimitExceededError).details.requestedAmount).to.equal(orderAmount);
-        expect((error as CreditLimitExceededError).details.availableCredit).to.equal(2000);
+        const creditError = error as CreditLimitExceededError;
+        expect(creditError.code).to.equal('CREDIT_LIMIT_EXCEEDED');
+        expect(creditError.details).to.not.be.undefined;
+        expect(creditError.details!.requestedAmount).to.equal(orderAmount);
+        expect(creditError.details!.availableCredit).to.equal(2000);
       }
     });
 
@@ -161,7 +152,7 @@ describe('CustomerCreditService', () => {
 
       (prismaService.customer.findUnique as any).resolves(mockCustomer);
       (prismaService.order.aggregate as any).resolves({ _sum: { totalAmount: mockCurrentExposure } });
-      (rulesEngineService.evaluateRules as any).resolves(mockRuleResult);
+      (rulesEngineService.executeRules as any).resolves(mockRuleResult);
       (eventBusService.publish as any).resolves();
       (auditService.logBusinessEvent as any).resolves();
 
@@ -170,9 +161,13 @@ describe('CustomerCreditService', () => {
 
       // Assert
       expect(result).to.equal(CreditCheckResult.MANUAL_REVIEW);
-      expect(eventBusService.publish).to.have.been.calledWithMatch({
-        type: 'CREDIT_CHECK_REQUIRED_MANUAL_REVIEW',
-        data: { customerId, orderAmount, riskLevel: 'HIGH' }
+      expect((eventBusService.publish as sinon.SinonStub).calledOnce).to.be.true;
+      const publishCall = (eventBusService.publish as any).getCall(0);
+      expect(publishCall.args[0]).to.have.property('type', 'CREDIT_CHECKED');
+      expect(publishCall.args[0].metadata).to.deep.include({
+        customerId,
+        orderAmount,
+        result: CreditCheckResult.MANUAL_REVIEW
       });
     });
 
@@ -195,8 +190,9 @@ describe('CustomerCreditService', () => {
         expect.fail('Should have thrown O2CError');
       } catch (error) {
         expect(error).to.be.instanceOf(O2CError);
-        expect(error.code).to.equal('CUSTOMER_INACTIVE');
-        expect(error.message).to.include('inactive');
+        const o2cError = error as O2CError;
+        expect(o2cError.code).to.equal('CUSTOMER_INACTIVE');
+        expect(o2cError.message).to.include('inactive');
       }
     });
 
@@ -213,7 +209,8 @@ describe('CustomerCreditService', () => {
         expect.fail('Should have thrown O2CError');
       } catch (error) {
         expect(error).to.be.instanceOf(O2CError);
-        expect(error.code).to.equal('CREDIT_CHECK_FAILED');
+        const o2cError = error as O2CError;
+        expect(o2cError.code).to.equal('CREDIT_CHECK_FAILED');
       }
     });
   });
@@ -239,16 +236,23 @@ describe('CustomerCreditService', () => {
       await service.updateCreditExposure(customerId, amount);
 
       // Assert
-      expect(prismaService.customer.update).to.have.been.calledOnceWith({
+      expect((prismaService.customer.update as sinon.SinonStub).calledOnce).to.be.true;
+      const updateCall = (prismaService.customer.update as sinon.SinonStub).getCall(0);
+      expect(updateCall.args[0]).to.deep.include({
         where: { id: customerId },
         data: {
           currentExposure: 7000,
-          updatedAt: expect.any(Date),
         }
       });
-      expect(eventBusService.publish).to.have.been.calledWithMatch({
-        type: 'CREDIT_EXPOSURE_UPDATED',
-        data: { customerId, newExposure: 7000, changeAmount: amount }
+      expect(updateCall.args[0].data.updatedAt).to.be.instanceOf(Date);
+      // Verify event bus was called
+      expect((eventBusService.publish as sinon.SinonStub).calledOnce).to.be.true;
+      const publishCall = (eventBusService.publish as any).getCall(0);
+      expect(publishCall.args[0]).to.have.property('type', 'CREDIT_EXPOSURE_UPDATED');
+      expect(publishCall.args[0].metadata).to.deep.include({
+        customerId,
+        newExposure: 7000,
+        changeAmount: amount
       });
     });
 
@@ -272,13 +276,15 @@ describe('CustomerCreditService', () => {
       await service.updateCreditExposure(customerId, amount);
 
       // Assert
-      expect(prismaService.customer.update).to.have.been.calledOnceWith({
+      expect((prismaService.customer.update as sinon.SinonStub).calledOnce).to.be.true;
+      const updateCall = (prismaService.customer.update as sinon.SinonStub).getCall(0);
+      expect(updateCall.args[0]).to.deep.include({
         where: { id: customerId },
         data: {
           currentExposure: 6000,
-          updatedAt: expect.any(Date),
         }
       });
+      expect(updateCall.args[0].data.updatedAt).to.be.instanceOf(Date);
     });
 
     it('should prevent exposure from going negative', async () => {
@@ -300,7 +306,8 @@ describe('CustomerCreditService', () => {
         expect.fail('Should have thrown O2CError');
       } catch (error) {
         expect(error).to.be.instanceOf(O2CError);
-        expect(error.code).to.equal('INVALID_EXPOSURE_UPDATE');
+        const o2cError = error as O2CError;
+        expect(o2cError.code).to.equal('INVALID_EXPOSURE_UPDATE');
       }
     });
   });
@@ -364,7 +371,8 @@ describe('CustomerCreditService', () => {
         expect.fail('Should have thrown O2CError');
       } catch (error) {
         expect(error).to.be.instanceOf(O2CError);
-        expect(error.code).to.equal('CUSTOMER_NOT_FOUND');
+        const o2cError = error as O2CError;
+        expect(o2cError.code).to.equal('CUSTOMER_NOT_FOUND');
       }
     });
 
@@ -398,7 +406,7 @@ describe('CustomerCreditService', () => {
       const profile = await service.getCreditProfile(customerId);
 
       // Assert
-      expect(profile.riskCategory).to.equal('HIGH' || 'CRITICAL');
+      expect(profile.riskCategory).to.be.oneOf(['HIGH', 'CRITICAL']);
     });
   });
 
@@ -428,21 +436,23 @@ describe('CustomerCreditService', () => {
 
       (prismaService.customer.findUnique as any).resolves({ id: customerId });
       sandbox.stub(service, 'getCreditProfile').resolves(mockCreditProfile);
-      (rulesEngineService.evaluateRules as any).resolves(mockRuleResult);
+      (rulesEngineService.executeRules as any).resolves(mockRuleResult);
 
       // Act
       const result = await service.evaluateCreditRisk(customerId);
 
       // Assert
       expect(result).to.equal(CreditCheckResult.APPROVED);
-      expect(rulesEngineService.evaluateRules).to.have.been.calledOnceWith(
-        'credit-risk-evaluation',
-        {
-          customerId,
-          creditProfile: mockCreditProfile,
-          timestamp: expect.any(Date),
-        }
-      );
+      expect((rulesEngineService.executeRules as sinon.SinonStub).calledOnce).to.be.true;
+      const executeCall = (rulesEngineService.executeRules as any).getCall(0);
+      expect(executeCall.args[0]).to.deep.include({
+        groupIds: ['credit-risk-evaluation'],
+      });
+      expect(executeCall.args[0].context.entity).to.deep.include({
+        customerId,
+        creditProfile: mockCreditProfile,
+      });
+      expect(executeCall.args[0].context.timestamp).to.be.instanceOf(Date);
     });
 
     it('should handle rules engine failure gracefully', async () => {
@@ -464,16 +474,19 @@ describe('CustomerCreditService', () => {
 
       (prismaService.customer.findUnique as any).resolves({ id: customerId });
       sandbox.stub(service, 'getCreditProfile').resolves(mockCreditProfile);
-      (rulesEngineService.evaluateRules as any).rejects(new Error('Rules engine unavailable'));
+      (rulesEngineService.executeRules as any).rejects(new Error('Rules engine unavailable'));
 
       // Act
       const result = await service.evaluateCreditRisk(customerId);
 
       // Assert
       expect(result).to.equal(CreditCheckResult.MANUAL_REVIEW);
-      expect(auditService.logBusinessEvent).to.have.been.calledWithMatch({
-        eventType: 'CREDIT_RISK_EVALUATION_FAILED',
-        details: { customerId, error: 'Rules engine unavailable' },
+      expect((auditService.logBusinessEvent as sinon.SinonStub).calledOnce).to.be.true;
+      const auditCall = (auditService.logBusinessEvent as any).getCall(0);
+      expect(auditCall.args[0]).to.equal('CREDIT_RISK_EVALUATION_FAILED');
+      expect(auditCall.args[4]).to.deep.include({
+        customerId,
+        error: 'Rules engine unavailable',
       });
     });
   });

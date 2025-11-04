@@ -1,4 +1,7 @@
-import { expect } from 'chai';
+import * as chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+chai.use(chaiAsPromised);
+const expect = chai.expect;
 import { describe, it, beforeEach, afterEach } from 'mocha';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProductService } from '../services/product.service';
@@ -295,7 +298,12 @@ describe('ProductService', () => {
       (prismaService.product.findUnique as sinon.SinonStub).resolves(null);
 
       // Act & Assert
-      await expect(service.findBySku('INVALID-SKU')).to.be.rejectedWith(NotFoundException);
+      try {
+        await service.findBySku('INVALID-SKU');
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+      }
     });
   });
 
@@ -323,7 +331,12 @@ describe('ProductService', () => {
       (securityService.sanitizeInput as sinon.SinonStub).returns(updateProductDto);
 
       // Act & Assert
-      await expect(service.update('invalid-id', updateProductDto, 'user-1')).to.be.rejectedWith(NotFoundException);
+      try {
+        await service.update('invalid-id', updateProductDto, 'user-1');
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+      }
     });
 
     it('should validate category exists when updating categoryId', async () => {
@@ -334,7 +347,12 @@ describe('ProductService', () => {
       (securityService.sanitizeInput as sinon.SinonStub).returns(updateWithCategory);
 
       // Act & Assert
-      await expect(service.update('prod-1', updateWithCategory, 'user-1')).to.be.rejectedWith(NotFoundException);
+      try {
+        await service.update('prod-1', updateWithCategory, 'user-1');
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+      }
     });
   });
 
@@ -359,7 +377,12 @@ describe('ProductService', () => {
       (prismaService.product.findUnique as sinon.SinonStub).resolves(null);
 
       // Act & Assert
-      await expect(service.remove('invalid-id', 'user-1')).to.be.rejectedWith(NotFoundException);
+      try {
+        await service.remove('invalid-id', 'user-1');
+        expect.fail('Should have thrown NotFoundException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NotFoundException);
+      }
     });
   });
 
@@ -384,7 +407,12 @@ describe('ProductService', () => {
       (prismaService.product.findUnique as sinon.SinonStub).resolves(mockProduct);
 
       // Act & Assert
-      await expect(service.updateStock('prod-1', -150, 'Too much reduction', 'user-1')).to.be.rejectedWith(BadRequestException);
+      try {
+        await service.updateStock('prod-1', -150, 'Too much reduction', 'user-1');
+        expect.fail('Should have thrown BadRequestException');
+      } catch (error) {
+        expect(error).to.be.instanceOf(BadRequestException);
+      }
     });
   });
 

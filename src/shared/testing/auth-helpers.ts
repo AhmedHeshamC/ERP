@@ -54,7 +54,7 @@ export interface TestTokenConfig {
  */
 export class AuthHelpers {
   private static readonly DEFAULT_CONFIG: TestTokenConfig = {
-    secret: 'test-jwt-secret-key-for-integration-tests',
+    secret: process.env.JWT_SECRET || 'test-jwt-secret-key-for-integration-tests',
     expiration: '1h',
     refreshExpiration: '7d',
     issuer: 'erp-test-suite',
@@ -156,6 +156,7 @@ export class AuthHelpers {
     const userData = {
       ...this.TEST_USERS[role],
       ...overrides,
+      role: role, // Explicitly add the role field
       username: overrides?.username || `${this.TEST_USERS[role].username}-${timestamp}`,
       email: overrides?.email || `${role.toLowerCase()}-test-${timestamp}@test.com`,
       sub: overrides?.sub || `user-${timestamp}`,
